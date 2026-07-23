@@ -1805,7 +1805,7 @@ function buildLevels(){
     bushes: [ rect(1600, GROUND_Y-50,50,50,{triggered:false}), rect(2800, GROUND_Y-50,50,50,{triggered:false}) ],
     signs: [ 
       {x:300,text:"CODEZERO.GE - ისწავლე პროგრამირება!"}, 
-      {x:2550,text:"საუკეთესო წიგნები = გადარჩენა"} 
+      {x:2550,text:"საუკეთესო ��იგნები = გადარჩენა"} 
     ],
     flag: rect(4650, GROUND_Y-140,30,140),
     zombies: [ 
@@ -3107,7 +3107,6 @@ function updatePlayer(dt){
       toast("+15% Subscribe 🔔", 1200);
     }
   }
-}
 
 function activateJumpbox(jb){
   if(jb.hit) return;
@@ -3159,7 +3158,7 @@ function activateJumpbox(jb){
   } else if(jb.type === 'fastener'){
     player.fastenerTimer = 8000;
     sfxWin();
-    toast("⚡ FASTENER - სუპერ სიჩქარე & ხტომა! ⚡", 2200);
+    toast("⚡ FASTENER - სუპე��� სიჩქარე & ხტომა! ⚡", 2200);
   } else if(jb.type === 'prank_zombie'){
     sfxScare();
     shake(14);
@@ -7524,7 +7523,7 @@ function drawWin(){
   ctx.textAlign='center';
   ctx.fillStyle='#38c6ff';
   ctx.font='bold 48px sans-serif';
-  ctx.fillText('ყველა დონე დაძლეულია! 🏆', W/2, H/2-60);
+  ctx.fillText('ყველა დონე დაძლეულია! ����', W/2, H/2-60);
   ctx.fillStyle='#fff';
   ctx.font='22px sans-serif';
   ctx.fillText('საბოლოო ქულა: '+state.score, W/2, H/2-15);
