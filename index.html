@@ -30,7 +30,7 @@
   canvas{
     background:#080b10;
     image-rendering: pixelated;
-    box-shadow: 0 0 0 4px var(--blue-dark), 0 0 50px rgba(56,198,255,.4), 0 0 100px rgba(255,61,110,.2);
+    border: 3px solid var(--blue-dark);
     border-radius: 8px;
     max-width: 98vw;
     max-height: 94vh;
@@ -203,7 +203,7 @@
     </p>
     <input id="promoInput" type="text" placeholder="შეიყვანეთ კოდი..." autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter') submitPromoCode()" />
     <div class="promo-btn-group">
-      <button class="btn-promo-submit" onclick="submitPromoCode()">🚀 გააქტიურება</button>
+      <button class="btn-promo-submit" onclick="submitPromoCode()">🚀 გააქტ���ურება</button>
       <button class="btn-promo-close" onclick="closePromoModal()">✖ დახურვა</button>
     </div>
   </div>
@@ -1153,20 +1153,34 @@ function addFloatingText(x, y, text, color='#ffd23f'){
 
 function spawnZombie(x, y, customType = null){
   const type = customType || Math.random();
-  let health = 2, speed = 1.6, color = '#4a8b4a', size = 1, isBoss = false;
+  let health = 2, speed = 1.6, color = '#3a7a3a', size = 1, isBoss = false;
 
+  // Level progression difficulty
+  const levelDifficulty = Math.min(state.levelIndex || 0, 30);
+  const difficultyScale = 1 + (levelDifficulty * 0.08); // 8% increase per level
+  
   const spdMult = (level && level.zombieSpeedMult) ? level.zombieSpeedMult : 1;
   const hpMult = (level && level.zombieHpMult) ? level.zombieHpMult : 1;
   
   if(type === 'boss' || (typeof type === 'number' && type > 0.85)){
-    // Big Giant Horror Boss Zombie
-    health = Math.round(8 * hpMult); speed = 0.9 * spdMult; color = '#8b2020'; size = 1.6; isBoss = true;
+    // Boss Zombie - gets stronger with levels
+    health = Math.round((5 + levelDifficulty * 0.5) * hpMult * difficultyScale);
+    speed = 1.1 * spdMult * (1 + levelDifficulty * 0.04);
+    color = '#6b2020';
+    size = 1.4;
+    isBoss = true;
   } else if(typeof type === 'number' && type < 0.35){
-    // Fast runner zombie
-    health = Math.round(1 * hpMult); speed = 2.8 * spdMult; color = '#3a8b6a'; size = 0.85;
+    // Fast runner zombie - gets faster with levels
+    health = Math.round((1 + levelDifficulty * 0.15) * hpMult);
+    speed = (2.2 + levelDifficulty * 0.15) * spdMult;
+    color = '#2a6a4a';
+    size = 0.8;
   } else {
-    // Standard zombie
-    health = Math.round(3 * hpMult); speed = 1.6 * spdMult; color = '#4a8b4a'; size = 1;
+    // Standard zombie - gets tougher with levels
+    health = Math.round((2 + levelDifficulty * 0.3) * hpMult * difficultyScale);
+    speed = (1.3 + levelDifficulty * 0.08) * spdMult;
+    color = '#3a7a3a';
+    size = 1;
   }
   
   zombies.push({
@@ -1985,7 +1999,7 @@ function buildLevels(){
     bells: [ rect(1250, GROUND_Y-200,26,30), rect(4100, GROUND_Y-230,26,30) ],
     bushes: [ rect(1800, GROUND_Y-50,50,50,{triggered:false}), rect(3200, GROUND_Y-50,50,50,{triggered:false}) ],
     signs: [ 
-      {x:450,text:"ღამის ჰორორი დაიწყო! 🔥"}, 
+      {x:450,text:"ღამის ჰორორი ���აიწყო! 🔥"}, 
       {x:2900,text:"მინიგანი შენი ერთადერთი ხსნაა!"} 
     ],
     flag: rect(5200, GROUND_Y-140,30,140),
@@ -2135,7 +2149,7 @@ function buildLevels(){
     bells: [ rect(1330, GROUND_Y-200,26,30), rect(4600, GROUND_Y-230,26,30) ],
     bushes: [ rect(1850, GROUND_Y-50,50,50,{triggered:false}), rect(3600, GROUND_Y-50,50,50,{triggered:false}) ],
     signs: [ 
-      {x:500,text:"🏆 ფინალური ლეველი! გამოიყენე FASTENER!"}, 
+      {x:500,text:"🏆 ფინალური ლეველი! გა���ოიყენე FASTENER!"}, 
       {x:3300,text:"გეოდინოს არხის მაყურებლები ამარცხებენ ყველა ზომბს!"},
       {x:5000,text:"გილოცავ! CODEZERO.GE შენთანაა!"}
     ],
@@ -2187,7 +2201,7 @@ function buildLevels(){
     bells: [ rect(1350, GROUND_Y-210,26,30), rect(4500, GROUND_Y-240,26,30) ],
     bushes: [ rect(1900, GROUND_Y-50,50,50,{triggered:false}), rect(3500, GROUND_Y-50,50,50,{triggered:false}) ],
     signs: [ 
-      {x:500,text:"აიღე FLAMETHROWER და დასწვი ზომბები! 🔥"}, 
+      {x:500,text:"ფლამეინგი გამოიყენე ზომბებზე! 🔥"}, 
       {x:3200,text:"ყვირილის ბანანები აფეთქებენ ზომბებს!"} 
     ],
     flag: rect(5800, GROUND_Y-140,30,140),
@@ -2685,8 +2699,8 @@ function buildLevels(){
     bells: [ rect(1900, GROUND_Y-210,26,30), rect(7100, GROUND_Y-230,26,30) ],
     bushes: [ rect(2400, GROUND_Y-50,50,50,{triggered:false}), rect(5300, GROUND_Y-50,50,50,{triggered:false}) ],
     signs: [ 
-      {x:400,text:"🦖 🚨 გოდზილა ანგრევს ქალაქს! აიღე ომის ტანკი!"}, 
-      {x:2200,text:"გამოიყენე ტანკის მძიმე ზარბაზანი (K/F)"},
+      {x:400,text:"🦖 🚨 გიგანტი ანგრევს ქალაქს! ომის ტანკი გამოიყენე!"}, 
+      {x:2200,text:"გამოიყენე ��ანკის მძიმე ზარბაზანი (K/F)"},
       {x:5100,text:"დაარტყი ატომური ლაზერის გამოტყორცნამდე!"},
       {x:7600,text:"🏆 ფინალური გამარჯვება! CODEZERO.GE"}
     ],
@@ -3090,10 +3104,11 @@ function updatePlayer(dt){
       state.subs = Math.min(100, state.subs+15);
       sfxBell();
       spawnParticles(b.x+b.w/2, b.y+b.h/2, '#ff3d6e', 10);
-      toast("+15% გამოწერები 🔔", 1200);
+      toast("+15% Subscribe 🔔", 1200);
     }
   }
-  
+}
+
 function activateJumpbox(jb){
   if(jb.hit) return;
   jb.hit = true;
@@ -3123,7 +3138,7 @@ function activateJumpbox(jb){
   } else if(jb.type === 'shotgun'){
     player.weaponMode = 'shotgun';
     sfxWin();
-    toast("💥 5-იანი შოტგანი აიღე! 💥", 2000);
+    toast("💥 5-ლი შოტგანი მიღებულია! 💥", 2000);
   } else if(jb.type === 'minigun'){
     player.weaponMode = 'minigun';
     sfxWin();
@@ -3135,12 +3150,12 @@ function activateJumpbox(jb){
   } else if(jb.type === 'flamethrower'){
     player.weaponMode = 'flamethrower';
     sfxWin();
-    toast("🔥 ალმოდებული ფლამეინგი აიღე! 🔥", 2000);
+    toast("🔥 ფლამეინგი მიღებულია! 🔥", 2000);
   } else if(jb.type === 'tank'){
     player.weaponMode = 'tank';
     sfxDemonic();
     shake(18);
-    toast("💥 ომის გიგანტური ტანკი ჩაირთო! 💥", 2500);
+    toast("💥 მძლავრი ომის ტანკი აჩართა! 💥", 2500);
   } else if(jb.type === 'fastener'){
     player.fastenerTimer = 8000;
     sfxWin();
@@ -4147,22 +4162,21 @@ function drawJumpBox(jb){
     ctx.lineWidth = 2;
     ctx.strokeRect(sx, y, jb.w, jb.h);
   } else {
-    // Pulsing Lucky Box
-    const glow = Math.sin(state.time*0.008)*0.2 + 0.8;
-    let bgColor = '#ffd23f';
+    // Lucky Box - solid colors
+    let bgColor = '#d4a83f';
     let icon = '?';
 
-    if(jb.type === 'sponsor') { bgColor = '#ff3d6e'; icon = '📢'; }
+    if(jb.type === 'sponsor') { bgColor = '#b8355a'; icon = '📢'; }
     else if(jb.type === 'tank') { bgColor = '#2d4536'; icon = '🚀'; }
-    else if(jb.type === 'fastener') { bgColor = '#38c6ff'; icon = '⚡'; }
-    else if(jb.type === 'plasma') { bgColor = '#00ffcc'; icon = '⚛'; }
-    else if(jb.type === 'flamethrower') { bgColor = '#ff5500'; icon = '🔥'; }
-    else if(jb.type === 'shotgun') { bgColor = '#ff7700'; icon = '💥'; }
-    else if(jb.type === 'minigun') { bgColor = '#aa33ff'; icon = '⚡'; }
-    else if(jb.type === 'prank_bomb') { bgColor = '#cc0022'; icon = '💣'; }
-    else if(jb.type === 'prank_reverse') { bgColor = '#9900ff'; icon = '🌀'; }
-    else if(jb.type === 'prank_zombie') { bgColor = '#22aa44'; icon = '🧟'; }
-    else if(jb.type === 'prank_dance') { bgColor = '#ff00aa'; icon = '🕺'; }
+    else if(jb.type === 'fastener') { bgColor = '#2a6b94'; icon = '⚡'; }
+    else if(jb.type === 'plasma') { bgColor = '#008080'; icon = '⚛'; }
+    else if(jb.type === 'flamethrower') { bgColor = '#b84500'; icon = '🔥'; }
+    else if(jb.type === 'shotgun') { bgColor = '#c4660f'; icon = '💥'; }
+    else if(jb.type === 'minigun') { bgColor = '#6b2a8f'; icon = '⚡'; }
+    else if(jb.type === 'prank_bomb') { bgColor = '#a80000'; icon = '💣'; }
+    else if(jb.type === 'prank_reverse') { bgColor = '#6b0080'; icon = '🌀'; }
+    else if(jb.type === 'prank_zombie') { bgColor = '#1a6a2f'; icon = '🧟'; }
+    else if(jb.type === 'prank_dance') { bgColor = '#a80055'; icon = '🕺'; }
     else if(jb.type === 'prank_jumpscare_giant') { bgColor = '#330000'; icon = '👻'; }
 
     ctx.fillStyle = bgColor;
@@ -4173,8 +4187,8 @@ function drawJumpBox(jb){
     ctx.textAlign = 'center';
     ctx.fillText(icon, sx+jb.w/2, y+jb.h*0.74);
 
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 2 * glow;
+    ctx.strokeStyle = '#555555';
+    ctx.lineWidth = 2;
     ctx.strokeRect(sx, y, jb.w, jb.h);
   }
 }
