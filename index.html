@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>გეოდინო: ხულიგანური პარკური & Horror Edition</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
   :root{
     --ink:#0b0e14;
@@ -20,7 +21,7 @@
   html,body{
     margin:0; padding:0; height:100%; overflow:hidden;
     background: radial-gradient(ellipse at 50% 0%, #1c2438 0%, #06080d 80%);
-    font-family: 'Trebuchet MS', 'BPG Nino Mtavruli', 'Segoe UI', sans-serif;
+    font-family: 'Noto Sans Georgian', 'Arial', 'Trebuchet MS', sans-serif;
     color: var(--cream);
   }
   #wrap{
@@ -1405,7 +1406,15 @@ function updateZombies(dt){
     
     let onPlatform = false;
     let platformBelow = null;
+    let platformsNearby = [];
     
+    // Find all platforms near zombie for smart pathfinding
+    for(const p of level.plats){
+      const dist = Math.hypot((z.x + z.w/2) - (p.x + p.w/2), (z.y + z.h/2) - (p.y + p.h/2));
+      if(dist < 400) platformsNearby.push({...p, dist});
+    }
+    
+    // Check for platform below
     for(const p of level.plats){
       if(overlap(z, p)){
         const prevBottom = z.y - (z.vy || 0) + z.h;
@@ -1422,23 +1431,44 @@ function updateZombies(dt){
     const dy = player.y - z.y;
     const dist = Math.sqrt(dx*dx + dy*dy);
     
-    if(onPlatform && dist < 650 && dist > 20){
+    if(dist < 650 && dist > 20){
       const moveDir = dx > 0 ? 1 : -1;
-      const nextX = z.x + moveDir * 24;
-      let wouldFall = true;
-      
-      if(platformBelow){
-        if(nextX >= platformBelow.x - 10 && nextX + z.w <= platformBelow.x + platformBelow.w + 10){
-          wouldFall = false;
+      if(onPlatform){
+        const nextX = z.x + moveDir * 24;
+        let canMove = true;
+        
+        // Smart pathfinding: look for safe ground ahead
+        if(platformBelow){
+          if(nextX < platformBelow.x - 15 || nextX + z.w > platformBelow.x + platformBelow.w + 15){
+            canMove = false; // Would fall off edge
+          }
         }
-      }
-      
-      if(!wouldFall || z.isBoss){
-        z.vx = (dx / dist) * z.speed;
-        z.facing = dx > 0 ? 1 : -1;
+        
+        // Boss zombies can jump to nearby platforms
+        if(z.isBoss && !canMove){
+          const nearbyLower = platformsNearby.filter(p => p.y > z.y && p.y < z.y + 200).sort((a,b)=>a.dist-b.dist);
+          if(nearbyLower.length > 0){
+            canMove = true; // Boss will attempt jump
+            z.vy = -10; // Jump
+          }
+        }
+        
+        if(canMove){
+          z.vx = (dx / dist) * z.speed;
+          z.facing = dx > 0 ? 1 : -1;
+        } else {
+          z.vx *= 0.5; // Move very slowly if blocked
+          // Try jumping if stuck
+          if(Math.random() < 0.015){
+            z.vy = -8; // Small jump attempt
+          }
+        }
       } else {
-        z.vx *= 0.8;
+        z.vx = (dx / dist) * z.speed * 0.6; // Slower in air
+        z.facing = dx > 0 ? 1 : -1;
       }
+    } else if(onPlatform){
+      z.vx *= 0.85;
     } else {
       z.vx *= 0.88;
     }
@@ -1805,7 +1835,7 @@ function buildLevels(){
     bushes: [ rect(1600, GROUND_Y-50,50,50,{triggered:false}), rect(2800, GROUND_Y-50,50,50,{triggered:false}) ],
     signs: [ 
       {x:300,text:"CODEZERO.GE - ისწავლე პროგრამირება!"}, 
-      {x:2550,text:"საუკეთესო ��იგნები = გადარჩენა"} 
+      {x:2550,text:"საუკეთესო ��ი���ნები = გადარჩენა"} 
     ],
     flag: rect(4650, GROUND_Y-140,30,140),
     zombies: [ 
@@ -2551,7 +2581,7 @@ function buildLevels(){
     ],
     signs: [ 
       {x:500,text:"ყველა ბუჩქში დემონი იმალება! 👻"}, 
-      {x:3500,text:"არ შეგეშინდეს! გეოდინო შენთანაა!"} 
+      {x:3500,text:"��რ შეგეშინდეს! გეოდინო შენთანაა!"} 
     ],
     flag: rect(6500, GROUND_Y-140,30,140),
     zombies: [ 
@@ -2721,6 +2751,126 @@ function buildLevels(){
     bgHue:'pink'
   });
 
+  // LEVEL 22: Parkour Challenge - Wall Jumping & Platform Chains
+  levels.push({
+    name:'ეპ.22 — პარკური გამოწვევა 🏃',
+    diffRating: 'HARD', diffStars: '⭐⭐⭐⭐', diffColor: '#ef4444',
+    gimmickTitle: '🧗 პარკური ჯაჭვი', diffDesc: 'მჭიდრო პლატფორმები, სიჩქარის გამოცდა და ზომბების დაშლა (1.6x).',
+    zombieSpeedMult: 1.6, zombieHpMult: 1.3, gravityMult: 1.0, hazardType: 'parkour',
+    width: 6000,
+    spawn:{x:60,y:GROUND_Y-60},
+    plats: [
+      rect(0, GROUND_Y, 600, 90),
+      // Wall jump section
+      rect(700, GROUND_Y-80, 30, 24),
+      rect(750, GROUND_Y-160, 30, 24),
+      rect(800, GROUND_Y-240, 30, 24),
+      rect(900, GROUND_Y-200, 200, 24),
+      rect(1200, GROUND_Y-120, 30, 24),
+      rect(1250, GROUND_Y-200, 30, 24),
+      rect(1350, GROUND_Y, 300, 90),
+      // Tight platform chain
+      rect(1750, GROUND_Y-100, 80, 24),
+      rect(1900, GROUND_Y-150, 80, 24),
+      rect(2050, GROUND_Y-100, 80, 24),
+      rect(2200, GROUND_Y-180, 80, 24),
+      rect(2350, GROUND_Y-80, 200, 24),
+      // Rising platforms
+      rect(2700, GROUND_Y-50, 120, 24),
+      rect(2900, GROUND_Y-120, 120, 24),
+      rect(3100, GROUND_Y-180, 120, 24),
+      rect(3300, GROUND_Y-240, 120, 24),
+      rect(3500, GROUND_Y-200, 300, 24),
+      // Speed section
+      rect(4000, GROUND_Y, 400, 90),
+      rect(4550, GROUND_Y-140, 100, 24, {vx: 2.5, minX: 4550, maxX: 5000}),
+      rect(5150, GROUND_Y, 800, 90),
+    ],
+    spikes: [ rect(650, GROUND_Y, 50, 24), rect(850, GROUND_Y-264, 40, 24), rect(1150, GROUND_Y-224, 40, 24), rect(2600, GROUND_Y-74, 50, 24), rect(3400, GROUND_Y-264, 50, 24) ],
+    waters: [ rect(1300, GROUND_Y, 50, 90) ],
+    coins: [
+      ...Array.from({length:12}, (_,i)=>rect(1750+i*80, GROUND_Y-50,22,22)),
+      ...Array.from({length:10}, (_,i)=>rect(2700+i*120, GROUND_Y-100,22,22))
+    ],
+    bells: [ rect(900, GROUND_Y-240,26,30), rect(3500, GROUND_Y-260,26,30) ],
+    bushes: [ rect(2400, GROUND_Y-50,50,50,{triggered:false}) ],
+    signs: [ 
+      {x:100,text:"პარკური სკილ ტესტი!"}, 
+      {x:2700,text:"დაჯოჯეთ აღმოსავლეთისკენ!"}, 
+      {x:4500,text:"ბოლო სტრეჩი მოგორებული!"}
+    ],
+    flag: rect(5850, GROUND_Y-140,30,140),
+    zombies: [ 
+      {x:1600,y:GROUND_Y-80, type:'boss'}, 
+      {x:2300,y:GROUND_Y-54},
+      {x:3200,y:GROUND_Y-200},
+      {x:4300,y:GROUND_Y-54},
+      {x:4800,y:GROUND_Y-164}
+    ],
+    jumpboxes: [ 
+      rect(900, GROUND_Y-270, 42, 42, {hit:false, type:'fastener'}),
+      rect(2350, GROUND_Y-120, 42, 42, {hit:false, type:'plasma'}),
+      rect(3500, GROUND_Y-280, 42, 42, {hit:false, type:'minigun'}),
+      rect(4550, GROUND_Y-180, 42, 42, {hit:false, type:'sponsor'})
+    ],
+    bgHue:'blue'
+  });
+
+  // LEVEL 23: Ultimate Challenge - Mixed Gimmicks & Hordes
+  levels.push({
+    name:'ეპ.23 — სხეულის აჩქარება 🔥',
+    diffRating: 'INSANE', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#dc2626',
+    gimmickTitle: '💥 ზომბოების არმია & გადარტყმული სირთულე', diffDesc: 'ყველა გიმიკი ერთად: მოძრავი პლატფორმები, მცირე სირთულე და ღირებული პრიზები! (1.8x)',
+    zombieSpeedMult: 1.8, zombieHpMult: 1.5, gravityMult: 0.9, hazardType: 'ultimate',
+    width: 7000,
+    spawn:{x:60,y:GROUND_Y-60},
+    plats: [
+      rect(0, GROUND_Y, 700, 90),
+      rect(900, GROUND_Y-80, 120, 24, {vy: 2, minY: GROUND_Y-200, maxY: GROUND_Y-40}),
+      rect(1200, GROUND_Y, 400, 90),
+      rect(1800, GROUND_Y-140, 150, 24),
+      rect(2150, GROUND_Y-80, 150, 24, {vx: 3, minX: 2150, maxX: 2600}),
+      rect(2850, GROUND_Y, 500, 90),
+      rect(3550, GROUND_Y-120, 120, 24),
+      rect(3750, GROUND_Y-200, 120, 24),
+      rect(3950, GROUND_Y-140, 200, 24),
+      rect(4350, GROUND_Y, 500, 90),
+      rect(5050, GROUND_Y-160, 150, 24, {vy: 1.8, minY: GROUND_Y-240, maxY: GROUND_Y-80}),
+      rect(5400, GROUND_Y-80, 150, 24),
+      rect(5700, GROUND_Y, 1200, 90),
+    ],
+    spikes: [ rect(800, GROUND_Y, 100, 24), rect(1700, GROUND_Y-164, 60, 24), rect(2750, GROUND_Y-24, 100, 24), rect(3450, GROUND_Y-24, 100, 24), rect(4250, GROUND_Y-24, 100, 24), rect(5000, GROUND_Y-24, 50, 24) ],
+    lavas: [ rect(800, GROUND_Y, 100, 90), rect(2750, GROUND_Y, 100, 90) ],
+    bananas: [ rect(2100, GROUND_Y-14, 40, 14), rect(4700, GROUND_Y-14, 40, 14) ],
+    coins: [
+      ...Array.from({length:16}, (_,i)=>rect(1800+i*50, GROUND_Y-80,22,22)),
+      ...Array.from({length:14}, (_,i)=>rect(3950+i*60, GROUND_Y-80,22,22))
+    ],
+    bells: [ rect(1800, GROUND_Y-170,26,30), rect(5400, GROUND_Y-110,26,30) ],
+    bushes: [ rect(2900, GROUND_Y-50,50,50,{triggered:false}), rect(5200, GROUND_Y-50,50,50,{triggered:false}) ],
+    signs: [ 
+      {x:200,text:"ეს არის კიდე? თქვენ ახალი ლიგა ხართ!"}, 
+      {x:3000,text:"მოაგჯე ყველა! ეს უკიდურესია!"}, 
+      {x:5500,text:"🏆 უკიდურესი გამოწვევა დასრულებული!"}
+    ],
+    flag: rect(6850, GROUND_Y-140,30,140),
+    zombies: [ 
+      {x:1400,y:GROUND_Y-54}, {x:1600,y:GROUND_Y-54},
+      {x:2300,y:GROUND_Y-80, type:'boss'}, 
+      {x:2500,y:GROUND_Y-54}, {x:2700,y:GROUND_Y-54},
+      {x:3800,y:GROUND_Y-160, type:'boss'}, 
+      {x:4500,y:GROUND_Y-54}, {x:4700,y:GROUND_Y-54},
+      {x:5400,y:GROUND_Y-110}, {x:5600,y:GROUND_Y-54}
+    ],
+    jumpboxes: [ 
+      rect(900, GROUND_Y-120, 42, 42, {hit:false, type:'shotgun'}),
+      rect(2150, GROUND_Y-120, 42, 42, {hit:false, type:'flamethrower'}),
+      rect(3950, GROUND_Y-170, 42, 42, {hit:false, type:'minigun'}),
+      rect(5400, GROUND_Y-110, 42, 42, {hit:false, type:'sponsor'})
+    ],
+    bgHue:'red'
+  });
+
   const levelThemes = [
     'dusk_suburbs',       // Ep 1: Sunset Suburbs
     'cyberpunk_alley',    // Ep 2: Neon Cyberpunk Alleyway
@@ -2742,7 +2892,9 @@ function buildLevels(){
     'industrial_foundry', // Ep 18: Molten Steel Foundry
     'sky_temple',         // Ep 19: Floating Sky Temple above clouds
     'godzilla_ruins',     // Ep 20: Godzilla Destroyed City Ruins
-    'ultimate_cosmos'     // Ep 21: Ultimate Cosmic Omega Void
+    'ultimate_cosmos',    // Ep 21: Ultimate Cosmic Omega Void
+    'parkour_rooftops',   // Ep 22: Urban Parkour Rooftops
+    'final_challenge'     // Ep 23: Ultimate Final Challenge
   ];
 
   levels.forEach((lvl, idx) => {
@@ -3158,7 +3310,7 @@ function activateJumpbox(jb){
   } else if(jb.type === 'fastener'){
     player.fastenerTimer = 8000;
     sfxWin();
-    toast("⚡ FASTENER - სუპე��� სიჩქარე & ხტომა! ⚡", 2200);
+    toast("⚡ FASTENER - სუპე����� სიჩქარე & ხტომა! ⚡", 2200);
   } else if(jb.type === 'prank_zombie'){
     sfxScare();
     shake(14);
