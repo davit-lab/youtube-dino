@@ -525,6 +525,7 @@ window.addEventListener('keydown', e=>{
   if(e.code==='KeyR') restartLevel();
   if(e.code==='KeyK'||e.code==='KeyF') shoot();
   if(e.code==='Escape' && sponsorPopup.active){ closeSponsorPopup(); }
+  if(e.code==='Escape' && state.previewModal && state.previewModal.active){ closePreviewModal(); }
   if((e.code==='Space'||e.code==='Enter') && (state.mode==='menu'||state.mode==='gameover'||state.mode==='win')) startGame();
 });
 window.addEventListener('keyup', e=>{ keys[e.code]=false; });
@@ -671,6 +672,13 @@ const state = {
   unlockedWeapons: ['pistol'],
   equippedWeapon: 'pistol',
   shopTab: 'upgrades', // 'upgrades', 'skins', 'weapons'
+  previewModal: {
+    active: false,
+    item: null,
+    type: 'skins',
+    animState: 'idle',
+    testFiring: false
+  },
   unlockedLevels: 1,
   achievements: {
     coins100: { unlocked: false, title: "💰 100 მონეტის კოლექციონერი!", desc: "შეგროვებულია 100 მონეტა!" },
@@ -686,7 +694,16 @@ const state = {
   jumpscareType: 'face', // 'face', 'glitch', 'demon'
   toastText:'',
   toastTimer:0,
-  lastKilledByGodzilla: false
+  lastKilledByGodzilla: false,
+  deathCam: {
+    active: false,
+    timer: 0,
+    maxTimer: 2400,
+    deathX: 0,
+    deathY: 0,
+    causeMsg: '',
+    zoom: 1
+  }
 };
 
 function loadSavedData(){
@@ -1137,16 +1154,19 @@ function addFloatingText(x, y, text, color='#ffd23f'){
 function spawnZombie(x, y, customType = null){
   const type = customType || Math.random();
   let health = 2, speed = 1.6, color = '#4a8b4a', size = 1, isBoss = false;
+
+  const spdMult = (level && level.zombieSpeedMult) ? level.zombieSpeedMult : 1;
+  const hpMult = (level && level.zombieHpMult) ? level.zombieHpMult : 1;
   
   if(type === 'boss' || (typeof type === 'number' && type > 0.85)){
     // Big Giant Horror Boss Zombie
-    health = 8; speed = 0.9; color = '#8b2020'; size = 1.6; isBoss = true;
+    health = Math.round(8 * hpMult); speed = 0.9 * spdMult; color = '#8b2020'; size = 1.6; isBoss = true;
   } else if(typeof type === 'number' && type < 0.35){
     // Fast runner zombie
-    health = 1; speed = 2.8; color = '#3a8b6a'; size = 0.85;
+    health = Math.round(1 * hpMult); speed = 2.8 * spdMult; color = '#3a8b6a'; size = 0.85;
   } else {
     // Standard zombie
-    health = 3; speed = 1.6; color = '#4a8b4a'; size = 1;
+    health = Math.round(3 * hpMult); speed = 1.6 * spdMult; color = '#4a8b4a'; size = 1;
   }
   
   zombies.push({
@@ -1341,6 +1361,19 @@ function updateBullets(){
           }
           hit = true;
           break;
+        }
+      }
+    }
+
+    if(!hit && level && level.jumpboxes){
+      for(const jb of level.jumpboxes){
+        if(!jb.hit){
+          const bulletBox = { x: b.x - b.size, y: b.y - b.size, w: b.size*2, h: b.size*2 };
+          if(overlap(bulletBox, jb)){
+            activateJumpbox(jb);
+            hit = true;
+            break;
+          }
         }
       }
     }
@@ -1606,14 +1639,14 @@ function updateGodzilla(dt){
   }
 }
 
-function updateParticles(){
+function updateParticles(timeScale = 1){
   for(let i = particles.length - 1; i >= 0; i--){
     const p = particles[i];
-    p.x += p.vx;
-    p.y += p.vy;
-    p.vy += 0.25;
-    p.life--;
-    p.size *= 0.96;
+    p.x += p.vx * timeScale;
+    p.y += p.vy * timeScale;
+    p.vy += 0.25 * timeScale;
+    p.life -= timeScale;
+    p.size *= Math.pow(0.96, timeScale);
     if(p.life <= 0 || p.size < 0.4){
       particles.splice(i, 1);
     }
@@ -1621,17 +1654,17 @@ function updateParticles(){
 
   for(let i = shellCasings.length - 1; i >= 0; i--){
     const sc = shellCasings[i];
-    sc.x += sc.vx; sc.y += sc.vy;
-    sc.vy += 0.4;
-    sc.rot += sc.vRot;
-    sc.life--;
+    sc.x += sc.vx * timeScale; sc.y += sc.vy * timeScale;
+    sc.vy += 0.4 * timeScale;
+    sc.rot += sc.vRot * timeScale;
+    sc.life -= timeScale;
     if(sc.life <= 0) shellCasings.splice(i, 1);
   }
 
   for(let i = floatingTexts.length - 1; i >= 0; i--){
     const ft = floatingTexts[i];
-    ft.y += ft.vy;
-    ft.life--;
+    ft.y += ft.vy * timeScale;
+    ft.life -= timeScale;
     if(ft.life <= 0) floatingTexts.splice(i, 1);
   }
 }
@@ -1645,6 +1678,9 @@ function buildLevels(){
   // LEVEL 1: Tutorial & Jumpboxes
   levels.push({
     name:'ეპ.1 — აბსოლუტურად არა კლიკბეიტი',
+    diffRating: 'EASY', diffStars: '⭐', diffColor: '#22c55e',
+    gimmickTitle: '🔰 სწავლების რეჟიმი', diffDesc: 'იოლი საწყისი დონე: დაბალი სიჩქარის ზომბები (0.8x) და [?] ყუთები.',
+    zombieSpeedMult: 0.8, zombieHpMult: 1.0, gravityMult: 1.0, hazardType: 'none',
     width: 4400,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -1657,7 +1693,8 @@ function buildLevels(){
       rect(3680, GROUND_Y, 700, 90),
     ],
     fakespikes: [ rect(430,GROUND_Y-24,90,24) ],
-    spikes: [ rect(920,GROUND_Y-24,80,24), rect(2870,GROUND_Y-24,70,24) ],
+    spikes: [ rect(400, GROUND_Y-24, 50, 24), rect(920,GROUND_Y-24,80,24), rect(1990, GROUND_Y-104, 50, 24), rect(2870,GROUND_Y-24,70,24) ],
+    waters: [ rect(900, GROUND_Y, 100, 90), rect(1500, GROUND_Y, 120, 90) ],
     bananas: [ rect(1220,GROUND_Y-14,40,14) ],
     coins: [
       ...Array.from({length:6}, (_,i)=>rect(1040+i*60, GROUND_Y-140, 22,22)),
@@ -1673,10 +1710,10 @@ function buildLevels(){
     flag: rect(4260, GROUND_Y-140, 30,140),
     zombies: [ {x:1200,y:GROUND_Y-54}, {x:2500,y:GROUND_Y-54}, {x:3800,y:GROUND_Y-54} ],
     jumpboxes: [ 
-      rect(480, GROUND_Y-130, 42, 42, {hit:false, type:'coin'}),
-      rect(1480, GROUND_Y-110, 42, 42, {hit:false, type:'bell'}),
+      rect(480, GROUND_Y-140, 42, 42, {hit:false, type:'coin'}),
+      rect(1480, GROUND_Y-140, 42, 42, {hit:false, type:'bell'}),
       rect(2100, GROUND_Y-180, 42, 42, {hit:false, type:'triple'}),
-      rect(3000, GROUND_Y-120, 42, 42, {hit:false, type:'sponsor'}) 
+      rect(3000, GROUND_Y-140, 42, 42, {hit:false, type:'sponsor'}) 
     ],
     bgHue:'blue'
   });
@@ -1684,6 +1721,9 @@ function buildLevels(){
   // LEVEL 2: Moving Platforms & Horde
   levels.push({
     name:'ეპ.2 — ალგორითმის შურისძიება',
+    diffRating: 'MEDIUM', diffStars: '⭐⭐', diffColor: '#38c6ff',
+    gimmickTitle: '🌧️ მოძრავი პლატფორმები', diffDesc: 'საშუალო სირთულე: ჰორიზონტალურად და ვერტიკალურად მოძრავი პლატფორმები.',
+    zombieSpeedMult: 1.1, zombieHpMult: 1.1, gravityMult: 1.0, hazardType: 'moving_platforms',
     width: 4600,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -1698,7 +1738,9 @@ function buildLevels(){
       rect(3620, GROUND_Y, 900, 90),
     ],
     fakespikes: [ rect(2200,GROUND_Y-24,90,24), rect(3900,GROUND_Y-24,90,24) ],
-    spikes: [ rect(540,GROUND_Y-24,70,24), rect(2500,GROUND_Y-24,80,24), rect(4200,GROUND_Y-24,80,24) ],
+    spikes: [ rect(540,GROUND_Y-24,70,24), rect(1550, GROUND_Y-94, 60, 24), rect(2500,GROUND_Y-24,80,24), rect(3300, GROUND_Y-164, 60, 24), rect(4200,GROUND_Y-24,80,24) ],
+    waters: [ rect(500, GROUND_Y, 120, 90), rect(800, GROUND_Y, 300, 90) ],
+    lavas: [ rect(1400, GROUND_Y, 150, 90), rect(2850, GROUND_Y, 130, 90) ],
     bananas: [ rect(1180,GROUND_Y-14,40,14), rect(3660,GROUND_Y-14,40,14) ],
     coins: [
       ...Array.from({length:5}, (_,i)=>rect(2200+i*70, GROUND_Y-120,22,22)),
@@ -1710,9 +1752,9 @@ function buildLevels(){
     flag: rect(4450, GROUND_Y-140,30,140),
     zombies: [ {x:1150,y:GROUND_Y-54}, {x:2200,y:GROUND_Y-54}, {x:3700,y:GROUND_Y-80, type:'boss'} ],
     jumpboxes: [ 
-      rect(1200, GROUND_Y-110, 42, 42, {hit:false, type:'heart'}),
-      rect(2300, GROUND_Y-130, 42, 42, {hit:false, type:'sponsor'}),
-      rect(3100, GROUND_Y-110, 42, 42, {hit:false, type:'jumpscare'})
+      rect(1200, GROUND_Y-140, 42, 42, {hit:false, type:'heart'}),
+      rect(2300, GROUND_Y-140, 42, 42, {hit:false, type:'sponsor'}),
+      rect(3100, GROUND_Y-140, 42, 42, {hit:false, type:'jumpscare'})
     ],
     bgHue:'pink'
   });
@@ -1720,6 +1762,9 @@ function buildLevels(){
   // LEVEL 3: CodeZero Horror Library
   levels.push({
     name:'ეპ.3 — CODEZERO-ს ელექტრონული წიგნების ჯოჯოხეთი 📚💀',
+    diffRating: 'MEDIUM-HARD', diffStars: '⭐⭐⭐', diffColor: '#eab308',
+    gimmickTitle: '🌫️ ჰორორ ნისლი', diffDesc: 'სქელი ნისლი ზღუდავს ხედვის არეს. ზომბებს აქვთ 1.3x მეტი სიცოცხლე.',
+    zombieSpeedMult: 1.2, zombieHpMult: 1.3, gravityMult: 1.0, hazardType: 'dense_fog',
     width: 4800,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -1734,7 +1779,9 @@ function buildLevels(){
       rect(3900, GROUND_Y, 800, 90),
     ],
     fakespikes: [ rect(1500,GROUND_Y-24,90,24), rect(2700,GROUND_Y-24,90,24) ],
-    spikes: [ rect(740,GROUND_Y-24,50,24), rect(2900,GROUND_Y-24,90,24) ],
+    spikes: [ rect(740,GROUND_Y-24,50,24), rect(1120, GROUND_Y-144, 60, 24), rect(2900,GROUND_Y-24,90,24), rect(3550, GROUND_Y-184, 60, 24) ],
+    waters: [ rect(700, GROUND_Y, 100, 90), rect(2120, GROUND_Y, 380, 90) ],
+    lavas: [ rect(1320, GROUND_Y, 100, 90) ],
     bananas: [ rect(1450,GROUND_Y-14,40,14) ],
     coins: [
       ...Array.from({length:6}, (_,i)=>rect(1440+i*50, GROUND_Y-100,22,22)),
@@ -1753,9 +1800,9 @@ function buildLevels(){
       {x:4100,y:GROUND_Y-54} 
     ],
     jumpboxes: [ 
-      rect(900, GROUND_Y-110, 42, 42, {hit:false, type:'sponsor'}),
-      rect(1600, GROUND_Y-100, 42, 42, {hit:false, type:'triple'}),
-      rect(2700, GROUND_Y-110, 42, 42, {hit:false, type:'sponsor'}),
+      rect(900, GROUND_Y-140, 42, 42, {hit:false, type:'sponsor'}),
+      rect(1600, GROUND_Y-140, 42, 42, {hit:false, type:'triple'}),
+      rect(2700, GROUND_Y-140, 42, 42, {hit:false, type:'sponsor'}),
       rect(3300, GROUND_Y-140, 42, 42, {hit:false, type:'heart'})
     ],
     bgHue:'pink'
@@ -1764,6 +1811,9 @@ function buildLevels(){
   // LEVEL 4: Extreme Parkour & Horror Jumpscares
   levels.push({
     name:'ეპ.4 — გაპარკურებული ზომბოკალიფსი 💥',
+    diffRating: 'HARD', diffStars: '⭐⭐⭐', diffColor: '#f97316',
+    gimmickTitle: '🦘 მძიმე გრავიტაცია & ექსტრემალური პარკური', diffDesc: 'მძიმე გრავიტაცია (1.25x) მოითხოვს ზუსტ ხტომებს. სწრაფი ზომბები (1.35x).',
+    zombieSpeedMult: 1.35, zombieHpMult: 1.2, gravityMult: 1.25, hazardType: 'heavy_gravity',
     width: 5000,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -1780,7 +1830,8 @@ function buildLevels(){
       rect(4050, GROUND_Y, 900, 90),
     ],
     fakespikes: [ rect(1550,GROUND_Y-24,90,24), rect(2800,GROUND_Y-24,90,24) ],
-    spikes: [ rect(640,GROUND_Y-24,50,24), rect(1800,GROUND_Y-24,80,24), rect(3150,GROUND_Y-24,90,24) ],
+    spikes: [ rect(640,GROUND_Y-24,50,24), rect(950, GROUND_Y-164, 60, 24), rect(1800,GROUND_Y-24,80,24), rect(2350, GROUND_Y-184, 60, 24), rect(3150,GROUND_Y-24,90,24) ],
+    lavas: [ rect(600, GROUND_Y, 100, 90), rect(860, GROUND_Y, 90, 90), rect(1110, GROUND_Y, 90, 90), rect(1950, GROUND_Y, 100, 90), rect(3250, GROUND_Y, 100, 90) ],
     bananas: [ rect(1480,GROUND_Y-14,40,14), rect(4100,GROUND_Y-14,40,14) ],
     coins: [
       ...Array.from({length:7}, (_,i)=>rect(1480+i*55, GROUND_Y-110,22,22)),
@@ -1808,6 +1859,9 @@ function buildLevels(){
   // LEVEL 5: Ultimate Boss Arena
   levels.push({
     name:'ეპ.5 — ხულიგანის აპოთეოზი - ფინალური ბრძოლა 🏆',
+    diffRating: 'VERY HARD', diffStars: '⭐⭐⭐⭐', diffColor: '#ef4444',
+    gimmickTitle: '👹 ორმაგი გიგანტი ბოსების არენა', diffDesc: '2 გიგანტური ბოსი ზომბი 2.0x HP-ით და დარტყმითი ტალღებით.',
+    zombieSpeedMult: 1.4, zombieHpMult: 2.0, gravityMult: 1.0, hazardType: 'boss_duo',
     width: 5200,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -1822,7 +1876,8 @@ function buildLevels(){
       rect(4200, GROUND_Y, 950, 90),
     ],
     fakespikes: [ rect(1600,GROUND_Y-24,90,24), rect(2900,GROUND_Y-24,90,24) ],
-    spikes: [ rect(840,GROUND_Y-24,50,24), rect(1900,GROUND_Y-24,80,24), rect(3300,GROUND_Y-24,80,24) ],
+    spikes: [ rect(840,GROUND_Y-24,50,24), rect(1200, GROUND_Y-154, 60, 24), rect(1900,GROUND_Y-24,80,24), rect(3300,GROUND_Y-24,80,24), rect(3850, GROUND_Y-184, 60, 24) ],
+    lavas: [ rect(800, GROUND_Y, 100, 90), rect(2000, GROUND_Y, 100, 90), rect(3400, GROUND_Y, 100, 90) ],
     bananas: [ rect(1550,GROUND_Y-14,40,14), rect(2800,GROUND_Y-14,40,14) ],
     coins: [
       ...Array.from({length:8}, (_,i)=>rect(1530+i*50, GROUND_Y-110,22,22)),
@@ -1854,6 +1909,9 @@ function buildLevels(){
   // LEVEL 6: Fastener & Laser Guillotine
   levels.push({
     name:'ეპ.6 — FASTENER და ლაზერული გილიოტინა ⚡',
+    diffRating: 'HARD', diffStars: '⭐⭐⭐⭐', diffColor: '#f97316',
+    gimmickTitle: '⚡ ლაზერული გილიოტინების ხაფანგი', diffDesc: 'პერიოდული ლაზერული გილიოტინები ჭრიან გზას! გამოიყენე Fastener!',
+    zombieSpeedMult: 1.3, zombieHpMult: 1.3, gravityMult: 1.0, hazardType: 'laser_guillotine',
     width: 5300,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -1868,7 +1926,8 @@ function buildLevels(){
       rect(4000, GROUND_Y, 1200, 90),
     ],
     fakespikes: [ rect(1500,GROUND_Y-24,100,24), rect(2800,GROUND_Y-24,100,24) ],
-    spikes: [ rect(740,GROUND_Y-24,60,24), rect(2400,GROUND_Y-24,100,24), rect(3800,GROUND_Y-24,80,24) ],
+    spikes: [ rect(740,GROUND_Y-24,60,24), rect(1100, GROUND_Y-164, 60, 24), rect(2400,GROUND_Y-24,100,24), rect(3700, GROUND_Y-204, 60, 24), rect(3800,GROUND_Y-24,80,24) ],
+    lavas: [ rect(700, GROUND_Y, 100, 90), rect(1800, GROUND_Y, 100, 90), rect(3620, GROUND_Y, 80, 90) ],
     bananas: [ rect(1440,GROUND_Y-14,40,14), rect(2650,GROUND_Y-14,40,14) ],
     coins: [
       ...Array.from({length:7}, (_,i)=>rect(1420+i*50, GROUND_Y-110,22,22)),
@@ -1899,6 +1958,9 @@ function buildLevels(){
   // LEVEL 7: Night Zombie Horde & Minigun
   levels.push({
     name:'ეპ.7 — შავ-ბნელი ზომბოკალიფსი 🧟‍♂️',
+    diffRating: 'VERY HARD', diffStars: '⭐⭐⭐⭐', diffColor: '#ef4444',
+    gimmickTitle: '⛈️ შტორმის ღამე & ყინულის საფარი', diffDesc: 'მცურავი ყინულის ზედაპირი, სიბნელე და აგრესიული ზომბების არმია (1.5x).',
+    zombieSpeedMult: 1.5, zombieHpMult: 1.4, gravityMult: 1.0, hazardType: 'ice_storm',
     width: 5400,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -1913,7 +1975,8 @@ function buildLevels(){
       rect(4400, GROUND_Y, 950, 90),
     ],
     fakespikes: [ rect(1600,GROUND_Y-24,100,24), rect(3000,GROUND_Y-24,100,24) ],
-    spikes: [ rect(840,GROUND_Y-24,60,24), rect(2100,GROUND_Y-24,90,24), rect(3500,GROUND_Y-24,90,24) ],
+    spikes: [ rect(840,GROUND_Y-24,60,24), rect(1200, GROUND_Y-174, 60, 24), rect(2100,GROUND_Y-24,90,24), rect(3500,GROUND_Y-24,90,24), rect(4050, GROUND_Y-204, 60, 24) ],
+    waters: [ rect(800, GROUND_Y, 100, 90), rect(2100, GROUND_Y, 100, 90), rect(3600, GROUND_Y, 100, 90) ],
     bananas: [ rect(1550,GROUND_Y-14,40,14), rect(2850,GROUND_Y-14,40,14) ],
     coins: [
       ...Array.from({length:8}, (_,i)=>rect(1550+i*55, GROUND_Y-110,22,22)),
@@ -1946,6 +2009,9 @@ function buildLevels(){
   // LEVEL 8: Gravity Chaos & Reverse Controls
   levels.push({
     name:'ეპ.8 — CODEZERO-ს გრავიტაციული ქაოსი 🌀',
+    diffRating: 'MEDIUM', diffStars: '⭐⭐⭐', diffColor: '#38c6ff',
+    gimmickTitle: '🌀 დაბალი კოსმიური გრავიტაცია', diffDesc: 'დაბალი გრავიტაცია (0.55x) — გიგანტური ფრენის ხტომები უფსკრულებზე!',
+    zombieSpeedMult: 1.2, zombieHpMult: 1.2, gravityMult: 0.55, hazardType: 'low_gravity',
     width: 5500,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -1960,7 +2026,8 @@ function buildLevels(){
       rect(4300, GROUND_Y, 1100, 90),
     ],
     fakespikes: [ rect(1500,GROUND_Y-24,100,24), rect(2900,GROUND_Y-24,100,24) ],
-    spikes: [ rect(790,GROUND_Y-24,60,24), rect(2000,GROUND_Y-24,90,24), rect(3500,GROUND_Y-24,100,24) ],
+    spikes: [ rect(790,GROUND_Y-24,60,24), rect(1150, GROUND_Y-174, 60, 24), rect(2000,GROUND_Y-24,90,24), rect(3500,GROUND_Y-24,100,24), rect(3980, GROUND_Y-194, 60, 24) ],
+    lavas: [ rect(750, GROUND_Y, 100, 90), rect(2000, GROUND_Y, 100, 90), rect(3580, GROUND_Y, 70, 90) ],
     bananas: [ rect(1480,GROUND_Y-14,40,14), rect(2850,GROUND_Y-14,40,14) ],
     coins: [
       ...Array.from({length:8}, (_,i)=>rect(1480+i*50, GROUND_Y-110,22,22)),
@@ -1991,6 +2058,9 @@ function buildLevels(){
   // LEVEL 9: Hooligan Labyrinth & Boss Horde
   levels.push({
     name:'ეპ.9 — ხულიგანური ლაბირინთი & ბოსების არმია 💀',
+    diffRating: 'VERY HARD', diffStars: '⭐⭐⭐⭐', diffColor: '#ef4444',
+    gimmickTitle: '🔮 ბოსების ურდო & პორტალები', diffDesc: '3 გიგანტური ბოსი და იისფერი პორტალები, რომლებიც მუდმივად აჩენენ ზომბებს!',
+    zombieSpeedMult: 1.45, zombieHpMult: 2.2, gravityMult: 1.0, hazardType: 'portal_spawners',
     width: 5600,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -2005,7 +2075,8 @@ function buildLevels(){
       rect(4500, GROUND_Y, 1050, 90),
     ],
     fakespikes: [ rect(1600,GROUND_Y-24,100,24), rect(3100,GROUND_Y-24,100,24) ],
-    spikes: [ rect(840,GROUND_Y-24,60,24), rect(2100,GROUND_Y-24,90,24), rect(3600,GROUND_Y-24,100,24) ],
+    spikes: [ rect(840,GROUND_Y-24,60,24), rect(1200, GROUND_Y-164, 60, 24), rect(2100,GROUND_Y-24,90,24), rect(3600,GROUND_Y-24,100,24), rect(4150, GROUND_Y-204, 60, 24) ],
+    lavas: [ rect(800, GROUND_Y, 100, 90), rect(2100, GROUND_Y, 100, 90), rect(3700, GROUND_Y, 100, 90) ],
     bananas: [ rect(1550,GROUND_Y-14,40,14), rect(2950,GROUND_Y-14,40,14) ],
     coins: [
       ...Array.from({length:8}, (_,i)=>rect(1550+i*55, GROUND_Y-110,22,22)),
@@ -2037,6 +2108,9 @@ function buildLevels(){
   // LEVEL 10: Cosmic Hooligan Finale Apocalypse
   levels.push({
     name:'ეპ.10 — კოსმიური ხულიგანობის ფინალური აპოკალიფსი 🌌',
+    diffRating: 'EXTREME', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#a855f7',
+    gimmickTitle: '⚡ არეული კონტროლის იმპულსები', diffDesc: 'გლიჩ იმპულსები პერიოდულად აბრუნებენ კონტროლებს. ზომბების სიჩქარე 1.65x!',
+    zombieSpeedMult: 1.65, zombieHpMult: 1.6, gravityMult: 1.0, hazardType: 'glitch_pulses',
     width: 5800,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -2051,7 +2125,8 @@ function buildLevels(){
       rect(4900, GROUND_Y, 850, 90),
     ],
     fakespikes: [ rect(1700,GROUND_Y-24,110,24), rect(3400,GROUND_Y-24,110,24) ],
-    spikes: [ rect(890,GROUND_Y-24,60,24), rect(2300,GROUND_Y-24,100,24), rect(4100,GROUND_Y-24,100,24) ],
+    spikes: [ rect(890,GROUND_Y-24,60,24), rect(1280, GROUND_Y-174, 60, 24), rect(2300,GROUND_Y-24,100,24), rect(4100,GROUND_Y-24,100,24), rect(4550, GROUND_Y-204, 60, 24) ],
+    lavas: [ rect(850, GROUND_Y, 100, 90), rect(2300, GROUND_Y, 100, 90), rect(4100, GROUND_Y, 100, 90) ],
     bananas: [ rect(1650,GROUND_Y-14,40,14), rect(3250,GROUND_Y-14,40,14) ],
     coins: [
       ...Array.from({length:10}, (_,i)=>rect(1650+i*55, GROUND_Y-110,22,22)),
@@ -2085,6 +2160,9 @@ function buildLevels(){
   // LEVEL 11: Screaming Bananas & Flamethrower Inferno
   levels.push({
     name:'ეპ.11 — ყვირილის ბანანები და ცეცხლის მფრქვეველი 🍌🔥',
+    diffRating: 'HARD', diffStars: '⭐⭐⭐⭐', diffColor: '#f97316',
+    gimmickTitle: '🌋 ცეცხლოვანი ლავის გეიზერები', diffDesc: 'უფსკრულებიდან ამოტყორცნილი ლავის შადრევნები! გამოიყენე Flamethrower!',
+    zombieSpeedMult: 1.4, zombieHpMult: 1.5, gravityMult: 1.0, hazardType: 'lava_geysers',
     width: 6000,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -2099,7 +2177,8 @@ function buildLevels(){
       rect(4800, GROUND_Y, 1100, 90),
     ],
     fakespikes: [ rect(1750,GROUND_Y-24,110,24), rect(3300,GROUND_Y-24,110,24) ],
-    spikes: [ rect(920,GROUND_Y-24,70,24), rect(2320,GROUND_Y-24,80,24), rect(4020,GROUND_Y-24,80,24) ],
+    spikes: [ rect(920,GROUND_Y-24,70,24), rect(1300, GROUND_Y-184, 60, 24), rect(2320,GROUND_Y-24,80,24), rect(4020,GROUND_Y-24,80,24), rect(4450, GROUND_Y-214, 60, 24) ],
+    lavas: [ rect(900, GROUND_Y, 100, 90), rect(2300, GROUND_Y, 100, 90), rect(4000, GROUND_Y, 100, 90) ],
     bananas: [ rect(1700,GROUND_Y-14,40,14), rect(3200,GROUND_Y-14,40,14), rect(5000,GROUND_Y-14,40,14) ],
     coins: [
       ...Array.from({length:10}, (_,i)=>rect(1700+i*55, GROUND_Y-110,22,22)),
@@ -2130,6 +2209,9 @@ function buildLevels(){
   // LEVEL 12: CodeZero Cyber-Matrix
   levels.push({
     name:'ეპ.12 — CODEZERO-ს კოსმიური მატრიცა 💻🌌',
+    diffRating: 'EXTREME', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#a855f7',
+    gimmickTitle: '💻 მცურავი ლაზერული კედლები', diffDesc: 'ჰორიზონტალურად მოძრავი ლაზერული ბარიერები და სწრაფი კიბერ-ზომბები.',
+    zombieSpeedMult: 1.6, zombieHpMult: 1.7, gravityMult: 1.0, hazardType: 'moving_laser_walls',
     width: 6100,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -2144,7 +2226,8 @@ function buildLevels(){
       rect(4700, GROUND_Y, 1300, 90),
     ],
     fakespikes: [ rect(1650,GROUND_Y-24,100,24), rect(3250,GROUND_Y-24,100,24) ],
-    spikes: [ rect(840,GROUND_Y-24,60,24), rect(2320,GROUND_Y-24,80,24), rect(3920,GROUND_Y-24,80,24) ],
+    spikes: [ rect(840,GROUND_Y-24,60,24), rect(1200, GROUND_Y-184, 60, 24), rect(2320,GROUND_Y-24,80,24), rect(3920,GROUND_Y-24,80,24), rect(4350, GROUND_Y-204, 60, 24) ],
+    waters: [ rect(800, GROUND_Y, 100, 90), rect(2300, GROUND_Y, 100, 90), rect(3900, GROUND_Y, 100, 90) ],
     bananas: [ rect(1600,GROUND_Y-14,40,14), rect(3200,GROUND_Y-14,40,14) ],
     coins: [
       ...Array.from({length:9}, (_,i)=>rect(1600+i*55, GROUND_Y-110,22,22)),
@@ -2175,6 +2258,9 @@ function buildLevels(){
   // LEVEL 13: Giant Mutant Dinosaurs
   levels.push({
     name:'ეპ.13 — გიგანტური მუტანტი დინოზავრები 🦖💀',
+    diffRating: 'EXTREME', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#a855f7',
+    gimmickTitle: '☄️ მუტანტები & ცეცხლოვანი მეტეორები', diffDesc: 'მძიმე გრავიტაცია (1.35x), ცის მეტეორული წვიმა და 2.5x HP მუტანტი ბოსები.',
+    zombieSpeedMult: 1.5, zombieHpMult: 2.5, gravityMult: 1.35, hazardType: 'meteor_rain',
     width: 6200,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -2189,7 +2275,8 @@ function buildLevels(){
       rect(4800, GROUND_Y, 1300, 90),
     ],
     fakespikes: [ rect(1700,GROUND_Y-24,100,24), rect(3300,GROUND_Y-24,100,24) ],
-    spikes: [ rect(890,GROUND_Y-24,60,24), rect(2320,GROUND_Y-24,80,24), rect(4020,GROUND_Y-24,80,24) ],
+    spikes: [ rect(890,GROUND_Y-24,60,24), rect(1250, GROUND_Y-174, 60, 24), rect(2320,GROUND_Y-24,80,24), rect(4020,GROUND_Y-24,80,24), rect(4450, GROUND_Y-204, 60, 24) ],
+    lavas: [ rect(850, GROUND_Y, 100, 90), rect(2300, GROUND_Y, 100, 90), rect(4000, GROUND_Y, 100, 90) ],
     bananas: [ rect(1650,GROUND_Y-14,40,14), rect(3250,GROUND_Y-14,40,14) ],
     coins: [
       ...Array.from({length:10}, (_,i)=>rect(1650+i*55, GROUND_Y-110,22,22)),
@@ -2220,6 +2307,9 @@ function buildLevels(){
   // LEVEL 14: Zombie Wedding Party
   levels.push({
     name:'ეპ.14 — ზომბების საშინელი ქორწილი 👰🧟‍♂️',
+    diffRating: 'VERY HARD', diffStars: '⭐⭐⭐⭐', diffColor: '#ef4444',
+    gimmickTitle: '👟 სპრინტერი ზომბების წყვილები', diffDesc: 'ზომბები დარბიან 2.2x სიჩქარით წყვილებად. სწრაფი რეაქცია აუცილებელია!',
+    zombieSpeedMult: 2.2, zombieHpMult: 1.2, gravityMult: 1.0, hazardType: 'runner_horde',
     width: 6300,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -2234,7 +2324,8 @@ function buildLevels(){
       rect(4900, GROUND_Y, 1300, 90),
     ],
     fakespikes: [ rect(1750,GROUND_Y-24,100,24), rect(3400,GROUND_Y-24,100,24) ],
-    spikes: [ rect(940,GROUND_Y-24,60,24), rect(2420,GROUND_Y-24,80,24), rect(4120,GROUND_Y-24,80,24) ],
+    spikes: [ rect(940,GROUND_Y-24,60,24), rect(1300, GROUND_Y-184, 60, 24), rect(2420,GROUND_Y-24,80,24), rect(4120,GROUND_Y-24,80,24), rect(4550, GROUND_Y-204, 60, 24) ],
+    waters: [ rect(900, GROUND_Y, 100, 90), rect(2400, GROUND_Y, 100, 90), rect(4100, GROUND_Y, 100, 90) ],
     bananas: [ rect(1700,GROUND_Y-14,40,14), rect(3300,GROUND_Y-14,40,14) ],
     coins: [
       ...Array.from({length:10}, (_,i)=>rect(1700+i*55, GROUND_Y-110,22,22)),
@@ -2266,6 +2357,9 @@ function buildLevels(){
   // LEVEL 15: Disco Glitch Inferno
   levels.push({
     name:'ეპ.15 — გლიჩ-ინფერნო და ცეკვის ქაოსი 💃🌀',
+    diffRating: 'INSANE', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#ec4899',
+    gimmickTitle: '💃 დისკო-ხულიგნური ქაოსი', diffDesc: 'სტრობო განათება, იძულებითი ცეკვის პრანკები და მოულოდნელი მახეები.',
+    zombieSpeedMult: 1.7, zombieHpMult: 1.6, gravityMult: 1.0, hazardType: 'disco_strobe',
     width: 6400,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -2280,7 +2374,8 @@ function buildLevels(){
       rect(4900, GROUND_Y, 1400, 90),
     ],
     fakespikes: [ rect(1700,GROUND_Y-24,100,24), rect(3400,GROUND_Y-24,100,24) ],
-    spikes: [ rect(890,GROUND_Y-24,60,24), rect(2420,GROUND_Y-24,80,24), rect(4120,GROUND_Y-24,80,24) ],
+    spikes: [ rect(890,GROUND_Y-24,60,24), rect(1250, GROUND_Y-184, 60, 24), rect(2420,GROUND_Y-24,80,24), rect(4120,GROUND_Y-24,80,24), rect(4550, GROUND_Y-204, 60, 24) ],
+    lavas: [ rect(850, GROUND_Y, 100, 90), rect(2400, GROUND_Y, 100, 90), rect(4100, GROUND_Y, 100, 90) ],
     bananas: [ rect(1650,GROUND_Y-14,40,14), rect(3300,GROUND_Y-14,40,14) ],
     coins: [
       ...Array.from({length:10}, (_,i)=>rect(1650+i*55, GROUND_Y-110,22,22)),
@@ -2311,6 +2406,9 @@ function buildLevels(){
   // LEVEL 16: Flying Zombie UFO Trap
   levels.push({
     name:'ეპ.16 — მფრინავი ზომბების UFO ხაფანგი 🛸🧟',
+    diffRating: 'EXTREME', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#a855f7',
+    gimmickTitle: '🛸 UFO აბდუქციის სხივები', diffDesc: 'უცხოპლანეტელების სხივი გქაჩავს ჰაერში მფრინავ ზომბებთან!',
+    zombieSpeedMult: 1.6, zombieHpMult: 1.8, gravityMult: 0.8, hazardType: 'ufo_abduction',
     width: 6500,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -2325,7 +2423,8 @@ function buildLevels(){
       rect(5000, GROUND_Y, 1400, 90),
     ],
     fakespikes: [ rect(1800,GROUND_Y-24,100,24), rect(3500,GROUND_Y-24,100,24) ],
-    spikes: [ rect(940,GROUND_Y-24,60,24), rect(2520,GROUND_Y-24,80,24), rect(4220,GROUND_Y-24,80,24) ],
+    spikes: [ rect(940,GROUND_Y-24,60,24), rect(1300, GROUND_Y-184, 60, 24), rect(2520,GROUND_Y-24,80,24), rect(4220,GROUND_Y-24,80,24), rect(4650, GROUND_Y-204, 60, 24) ],
+    waters: [ rect(900, GROUND_Y, 100, 90), rect(2500, GROUND_Y, 100, 90), rect(4200, GROUND_Y, 100, 90) ],
     bananas: [ rect(1750,GROUND_Y-14,40,14), rect(3400,GROUND_Y-14,40,14) ],
     coins: [
       ...Array.from({length:10}, (_,i)=>rect(1750+i*55, GROUND_Y-110,22,22)),
@@ -2357,6 +2456,9 @@ function buildLevels(){
   // LEVEL 17: Hooligan Nightclub
   levels.push({
     name:'ეპ.17 — ხულიგნური ღამის კლუბი 🎧⚡',
+    diffRating: 'INSANE', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#ec4899',
+    gimmickTitle: '⚡ ჰიპერ-სიჩქარე (1.85x)', diffDesc: 'ზომბები მოძრაობენ 1.85x ჰიპერ-სიჩქარით ბასების რიტმზე!',
+    zombieSpeedMult: 1.85, zombieHpMult: 1.5, gravityMult: 1.0, hazardType: 'hyper_speed',
     width: 6600,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -2371,7 +2473,8 @@ function buildLevels(){
       rect(5150, GROUND_Y, 1350, 90),
     ],
     fakespikes: [ rect(1850,GROUND_Y-24,100,24), rect(3600,GROUND_Y-24,100,24) ],
-    spikes: [ rect(990,GROUND_Y-24,60,24), rect(2570,GROUND_Y-24,80,24), rect(4370,GROUND_Y-24,80,24) ],
+    spikes: [ rect(990,GROUND_Y-24,60,24), rect(1350, GROUND_Y-184, 60, 24), rect(2570,GROUND_Y-24,80,24), rect(4370,GROUND_Y-24,80,24), rect(4800, GROUND_Y-204, 60, 24) ],
+    lavas: [ rect(950, GROUND_Y, 100, 90), rect(2550, GROUND_Y, 100, 90), rect(4350, GROUND_Y, 100, 90) ],
     bananas: [ rect(1800,GROUND_Y-14,40,14), rect(3500,GROUND_Y-14,40,14) ],
     coins: [
       ...Array.from({length:10}, (_,i)=>rect(1800+i*55, GROUND_Y-110,22,22)),
@@ -2402,6 +2505,9 @@ function buildLevels(){
   // LEVEL 18: Jump-scare Manor
   levels.push({
     name:'ეპ.18 — საშიში ჯამპსქეირების მამული 👻🏚️',
+    diffRating: 'INSANE', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#ec4899',
+    gimmickTitle: '👻 დემონური ჯამპსქეირები', diffDesc: 'ყოველი ბუჩქი და ყუთი შეიცავს გიგანტურ დემონურ ჯამპსქეირებს!',
+    zombieSpeedMult: 1.6, zombieHpMult: 2.0, gravityMult: 1.0, hazardType: 'spooky_jumpscares',
     width: 6700,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -2416,7 +2522,8 @@ function buildLevels(){
       rect(5150, GROUND_Y, 1450, 90),
     ],
     fakespikes: [ rect(1800,GROUND_Y-24,100,24), rect(3600,GROUND_Y-24,100,24) ],
-    spikes: [ rect(940,GROUND_Y-24,60,24), rect(2570,GROUND_Y-24,80,24), rect(4370,GROUND_Y-24,80,24) ],
+    spikes: [ rect(940,GROUND_Y-24,60,24), rect(1300, GROUND_Y-184, 60, 24), rect(2570,GROUND_Y-24,80,24), rect(4370,GROUND_Y-24,80,24), rect(4800, GROUND_Y-204, 60, 24) ],
+    lavas: [ rect(900, GROUND_Y, 100, 90), rect(2550, GROUND_Y, 100, 90), rect(4350, GROUND_Y, 100, 90) ],
     bananas: [ rect(1750,GROUND_Y-14,40,14), rect(3500,GROUND_Y-14,40,14) ],
     coins: [
       ...Array.from({length:10}, (_,i)=>rect(1750+i*55, GROUND_Y-110,22,22)),
@@ -2451,6 +2558,9 @@ function buildLevels(){
   // LEVEL 19: Extreme CodeZero Exam
   levels.push({
     name:'ეპ.19 — ექსტრემალური CODEZERO-ს გამოცდა 🎓🔥',
+    diffRating: 'NIGHTMARE', diffStars: '💀💀💀💀💀', diffColor: '#dc2626',
+    gimmickTitle: '🎓 CODEZERO-ს ულმობელი გამოცდა', diffDesc: '3.0x HP სუპერ ბოსები, მოძრავი პლატფორმები და ლაზერული ხაფანგები.',
+    zombieSpeedMult: 1.8, zombieHpMult: 3.0, gravityMult: 1.0, hazardType: 'boss_gauntlet',
     width: 6800,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -2465,7 +2575,8 @@ function buildLevels(){
       rect(5500, GROUND_Y, 1200, 90),
     ],
     fakespikes: [ rect(1950,GROUND_Y-24,100,24), rect(3900,GROUND_Y-24,100,24) ],
-    spikes: [ rect(1040,GROUND_Y-24,60,24), rect(2770,GROUND_Y-24,80,24), rect(4720,GROUND_Y-24,80,24) ],
+    spikes: [ rect(1040,GROUND_Y-24,60,24), rect(1420, GROUND_Y-184, 60, 24), rect(2770,GROUND_Y-24,80,24), rect(4720,GROUND_Y-24,80,24), rect(5150, GROUND_Y-204, 60, 24) ],
+    lavas: [ rect(1000, GROUND_Y, 100, 90), rect(2750, GROUND_Y, 100, 90), rect(4700, GROUND_Y, 100, 90) ],
     bananas: [ rect(1900,GROUND_Y-14,40,14), rect(3800,GROUND_Y-14,40,14) ],
     coins: [
       ...Array.from({length:12}, (_,i)=>rect(1900+i*55, GROUND_Y-110,22,22)),
@@ -2496,6 +2607,9 @@ function buildLevels(){
   // LEVEL 20: Ultimate Multiverse Finale
   levels.push({
     name:'ეპ.20 — მულტივერსის გრანდიოზული ფინალი 🏆🚀',
+    diffRating: 'NIGHTMARE', diffStars: '💀💀💀💀💀', diffColor: '#dc2626',
+    gimmickTitle: '🏆 მულტივერსული აპოკალიფსი', diffDesc: 'ყველა ტიპის მახე, 4 გიგანტური ბოსი და მაქსიმალური სიჩქარე (2.0x)!',
+    zombieSpeedMult: 2.0, zombieHpMult: 2.5, gravityMult: 1.0, hazardType: 'multiverse_chaos',
     width: 7200,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -2510,7 +2624,8 @@ function buildLevels(){
       rect(5950, GROUND_Y, 1200, 90),
     ],
     fakespikes: [ rect(2100,GROUND_Y-24,120,24), rect(4200,GROUND_Y-24,120,24) ],
-    spikes: [ rect(1140,GROUND_Y-24,60,24), rect(3020,GROUND_Y-24,80,24), rect(5120,GROUND_Y-24,80,24) ],
+    spikes: [ rect(1140,GROUND_Y-24,60,24), rect(1550, GROUND_Y-184, 60, 24), rect(3020,GROUND_Y-24,80,24), rect(5120,GROUND_Y-24,80,24), rect(5580, GROUND_Y-204, 60, 24) ],
+    lavas: [ rect(1100, GROUND_Y, 100, 90), rect(3000, GROUND_Y, 100, 90), rect(5100, GROUND_Y, 100, 90) ],
     bananas: [ rect(2050,GROUND_Y-14,40,14), rect(4150,GROUND_Y-14,40,14) ],
     coins: [
       ...Array.from({length:15}, (_,i)=>rect(2050+i*55, GROUND_Y-110,22,22)),
@@ -2544,6 +2659,9 @@ function buildLevels(){
   // LEVEL 21: Final Godzilla City Destruction Boss Battle
   levels.push({
     name:'ეპ.21 — გოდზილას აპოკალიფსი: ტანკების შეტევა 🦖🏙️',
+    diffRating: 'FINAL BOSS', diffStars: '👑💀👑💀👑', diffColor: '#ef4444',
+    gimmickTitle: '🦖 გოდზილას და ტანკების დუელი', diffDesc: 'საბოლოო ბრძოლა გიგანტურ გოდზილასთან! მართე ტანკი, ესროლე ჭურვები და გადაარჩინე ქალაქი!',
+    zombieSpeedMult: 2.2, zombieHpMult: 4.0, gravityMult: 1.0, hazardType: 'godzilla_boss_battle',
     width: 9000,
     spawn:{x:80,y:GROUND_Y-70},
     isGodzillaLevel: true,
@@ -2557,7 +2675,8 @@ function buildLevels(){
       rect(7500, GROUND_Y, 1500, 90),
     ],
     fakespikes: [ rect(2300,GROUND_Y-24,120,24), rect(5200,GROUND_Y-24,120,24) ],
-    spikes: [ rect(1620,GROUND_Y-24,80,24), rect(4020,GROUND_Y-24,80,24), rect(6920,GROUND_Y-24,80,24) ],
+    spikes: [ rect(1620,GROUND_Y-24,80,24), rect(1700, GROUND_Y-104, 60, 24), rect(4020,GROUND_Y-24,80,24), rect(6920,GROUND_Y-24,80,24), rect(7000, GROUND_Y-124, 60, 24) ],
+    lavas: [ rect(1600, GROUND_Y, 100, 90), rect(4000, GROUND_Y, 100, 90), rect(6900, GROUND_Y, 100, 90) ],
     bananas: [ rect(2200,GROUND_Y-14,40,14), rect(5100,GROUND_Y-14,40,14) ],
     coins: [
       ...Array.from({length:15}, (_,i)=>rect(2200+i*60, GROUND_Y-120,22,22)),
@@ -2586,6 +2705,34 @@ function buildLevels(){
       rect(7100, GROUND_Y-230, 42, 42, {hit:false, type:'sponsor'})
     ],
     bgHue:'pink'
+  });
+
+  const levelThemes = [
+    'dusk_suburbs',       // Ep 1: Sunset Suburbs
+    'cyberpunk_alley',    // Ep 2: Neon Cyberpunk Alleyway
+    'horror_ruins',       // Ep 3: CodeZero Horror Library Ruins
+    'desert_canyon',      // Ep 4: Golden Desert Canyon
+    'volcanic_inferno',   // Ep 5: Infernal Volcanic Boss Arena
+    'nuclear_lab',        // Ep 6: High-Tech Nuclear Power Plant
+    'frozen_tundra',      // Ep 7: Blizzard Ice Tundra & Aurora
+    'cosmic_void',        // Ep 8: Deep Space Cosmic Void
+    'doomsday_city',      // Ep 9: Burning Doomsday Metropolis
+    'glitch_cyberverse',  // Ep 10: Cyber Glitch Digital Void
+    'infernal_volcano',   // Ep 11: Fiery Lava Cavern & Erupting Magma
+    'toxic_sewers',       // Ep 12: Toxic Sewers & Slime Pipes
+    'prehistoric_jungle', // Ep 13: Prehistoric Dinosaur Jungle
+    'gothic_cemetery',    // Ep 14: Spooky Graveyard at Midnight
+    'neon_synthwave',     // Ep 15: Synthwave Retro Grid Sun
+    'alien_hive',         // Ep 16: Alien Hive Mothership
+    'haunted_mansion',    // Ep 17: Haunted Abandoned Mansion
+    'industrial_foundry', // Ep 18: Molten Steel Foundry
+    'sky_temple',         // Ep 19: Floating Sky Temple above clouds
+    'godzilla_ruins',     // Ep 20: Godzilla Destroyed City Ruins
+    'ultimate_cosmos'     // Ep 21: Ultimate Cosmic Omega Void
+  ];
+
+  levels.forEach((lvl, idx) => {
+    lvl.theme = levelThemes[idx % levelThemes.length];
   });
 
   return levels;
@@ -2826,6 +2973,7 @@ function updatePlayer(dt){
   if(player.x < camX+4) player.x = camX+4;
 
   // Platform collision & moving platforms update
+  const wasOnGround = player.onGround;
   player.onGround = false;
   for(const p of level.plats){
     // Update platform movement
@@ -2856,6 +3004,13 @@ function updatePlayer(dt){
     }
   }
 
+  // Dust cloud landing effect when player hits ground after falling
+  if(!wasOnGround && player.onGround){
+    spawnParticles(player.x + player.w/2, player.y + player.h, '#d4b483', 18, 1.6);
+    spawnParticles(player.x + player.w/2, player.y + player.h, '#ffffff', 10, 1.2);
+    spawnParticles(player.x + player.w/2, player.y + player.h, '#a08560', 12, 1.4);
+  }
+
   // Trigger "ადიოს მუჩაჩოოსსსს" when falling off world into pit
   if(player.y > GROUND_Y + 25 && !player.isFalling && !player.onGround){
     player.isFalling = true;
@@ -2881,6 +3036,28 @@ function updatePlayer(dt){
   for(const s of level.spikes){
     if(overlap(player,s) && player.invuln<=0){
       hurtPlayer("მოულოდნელი ხაფანგი! 🩸");
+    }
+  }
+
+  // Lava hazards
+  if(level.lavas){
+    for(const l of level.lavas){
+      if(overlap(player, l) && player.invuln <= 0){
+        spawnParticles(player.x+player.w/2, player.y+player.h, '#ff5500', 16, 2.5);
+        spawnParticles(player.x+player.w/2, player.y+player.h, '#ffd23f', 12, 2.0);
+        hurtPlayer("ცხელ ლავაში ჩავარდი! 🌋🔥");
+      }
+    }
+  }
+
+  // Water hazards / deep crosses
+  if(level.waters){
+    for(const w of level.waters){
+      if(overlap(player, w) && player.invuln <= 0){
+        spawnParticles(player.x+player.w/2, w.y+10, '#38c6ff', 16, 2.2);
+        spawnParticles(player.x+player.w/2, w.y+10, '#ffffff', 10, 1.8);
+        hurtPlayer("წყლის გადაკვეთაში ჩაიძირე! 🌊💀");
+      }
     }
   }
 
@@ -2917,92 +3094,104 @@ function updatePlayer(dt){
     }
   }
   
-  // Jumpboxes (Hit from below!)
+function activateJumpbox(jb){
+  if(jb.hit) return;
+  jb.hit = true;
+  jb.bounceY = -12;
+  sfxBoxHit();
+  shake(6);
+  spawnParticles(jb.x + jb.w/2, jb.y + jb.h/2, '#ffd23f', 16, 2.5);
+
+  if(jb.type === 'coin'){
+    addScore(50);
+    state.coinsCollected = (state.coinsCollected || 0) + 5;
+    addFloatingText(jb.x, jb.y-20, "+50 ქულა! 💰");
+    checkAchievements();
+  } else if(jb.type === 'bell'){
+    addScore(100);
+    state.subs = Math.min(100, state.subs+20);
+    sfxBell();
+    addFloatingText(jb.x, jb.y-20, "+20% გამოწერა! 🔔", '#ff3d6e');
+  } else if(jb.type === 'heart'){
+    state.lives = Math.min(8, state.lives+1);
+    sfxWin();
+    addFloatingText(jb.x, jb.y-20, "+1 სიცოცხლე! ❤️", '#ff3d6e');
+  } else if(jb.type === 'triple'){
+    player.weaponMode = 'triple';
+    sfxWin();
+    toast("🔥 სამმაგი ლაზერი ჩართულია! 🔥", 2000);
+  } else if(jb.type === 'shotgun'){
+    player.weaponMode = 'shotgun';
+    sfxWin();
+    toast("💥 5-იანი შოტგანი აიღე! 💥", 2000);
+  } else if(jb.type === 'minigun'){
+    player.weaponMode = 'minigun';
+    sfxWin();
+    toast("⚡ სუპერ მინიგანი! ⚡", 2000);
+  } else if(jb.type === 'plasma'){
+    player.weaponMode = 'plasma';
+    sfxWin();
+    toast("🌌 პლაზმური ზარბაზანი! 🌌", 2000);
+  } else if(jb.type === 'flamethrower'){
+    player.weaponMode = 'flamethrower';
+    sfxWin();
+    toast("🔥 ალმოდებული ფლამეინგი აიღე! 🔥", 2000);
+  } else if(jb.type === 'tank'){
+    player.weaponMode = 'tank';
+    sfxDemonic();
+    shake(18);
+    toast("💥 ომის გიგანტური ტანკი ჩაირთო! 💥", 2500);
+  } else if(jb.type === 'fastener'){
+    player.fastenerTimer = 8000;
+    sfxWin();
+    toast("⚡ FASTENER - სუპერ სიჩქარე & ხტომა! ⚡", 2200);
+  } else if(jb.type === 'prank_zombie'){
+    sfxScare();
+    shake(14);
+    spawnZombie(player.x + 120, player.y - 100);
+    spawnZombie(player.x - 120, player.y - 100);
+    toast("😱 ზომბების მოულოდნელი ხაფანგი! 🧟", 2000);
+  } else if(jb.type === 'prank_reverse'){
+    player.reverseControlsTimer = 6000;
+    sfxHurt();
+    shake(12);
+    toast("🌀 კონტროლი ამოტრიალდა! (6 წამი)", 2200);
+  } else if(jb.type === 'prank_bomb'){
+    sfxDemonic();
+    shake(22);
+    triggerFlash('255,100,0', 0.8);
+    spawnParticles(jb.x+jb.w/2, jb.y+jb.h/2, '#ff3d6e', 30, 2);
+    player.vy = -12;
+    player.vx = -player.facing * 10;
+    toast("💥 აფეთქდა ყუთი! ფრთხილად! 💥", 2000);
+  } else if(jb.type === 'prank_dance'){
+    sfxWin();
+    triggerFlash('255,0,200', 0.8);
+    shake(14);
+    toast("🕺 დისკო-ხულიგნური ტაიმი! 💃", 2500);
+  } else if(jb.type === 'prank_jumpscare_giant'){
+    doJumpscare('demon');
+    toast("👻 საშინელი სულის გაღვიძება! 👻", 2000);
+  } else if(jb.type === 'sponsor'){
+    triggerSponsorPopup();
+  } else if(jb.type === 'jumpscare'){
+    doJumpscare('demon');
+  }
+}
+
+  // Jumpboxes / Lucky Drops (Hit from below, kick from above, or sides!)
   for(const jb of level.jumpboxes){
     if(!jb.hit && overlap(player, jb)){
-      const prevTop = player.y - player.vy;
-      if(player.vy < 0 && prevTop >= jb.y + jb.h - 8){
-        jb.hit = true;
-        jb.bounceY = -12;
-        sfxBoxHit();
-        shake(6);
-        spawnParticles(jb.x + jb.w/2, jb.y, '#ffd23f', 12);
+      const comesFromAbove = player.vy >= 0 && (player.y + player.h - player.vy) <= (jb.y + 16);
+      activateJumpbox(jb);
 
-        if(jb.type === 'coin'){
-          addScore(50);
-          state.coinsCollected = (state.coinsCollected || 0) + 5;
-          addFloatingText(jb.x, jb.y-20, "+50 ქულა! 💰");
-          checkAchievements();
-        } else if(jb.type === 'bell'){
-          addScore(100);
-          state.subs = Math.min(100, state.subs+20);
-          sfxBell();
-          addFloatingText(jb.x, jb.y-20, "+20% გამოწერა! 🔔", '#ff3d6e');
-        } else if(jb.type === 'heart'){
-          state.lives = Math.min(5, state.lives+1);
-          sfxWin();
-          addFloatingText(jb.x, jb.y-20, "+1 სიცოცხლე! ❤️", '#ff3d6e');
-        } else if(jb.type === 'triple'){
-          player.weaponMode = 'triple';
-          sfxWin();
-          toast("🔥 სამმაგი ლაზერი ჩართულია! 🔥", 2000);
-        } else if(jb.type === 'shotgun'){
-          player.weaponMode = 'shotgun';
-          sfxWin();
-          toast("💥 5-იანი შოტგანი აიღე! 💥", 2000);
-        } else if(jb.type === 'minigun'){
-          player.weaponMode = 'minigun';
-          sfxWin();
-          toast("⚡ სუპერ მინიგანი! ⚡", 2000);
-        } else if(jb.type === 'plasma'){
-          player.weaponMode = 'plasma';
-          sfxWin();
-          toast("🌌 პლაზმური ზარბაზანი! 🌌", 2000);
-        } else if(jb.type === 'flamethrower'){
-          player.weaponMode = 'flamethrower';
-          sfxWin();
-          toast("🔥 ალმოდებული ფლამეინგი აიღე! 🔥", 2000);
-        } else if(jb.type === 'tank'){
-          player.weaponMode = 'tank';
-          sfxDemonic();
-          shake(18);
-          toast("💥 ომის გიგანტური ტანკი ჩაირთო! 💥", 2500);
-        } else if(jb.type === 'fastener'){
-          player.fastenerTimer = 8000;
-          sfxWin();
-          toast("⚡ FASTENER - სუპერ სიჩქარე & ხტომა! ⚡", 2200);
-        } else if(jb.type === 'prank_zombie'){
-          sfxScare();
-          shake(14);
-          spawnZombie(player.x + 120, player.y - 100);
-          spawnZombie(player.x - 120, player.y - 100);
-          toast("😱 ზომბების მოულოდნელი ხაფანგი! 🧟", 2000);
-        } else if(jb.type === 'prank_reverse'){
-          player.reverseControlsTimer = 6000;
-          sfxHurt();
-          shake(12);
-          toast("🌀 კონტროლი ამოტრიალდა! (6 წამი)", 2200);
-        } else if(jb.type === 'prank_bomb'){
-          sfxDemonic();
-          shake(22);
-          triggerFlash('255,100,0', 0.8);
-          spawnParticles(jb.x+jb.w/2, jb.y+jb.h/2, '#ff3d6e', 30, 2);
-          player.vy = -12;
-          player.vx = -player.facing * 10;
-          toast("💥 აფეთქდა ყუთი! ფრთხილად! 💥", 2000);
-        } else if(jb.type === 'prank_dance'){
-          sfxWin();
-          triggerFlash('255,0,200', 0.8);
-          shake(14);
-          toast("🕺 დისკო-ხულიგნური ტაიმი! 💃", 2500);
-        } else if(jb.type === 'prank_jumpscare_giant'){
-          doJumpscare('demon');
-          toast("👻 საშინელი სულის გაღვიძება! 👻", 2000);
-        } else if(jb.type === 'sponsor'){
-          triggerSponsorPopup();
-        } else if(jb.type === 'jumpscare'){
-          doJumpscare('demon');
-        }
+      if(comesFromAbove){
+        // Kicked/landed on top of lucky drop from above -> bounce player up high!
+        player.vy = -12.5;
+        player.onGround = true;
+      } else {
+        // Hit from below -> push player down slightly
+        player.vy = Math.max(player.vy, 2);
       }
     }
     if(jb.bounceY){
@@ -3068,13 +3257,29 @@ function hurtPlayer(msg, cause='zombie'){
     player.dead = true;
     player.isFalling = false;
     sfxDemonic();
-    const spawnY = Math.min(H - 60, Math.max(80, player.y));
-    spawnParticles(player.x+player.w/2, spawnY, '#ff3d6e', 35, 2.5);
-    spawnParticles(player.x+player.w/2, spawnY, '#38c6ff', 30, 2.5);
+    sfxScare();
+    const spawnY = Math.min(H - 60, Math.max(80, player.y + player.h/2));
+    const deathX = player.x + player.w/2;
+
+    spawnParticles(deathX, spawnY, '#ff3d6e', 50, 3.2);
+    spawnParticles(deathX, spawnY, '#ffd23f', 40, 2.8);
+    spawnParticles(deathX, spawnY, '#ffffff', 30, 2.0);
+
+    state.deathCam = {
+      active: true,
+      timer: 2400,
+      maxTimer: 2400,
+      deathX: deathX,
+      deathY: spawnY,
+      causeMsg: msg || "კრიტიკული დამარცხება! 💀",
+      zoom: 1
+    };
+
+    shake(30);
+    triggerFlash('255,0,0', 0.85);
+
     if(state.lastKilledByGodzilla || (level && level.isGodzillaLevel)){
       triggerNukeSequence();
-    } else {
-      setTimeout(()=>{ state.mode='gameover'; }, 1000);
     }
   } else {
     resetPlayer(level.spawn);
@@ -3115,6 +3320,7 @@ function levelClear(){
 }
 
 function loadLevel(idx){
+  if(state.deathCam) state.deathCam.active = false;
   level = LEVELS[idx];
   level.coins.forEach(c=>c.taken=false);
   level.bells.forEach(b=>b.taken=false);
@@ -3167,6 +3373,12 @@ function loadLevel(idx){
   }
 
   initWeather();
+
+  if (level.diffRating && level.gimmickTitle) {
+    toast(`🎮 ${level.name} [${level.diffRating} ${level.diffStars}] — ${level.gimmickTitle}!`, 3500);
+  } else {
+    toast(`🎮 ${level.name}`, 2200);
+  }
 }
 
 function restartLevel(){
@@ -3193,87 +3405,733 @@ function startGame(){
 }
 
 // ---------- Drawing Rendering Engine ----------
-function drawBackground(hue){
-  const skyTop = hue==='pink' ? '#2a0a25' : '#081224';
-  const skyBot = hue==='pink' ? '#4d0c32' : '#0e2642';
-  const grad = ctx.createLinearGradient(0,0,0,H);
-  grad.addColorStop(0, skyTop);
-  grad.addColorStop(0.5, hue==='pink' ? '#380c2e' : '#122d4f');
-  grad.addColorStop(1, skyBot);
-  ctx.fillStyle = grad;
-  ctx.fillRect(0,0,W,H);
+function drawBackground(theme){
+  if(!theme || theme === 'pink' || theme === 'blue'){
+    if(level && level.theme) theme = level.theme;
+    else theme = 'dusk_suburbs';
+  }
 
-  // Parallax Blood Moon / Neon Cyber Orb
-  ctx.save();
-  ctx.fillStyle = hue==='pink' ? 'rgba(255,61,110,0.25)' : 'rgba(56,198,255,0.2)';
-  ctx.beginPath();
-  ctx.arc(W*0.75 - camX*0.05, 110, 70, 0, Math.PI*2);
-  ctx.fill();
-  ctx.restore();
+  switch(theme){
+    case 'dusk_suburbs': {
+      // 1. Sunset Suburbs
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0, '#1c0a2a');
+      g.addColorStop(0.35, '#5c1d47');
+      g.addColorStop(0.7, '#d94f38');
+      g.addColorStop(1, '#f39c12');
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,W,H);
 
-  // Parallax Hills
-  for(let layer=0;layer<3;layer++){
-    const alpha = 0.18 - layer*0.05;
-    const speed = 0.15 + layer*0.1;
-    ctx.fillStyle = hue==='pink' ? `rgba(255,61,110,${alpha})` : `rgba(56,198,255,${alpha})`;
-    for(let i=-1;i<6;i++){
-      const bx = (i*320 - camX*speed) % (320*6);
+      // Giant Setting Sun
+      ctx.save();
+      const sunX = W * 0.72 - (camX * 0.03) % W;
+      const sunGrad = ctx.createRadialGradient(sunX, 160, 20, sunX, 160, 110);
+      sunGrad.addColorStop(0, '#ffffff');
+      sunGrad.addColorStop(0.4, '#ffd23f');
+      sunGrad.addColorStop(1, 'rgba(243, 156, 18, 0)');
+      ctx.fillStyle = sunGrad;
+      ctx.beginPath(); ctx.arc(sunX, 160, 110, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+
+      // Suburb Hills Parallax
+      for(let layer=0; layer<3; layer++){
+        const speed = 0.08 + layer*0.08;
+        const color = layer===0 ? 'rgba(74, 21, 56, 0.45)' : layer===1 ? 'rgba(110, 35, 60, 0.55)' : 'rgba(145, 45, 55, 0.65)';
+        ctx.fillStyle = color;
+        for(let i=-1; i<6; i++){
+          const bx = (i*360 - camX*speed) % (360*6);
+          ctx.beginPath();
+          ctx.ellipse(bx+180, GROUND_Y+40+layer*15, 260-layer*25, 110-layer*20, 0, Math.PI, Math.PI*2);
+          ctx.fill();
+        }
+      }
+      break;
+    }
+
+    case 'cyberpunk_alley': {
+      // 2. Neon Cyberpunk Alleyway
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0, '#040612');
+      g.addColorStop(0.5, '#0d1733');
+      g.addColorStop(1, '#1e0a38');
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,W,H);
+
+      // Neon Ringed Cyber Orb
+      ctx.save();
+      const orbX = W * 0.8 - (camX * 0.04) % W;
+      ctx.fillStyle = 'rgba(0, 240, 255, 0.22)';
+      ctx.beginPath(); ctx.arc(orbX, 110, 65, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#38c6ff'; ctx.lineWidth = 3; ctx.stroke();
+      ctx.strokeStyle = '#ff00aa'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.ellipse(orbX, 110, 95, 22, -0.2, 0, Math.PI*2); ctx.stroke();
+      ctx.restore();
+
+      // Cyber Skyscrapers
+      for(let i=-1; i<12; i++){
+        const bx = (i*220 - camX*0.15) % (220*12);
+        const bh = 180 + ((i*37)%140);
+        ctx.fillStyle = '#0a0d1a';
+        ctx.fillRect(bx, GROUND_Y-bh, 140, bh+100);
+        ctx.strokeStyle = '#00f0ff'; ctx.lineWidth = 1;
+        ctx.strokeRect(bx, GROUND_Y-bh, 140, bh+100);
+
+        ctx.fillStyle = (i%2===0) ? 'rgba(56, 198, 255, 0.5)' : 'rgba(255, 0, 170, 0.5)';
+        for(let wx = bx+15; wx < bx+120; wx += 22){
+          for(let wy = GROUND_Y-bh+20; wy < GROUND_Y-20; wy += 35){
+            if((wx+wy+i)%3===0) ctx.fillRect(wx, wy, 10, 16);
+          }
+        }
+
+        if(i%3===0){
+          ctx.fillStyle = 'rgba(255, 0, 170, 0.85)';
+          ctx.font = '900 12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('CYBER 2077', bx + 70, GROUND_Y - bh + 18);
+        }
+      }
+      break;
+    }
+
+    case 'horror_ruins': {
+      // 3. CodeZero Horror Library Ruins
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0, '#0a0105');
+      g.addColorStop(0.5, '#2e0416');
+      g.addColorStop(1, '#520829');
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,W,H);
+
+      // Blood Red Moon
+      ctx.save();
+      const moonX = W * 0.7 - (camX * 0.03) % W;
+      ctx.fillStyle = '#dc2626';
+      ctx.shadowColor = '#dc2626'; ctx.shadowBlur = 35;
+      ctx.beginPath(); ctx.arc(moonX, 100, 60, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+
+      // Gothic Pillars & Red Eyes
+      for(let i=-1; i<10; i++){
+        const px = (i*280 - camX*0.18) % (280*10);
+        ctx.fillStyle = '#18030e';
+        ctx.fillRect(px, GROUND_Y-220, 45, 240);
+        ctx.fillRect(px-10, GROUND_Y-230, 65, 15);
+        ctx.fillRect(px-10, GROUND_Y-10, 65, 15);
+
+        const blink = Math.sin(state.time*0.005 + i) > 0.1;
+        if(blink){
+          ctx.fillStyle = '#ff0033';
+          ctx.fillRect(px + 12, GROUND_Y - 140, 5, 4);
+          ctx.fillRect(px + 24, GROUND_Y - 140, 5, 4);
+        }
+      }
+      break;
+    }
+
+    case 'desert_canyon': {
+      // 4. Golden Desert Canyon
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0, '#2b0d02');
+      g.addColorStop(0.35, '#803303');
+      g.addColorStop(0.7, '#d97706');
+      g.addColorStop(1, '#fbbf24');
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,W,H);
+
+      // Blazing Sun
+      ctx.save();
+      const bSunX = W * 0.5 - (camX * 0.02) % W;
+      ctx.fillStyle = '#ffffff'; ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 40;
+      ctx.beginPath(); ctx.arc(bSunX, 120, 55, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+
+      // Red Rock Canyons
+      for(let layer=0; layer<3; layer++){
+        const speed = 0.07 + layer*0.07;
+        ctx.fillStyle = layer===0 ? 'rgba(120, 40, 10, 0.4)' : layer===1 ? 'rgba(160, 55, 15, 0.55)' : 'rgba(200, 75, 20, 0.7)';
+        for(let i=-1; i<7; i++){
+          const cx = (i*320 - camX*speed) % (320*7);
+          ctx.beginPath();
+          ctx.moveTo(cx, GROUND_Y+50);
+          ctx.lineTo(cx+60, GROUND_Y-90-layer*30);
+          ctx.lineTo(cx+180, GROUND_Y-120-layer*20);
+          ctx.lineTo(cx+260, GROUND_Y-70-layer*30);
+          ctx.lineTo(cx+320, GROUND_Y+50);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+      break;
+    }
+
+    case 'volcanic_inferno':
+    case 'infernal_volcano': {
+      // 5 & 11. Infernal Volcanic Boss Arena
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0, '#1a0000');
+      g.addColorStop(0.5, '#4d0000');
+      g.addColorStop(1, '#800505');
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,W,H);
+
+      // Erupting Volcanoes
+      for(let i=-1; i<5; i++){
+        const vx = (i*450 - camX*0.1) % (450*5);
+        ctx.fillStyle = '#220303';
+        ctx.beginPath();
+        ctx.moveTo(vx, GROUND_Y+50);
+        ctx.lineTo(vx+140, GROUND_Y-180);
+        ctx.lineTo(vx+190, GROUND_Y-180);
+        ctx.lineTo(vx+330, GROUND_Y+50);
+        ctx.fill();
+
+        ctx.fillStyle = Math.sin(state.time*0.01 + i) > 0 ? '#ff3d6e' : '#f59e0b';
+        ctx.beginPath();
+        ctx.arc(vx+165, GROUND_Y-180, 25, 0, Math.PI*2);
+        ctx.fill();
+      }
+
+      // Floating Lava Sparks
+      ctx.fillStyle = '#ffaa00';
+      for(let i=0; i<35; i++){
+        const px = (i*137 + state.time*0.15) % W;
+        const py = (GROUND_Y - (i*43 + state.time*0.2) % (GROUND_Y - 20));
+        ctx.fillRect(px, py, 3, 3);
+      }
+      break;
+    }
+
+    case 'nuclear_lab': {
+      // 6. Nuclear Power Plant / Laser Matrix
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0, '#02120a');
+      g.addColorStop(0.5, '#082c1b');
+      g.addColorStop(1, '#0f4a2d');
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,W,H);
+
+      // Cooling Towers
+      for(let i=-1; i<6; i++){
+        const tx = (i*350 - camX*0.12) % (350*6);
+        ctx.fillStyle = '#061e13';
+        ctx.beginPath();
+        ctx.moveTo(tx, GROUND_Y+50);
+        ctx.lineTo(tx+40, GROUND_Y-160);
+        ctx.lineTo(tx+160, GROUND_Y-160);
+        ctx.lineTo(tx+200, GROUND_Y+50);
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(34, 197, 94, 0.25)';
+        ctx.beginPath();
+        ctx.arc(tx+100, GROUND_Y-190, 45 + Math.sin(state.time*0.005 + i)*10, 0, Math.PI*2);
+        ctx.fill();
+      }
+      break;
+    }
+
+    case 'frozen_tundra': {
+      // 7. Frozen Tundra & Aurora Borealis
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0, '#03101e');
+      g.addColorStop(0.5, '#0a2542');
+      g.addColorStop(1, '#133d6b');
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,W,H);
+
+      // Aurora Borealis
+      ctx.save();
+      const waveT = state.time * 0.002;
+      ctx.fillStyle = 'rgba(0, 240, 255, 0.18)';
       ctx.beginPath();
-      ctx.ellipse(bx+160, GROUND_Y+30+layer*20, 240-layer*30, 95-layer*15, 0, Math.PI, 2*Math.PI);
+      ctx.moveTo(0, 0);
+      for(let x=0; x<=W; x+=40){
+        ctx.lineTo(x, 70 + Math.sin(x*0.01 + waveT)*35);
+      }
+      ctx.lineTo(W, 0);
       ctx.fill();
+
+      ctx.fillStyle = 'rgba(168, 85, 247, 0.15)';
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      for(let x=0; x<=W; x+=40){
+        ctx.lineTo(x, 110 + Math.cos(x*0.012 - waveT)*40);
+      }
+      ctx.lineTo(W, 0);
+      ctx.fill();
+      ctx.restore();
+
+      // Ice Mountains
+      for(let i=-1; i<7; i++){
+        const ix = (i*300 - camX*0.1) % (300*7);
+        ctx.fillStyle = '#062038';
+        ctx.beginPath();
+        ctx.moveTo(ix, GROUND_Y+50);
+        ctx.lineTo(ix+120, GROUND_Y-150);
+        ctx.lineTo(ix+240, GROUND_Y+50);
+        ctx.fill();
+
+        ctx.fillStyle = '#e0f2fe';
+        ctx.beginPath();
+        ctx.moveTo(ix+80, GROUND_Y-100);
+        ctx.lineTo(ix+120, GROUND_Y-150);
+        ctx.lineTo(ix+160, GROUND_Y-100);
+        ctx.fill();
+      }
+
+      // Snow
+      ctx.fillStyle = '#ffffff';
+      for(let i=0; i<40; i++){
+        const sx = (i*97 + state.time*0.1) % W;
+        const sy = (i*61 + state.time*0.15) % H;
+        ctx.beginPath(); ctx.arc(sx, sy, 1.8, 0, Math.PI*2); ctx.fill();
+      }
+      break;
+    }
+
+    case 'cosmic_void': {
+      // 8. Cosmic Deep Space Void
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0, '#020108');
+      g.addColorStop(0.5, '#0e0624');
+      g.addColorStop(1, '#1e0a40');
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,W,H);
+
+      // Ringed Cosmic Planet
+      ctx.save();
+      const px = W * 0.75 - (camX * 0.02) % W;
+      ctx.fillStyle = '#a855f7';
+      ctx.beginPath(); ctx.arc(px, 110, 60, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#f43f5e'; ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.ellipse(px, 110, 100, 20, -0.3, 0, Math.PI*2); ctx.stroke();
+      ctx.restore();
+
+      // Twinkling Starlight
+      ctx.fillStyle = '#ffffff';
+      for(let i=0; i<60; i++){
+        const sx = (i*137 - camX*0.05) % W;
+        const sy = (i*53) % H;
+        const tw = Math.sin(state.time*0.005 + i)*0.4 + 0.6;
+        ctx.globalAlpha = tw;
+        ctx.fillRect(((sx%W)+W)%W, sy, 2, 2);
+      }
+      ctx.globalAlpha = 1;
+      break;
+    }
+
+    case 'doomsday_city':
+    case 'godzilla_ruins': {
+      // 9 & 20. Doomsday City / Godzilla Ruins
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0, '#0a0208');
+      g.addColorStop(0.5, '#1f0515');
+      g.addColorStop(1, '#380a26');
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,W,H);
+
+      // Searchlight beams
+      ctx.save();
+      const beamAngle = Math.sin(state.time * 0.0015) * 0.4;
+      ctx.fillStyle = 'rgba(0, 240, 255, 0.08)';
+      ctx.beginPath();
+      ctx.moveTo(W * 0.3, H);
+      ctx.lineTo(W * 0.3 - 150 + Math.tan(beamAngle)*300, 0);
+      ctx.lineTo(W * 0.3 + 150 + Math.tan(beamAngle)*300, 0);
+      ctx.fill();
+      ctx.restore();
+      break;
+    }
+
+    case 'glitch_cyberverse': {
+      // 10. Matrix Digital Glitch
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.fillStyle = 'rgba(34, 197, 94, 0.6)';
+      ctx.font = 'bold 12px monospace';
+      for(let i=0; i<40; i++){
+        const mx = (i * 32) % W;
+        const my = (i * 83 + state.time * 0.25) % H;
+        ctx.fillText(i % 2 === 0 ? '10110' : '01001', mx, my);
+      }
+      break;
+    }
+
+    case 'toxic_sewers': {
+      // 12. Toxic Sewers
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0, '#021812');
+      g.addColorStop(0.5, '#063326');
+      g.addColorStop(1, '#0a4d39');
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,W,H);
+
+      for(let i=-1; i<6; i++){
+        const px = (i*300 - camX*0.1) % (300*6);
+        ctx.fillStyle = '#022118';
+        ctx.fillRect(px, GROUND_Y - 200, 70, 220);
+        ctx.fillStyle = '#10b981';
+        ctx.fillRect(px + 20, GROUND_Y - 80, 30, 100);
+      }
+      break;
+    }
+
+    case 'prehistoric_jungle': {
+      // 13. Prehistoric Dinosaur Jungle
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0, '#031c0e');
+      g.addColorStop(0.5, '#0d4726');
+      g.addColorStop(1, '#18733e');
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,W,H);
+
+      ctx.save();
+      const aMoonX = W * 0.8 - (camX * 0.03) % W;
+      ctx.fillStyle = '#fbbf24';
+      ctx.beginPath(); ctx.arc(aMoonX, 90, 50, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+
+      for(let i=-1; i<8; i++){
+        const tx = (i*260 - camX*0.12) % (260*8);
+        ctx.fillStyle = '#022d17';
+        ctx.beginPath();
+        ctx.arc(tx + 80, GROUND_Y - 120, 90, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillRect(tx + 60, GROUND_Y - 120, 40, 180);
+      }
+      break;
+    }
+
+    case 'gothic_cemetery': {
+      // 14. Gothic Graveyard
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0, '#090514');
+      g.addColorStop(0.5, '#180b2d');
+      g.addColorStop(1, '#2d124d');
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,W,H);
+
+      ctx.fillStyle = '#fef08a';
+      ctx.beginPath(); ctx.arc(W * 0.7, 100, 55, 0, Math.PI*2); ctx.fill();
+
+      for(let i=-1; i<12; i++){
+        const gx = (i*180 - camX*0.15) % (180*12);
+        ctx.fillStyle = '#110a21';
+        ctx.fillRect(gx, GROUND_Y - 45, 24, 45);
+        ctx.beginPath(); ctx.arc(gx + 12, GROUND_Y - 45, 12, Math.PI, 2*Math.PI); ctx.fill();
+      }
+      break;
+    }
+
+    case 'neon_synthwave': {
+      // 15. Synthwave Retro Sun
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0, '#1e0038');
+      g.addColorStop(0.5, '#500057');
+      g.addColorStop(1, '#8c005f');
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,W,H);
+
+      ctx.save();
+      const sX = W * 0.5 - (camX * 0.02) % W;
+      const sunG = ctx.createLinearGradient(0, 60, 0, 200);
+      sunG.addColorStop(0, '#ff00aa');
+      sunG.addColorStop(1, '#ffcc00');
+      ctx.fillStyle = sunG;
+      ctx.beginPath(); ctx.arc(sX, 130, 70, 0, Math.PI*2); ctx.fill();
+
+      ctx.fillStyle = '#500057';
+      for(let y = 110; y <= 190; y += 12){
+        ctx.fillRect(sX - 75, y, 150, 4);
+      }
+      ctx.restore();
+      break;
+    }
+
+    case 'alien_hive': {
+      // 16. Alien Hive Mothership
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0, '#100224');
+      g.addColorStop(0.5, '#230545');
+      g.addColorStop(1, '#3b086e');
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,W,H);
+
+      for(let i=-1; i<8; i++){
+        const ax = (i*240 - camX*0.12) % (240*8);
+        ctx.fillStyle = '#1a0136';
+        ctx.beginPath(); ctx.ellipse(ax, GROUND_Y - 110, 35, 60, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#ec4899';
+        ctx.beginPath(); ctx.ellipse(ax, GROUND_Y - 110, 15, 30, 0, 0, Math.PI*2); ctx.fill();
+      }
+      break;
+    }
+
+    case 'haunted_mansion': {
+      // 17. Haunted Mansion
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0, '#120320');
+      g.addColorStop(0.5, '#250740');
+      g.addColorStop(1, '#400d66');
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,W,H);
+
+      for(let i=-1; i<6; i++){
+        const wx = (i*320 - camX*0.15) % (320*6);
+        ctx.fillStyle = '#ff0055';
+        ctx.fillRect(wx, GROUND_Y - 210, 50, 110);
+        ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 2;
+        ctx.strokeRect(wx, GROUND_Y - 210, 50, 110);
+      }
+      break;
+    }
+
+    case 'industrial_foundry': {
+      // 18. Molten Industrial Foundry
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0, '#180802');
+      g.addColorStop(0.5, '#3b1404');
+      g.addColorStop(1, '#662205');
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,W,H);
+
+      for(let i=-1; i<5; i++){
+        const fx = (i*380 - camX*0.15) % (380*5);
+        ctx.fillStyle = '#271005';
+        ctx.fillRect(fx, GROUND_Y - 240, 30, 260);
+        ctx.fillRect(fx - 40, GROUND_Y - 240, 120, 20);
+      }
+      break;
+    }
+
+    case 'sky_temple': {
+      // 19. Heavenly Sky Temple
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0, '#0c192c');
+      g.addColorStop(0.5, '#1a365d');
+      g.addColorStop(1, '#2b5288');
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,W,H);
+
+      ctx.fillStyle = 'rgba(251, 191, 36, 0.25)';
+      for(let i=-1; i<8; i++){
+        const cx = (i*260 - camX*0.1) % (260*8);
+        ctx.beginPath(); ctx.arc(cx, GROUND_Y - 40, 70, 0, Math.PI*2); ctx.fill();
+      }
+      break;
+    }
+
+    case 'ultimate_cosmos':
+    default: {
+      // 21. Ultimate Cosmic Supernova
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0, '#030012');
+      g.addColorStop(0.5, '#130036');
+      g.addColorStop(1, '#26005c');
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,W,H);
+
+      ctx.save();
+      const scX = W * 0.5 - (camX * 0.02) % W;
+      const sGrad = ctx.createRadialGradient(scX, 130, 10, scX, 130, 120);
+      sGrad.addColorStop(0, '#ffffff');
+      sGrad.addColorStop(0.3, '#38c6ff');
+      sGrad.addColorStop(0.7, '#f43f5e');
+      sGrad.addColorStop(1, 'rgba(38, 0, 92, 0)');
+      ctx.fillStyle = sGrad;
+      ctx.beginPath(); ctx.arc(scX, 130, 120, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+      break;
     }
   }
-
-  // Eerie Creepy Background Eyes in shadows
-  ctx.fillStyle = 'rgba(255, 0, 50, 0.7)';
-  for(let i=0; i<12; i++){
-    const ex = (i * 380 + 100 - camX * 0.2) % (380*12);
-    const ey = 140 + (i*47)%180;
-    const blink = Math.sin(state.time*0.004 + i*2) > 0.3;
-    if(blink && ex > -20 && ex < W+20){
-      ctx.fillRect(ex, ey, 4, 3);
-      ctx.fillRect(ex + 8, ey, 4, 3);
-    }
-  }
-
-  // Twinkling Stars
-  ctx.fillStyle='rgba(255,255,255,0.7)';
-  for(let i=0;i<60;i++){
-    const sx = (i*137 - camX*0.1) % W;
-    const sy = (i*53)%(GROUND_Y-60);
-    const twinkle = Math.sin(state.time*0.003 + i)*0.3 + 0.7;
-    ctx.globalAlpha = twinkle;
-    ctx.fillRect(((sx%W)+W)%W, sy+10, 2, 2);
-  }
-  ctx.globalAlpha = 1;
 }
 
-function drawGround(){
+function drawGround(theme){
+  if(!theme || theme === 'pink' || theme === 'blue'){
+    if(level && level.theme) theme = level.theme;
+    else theme = 'dusk_suburbs';
+  }
+
   for(const p of level.plats){
     const sx = p.x - camX;
-    if(sx+p.w<-20 || sx>W+20) continue;
+    if(sx + p.w < -20 || sx > W + 20) continue;
 
-    const g = ctx.createLinearGradient(0,p.y,0,p.y+p.h);
-    g.addColorStop(0,'#4fd67b');
-    g.addColorStop(0.12,'#2ea24f');
-    g.addColorStop(0.15,'#7b5a3a');
-    g.addColorStop(1,'#422e1d');
-    ctx.fillStyle=g;
-    ctx.fillRect(sx,p.y,p.w,p.h);
-    
-    // Grass Tufts
-    ctx.fillStyle='#6ee693';
-    for(let i=4; i<p.w-6; i+=18){
-      ctx.beginPath();
-      ctx.moveTo(sx+i, p.y);
-      ctx.lineTo(sx+i+4, p.y-7);
-      ctx.lineTo(sx+i+8, p.y);
-      ctx.fill();
+    switch(theme){
+      case 'dusk_suburbs':
+      case 'prehistoric_jungle': {
+        const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+        g.addColorStop(0, '#4fd67b');
+        g.addColorStop(0.12, '#2ea24f');
+        g.addColorStop(0.15, '#7b5a3a');
+        g.addColorStop(1, '#422e1d');
+        ctx.fillStyle = g;
+        ctx.fillRect(sx, p.y, p.w, p.h);
+
+        ctx.fillStyle = '#6ee693';
+        for(let i = 4; i < p.w - 6; i += 18){
+          ctx.beginPath();
+          ctx.moveTo(sx + i, p.y);
+          ctx.lineTo(sx + i + 4, p.y - 7);
+          ctx.lineTo(sx + i + 8, p.y);
+          ctx.fill();
+        }
+        break;
+      }
+
+      case 'cyberpunk_alley':
+      case 'glitch_cyberverse': {
+        const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+        g.addColorStop(0, '#1e293b');
+        g.addColorStop(0.2, '#0f172a');
+        g.addColorStop(1, '#020617');
+        ctx.fillStyle = g;
+        ctx.fillRect(sx, p.y, p.w, p.h);
+
+        ctx.fillStyle = '#00f0ff';
+        ctx.fillRect(sx, p.y, p.w, 3);
+
+        ctx.strokeStyle = 'rgba(0, 240, 255, 0.3)';
+        ctx.lineWidth = 1;
+        for(let i = 10; i < p.w; i += 24){
+          ctx.beginPath(); ctx.moveTo(sx + i, p.y); ctx.lineTo(sx + i, p.y + p.h); ctx.stroke();
+        }
+        break;
+      }
+
+      case 'horror_ruins':
+      case 'gothic_cemetery': {
+        const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+        g.addColorStop(0, '#2e382e');
+        g.addColorStop(0.15, '#1a241a');
+        g.addColorStop(1, '#0a100a');
+        ctx.fillStyle = g;
+        ctx.fillRect(sx, p.y, p.w, p.h);
+
+        ctx.fillStyle = '#22c55e';
+        ctx.fillRect(sx, p.y, p.w, 4);
+        for(let i = 6; i < p.w - 6; i += 12){
+          ctx.beginPath(); ctx.arc(sx + i, p.y + 4, 3, 0, Math.PI*2); ctx.fill();
+        }
+        break;
+      }
+
+      case 'desert_canyon': {
+        const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+        g.addColorStop(0, '#f59e0b');
+        g.addColorStop(0.15, '#d97706');
+        g.addColorStop(1, '#78350f');
+        ctx.fillStyle = g;
+        ctx.fillRect(sx, p.y, p.w, p.h);
+
+        ctx.fillStyle = '#fef08a';
+        ctx.fillRect(sx, p.y, p.w, 3);
+        break;
+      }
+
+      case 'volcanic_inferno':
+      case 'infernal_volcano': {
+        const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+        g.addColorStop(0, '#18181b');
+        g.addColorStop(0.2, '#09090b');
+        g.addColorStop(1, '#000000');
+        ctx.fillStyle = g;
+        ctx.fillRect(sx, p.y, p.w, p.h);
+
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(sx, p.y, p.w, 3);
+        ctx.fillStyle = '#f59e0b';
+        for(let i = 8; i < p.w - 8; i += 20){
+          ctx.fillRect(sx + i, p.y, 6, 4);
+        }
+        break;
+      }
+
+      case 'nuclear_lab':
+      case 'industrial_foundry': {
+        const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+        g.addColorStop(0, '#334155');
+        g.addColorStop(0.2, '#1e293b');
+        g.addColorStop(1, '#0f172a');
+        ctx.fillStyle = g;
+        ctx.fillRect(sx, p.y, p.w, p.h);
+
+        for(let i = 0; i < p.w; i += 16){
+          ctx.fillStyle = (i / 16) % 2 === 0 ? '#eab308' : '#18181b';
+          ctx.fillRect(sx + i, p.y, Math.min(16, p.w - i), 5);
+        }
+        break;
+      }
+
+      case 'frozen_tundra': {
+        const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+        g.addColorStop(0, '#38c6ff');
+        g.addColorStop(0.2, '#0284c7');
+        g.addColorStop(1, '#0369a1');
+        ctx.fillStyle = g;
+        ctx.fillRect(sx, p.y, p.w, p.h);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(sx, p.y, p.w, 5);
+
+        for(let i = 12; i < p.w - 12; i += 24){
+          ctx.beginPath();
+          ctx.moveTo(sx + i, p.y + p.h);
+          ctx.lineTo(sx + i + 4, p.y + p.h + 8);
+          ctx.lineTo(sx + i + 8, p.y + p.h);
+          ctx.fill();
+        }
+        break;
+      }
+
+      case 'cosmic_void':
+      case 'alien_hive':
+      case 'neon_synthwave':
+      case 'ultimate_cosmos': {
+        const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+        g.addColorStop(0, '#2e1065');
+        g.addColorStop(0.2, '#1e1b4b');
+        g.addColorStop(1, '#0f172a');
+        ctx.fillStyle = g;
+        ctx.fillRect(sx, p.y, p.w, p.h);
+
+        ctx.fillStyle = '#d946ef';
+        ctx.fillRect(sx, p.y, p.w, 3);
+        break;
+      }
+
+      case 'sky_temple': {
+        const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+        g.addColorStop(0, '#f8fafc');
+        g.addColorStop(0.2, '#e2e8f0');
+        g.addColorStop(1, '#94a3b8');
+        ctx.fillStyle = g;
+        ctx.fillRect(sx, p.y, p.w, p.h);
+
+        ctx.fillStyle = '#eab308';
+        ctx.fillRect(sx, p.y, p.w, 3);
+        break;
+      }
+
+      case 'doomsday_city':
+      case 'godzilla_ruins':
+      case 'haunted_mansion':
+      default: {
+        const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+        g.addColorStop(0, '#27272a');
+        g.addColorStop(0.2, '#18181b');
+        g.addColorStop(1, '#09090b');
+        ctx.fillStyle = g;
+        ctx.fillRect(sx, p.y, p.w, p.h);
+
+        ctx.fillStyle = theme === 'godzilla_ruins' ? '#00f0ff' : '#ff3d6e';
+        ctx.fillRect(sx, p.y, p.w, 3);
+        break;
+      }
     }
-    
-    ctx.strokeStyle='rgba(0,0,0,.35)';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(sx,p.y,p.w,p.h);
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(sx, p.y, p.w, p.h);
   }
 }
 
@@ -3384,6 +4242,76 @@ function drawSpike(s){
   }
 }
 
+function drawLava(l){
+  const sx = l.x - camX; if(sx + l.w < -20 || sx > W + 20) return;
+  const t = state.time * 0.006;
+
+  // Molten Lava Base
+  const g = ctx.createLinearGradient(0, l.y, 0, l.y + l.h);
+  g.addColorStop(0, '#ff3300');
+  g.addColorStop(0.35, '#ff7700');
+  g.addColorStop(0.7, '#cc1100');
+  g.addColorStop(1, '#550000');
+  ctx.fillStyle = g;
+  ctx.fillRect(sx, l.y, l.w, l.h);
+
+  // Animated Bubbling Top Waves
+  ctx.fillStyle = '#ffcc00';
+  ctx.beginPath();
+  ctx.moveTo(sx, l.y);
+  for(let x = 0; x <= l.w; x += 10){
+    const wave = Math.sin(t*2 + (l.x + x)*0.06) * 4;
+    ctx.lineTo(sx + x, l.y + wave);
+  }
+  ctx.lineTo(sx + l.w, l.y + l.h);
+  ctx.lineTo(sx, l.y + l.h);
+  ctx.closePath();
+  ctx.fill();
+
+  // Heat Outline & Lava Bubbles
+  ctx.strokeStyle = '#ffaa00';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(sx, l.y, l.w, l.h);
+
+  const bubbleCount = Math.floor(l.w / 35);
+  for(let i = 0; i < bubbleCount; i++){
+    const bx = sx + ((i * 35 + state.time * 0.05) % l.w);
+    const by = l.y + 12 + Math.sin(state.time * 0.01 + i) * 8;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(bx, by, 3, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+function drawWater(w){
+  const sx = w.x - camX; if(sx + w.w < -20 || sx > W + 20) return;
+  const t = state.time * 0.005;
+
+  // Translucent Deep Water Base
+  const g = ctx.createLinearGradient(0, w.y, 0, w.y + w.h);
+  g.addColorStop(0, 'rgba(0, 153, 255, 0.82)');
+  g.addColorStop(0.5, 'rgba(0, 85, 204, 0.90)');
+  g.addColorStop(1, 'rgba(0, 30, 90, 0.96)');
+  ctx.fillStyle = g;
+  ctx.fillRect(sx, w.y, w.w, w.h);
+
+  // Water Surface Animated Foam
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+  ctx.beginPath();
+  ctx.moveTo(sx, w.y);
+  for(let x = 0; x <= w.w; x += 10){
+    const wave = Math.sin(t*1.8 + (w.x + x)*0.08) * 3;
+    ctx.lineTo(sx + x, w.y + 2 + wave);
+  }
+  ctx.lineTo(sx + w.w, w.y + w.h);
+  ctx.lineTo(sx, w.y + w.h);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = '#38c6ff';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(sx, w.y, w.w, w.h);
+}
+
 function drawBanana(b){
   if(b.used) return;
   const sx=b.x-camX; if(sx+b.w<0||sx>W) return;
@@ -3482,54 +4410,210 @@ function drawFlag(f){
 
 function drawZombie(z){
   const sx = z.x - camX;
-  if(sx+z.w<-20 || sx>W+20) return;
+  if(sx+z.w < -60 || sx > W + 60) return;
   
   ctx.save();
-  ctx.translate(sx+z.w/2, z.y+z.h/2);
+  ctx.translate(sx + z.w/2, z.y + z.h/2);
   ctx.scale(z.facing * z.size, z.size);
   
-  const wobble = Math.sin(z.animT*0.03)*3;
-  
-  // Zombie Body
-  ctx.fillStyle = z.color;
-  ctx.fillRect(-14, z.h*0.05+wobble, 28, 32);
-  
-  // Head
-  ctx.fillStyle = z.color;
+  const anim = (z.animT || 0) * 0.05;
+  const wobble = Math.sin(anim) * 3;
+  const legCycle = Math.sin(anim * 1.5) * 8;
+  const isBoss = z.isBoss;
+  const isRunner = z.speed > 2.0;
+
+  // 1. Aura & Motion Trail for Special Zombies
+  if(isBoss) {
+    ctx.save();
+    ctx.shadowColor = '#ff0055';
+    ctx.shadowBlur = 18;
+    ctx.fillStyle = 'rgba(255, 0, 85, 0.2)';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 28, 36, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  } else if(isRunner) {
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.35)';
+    ctx.beginPath();
+    ctx.ellipse(-z.facing * 12, wobble, 16, 22, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // Zombie Skin & Rags Colors
+  const fleshColor = isBoss ? '#1e4d2b' : (isRunner ? '#2f7a43' : '#326b38');
+  const ragColor   = isBoss ? '#3b1c1c' : (isRunner ? '#1e293b' : '#292524');
+  const pantColor  = isBoss ? '#18181b' : (isRunner ? '#0f172a' : '#1c1917');
+
+  // 2. Tattered Legs (with walking swing & exposed bone/knee patch)
+  ctx.fillStyle = pantColor;
+  // Left Leg
+  ctx.save();
+  ctx.translate(-8, 12 + wobble);
+  ctx.rotate(legCycle * 0.04);
+  ctx.fillRect(-5, 0, 10, 22);
+  // Torn knee hole showing rotten flesh/bone
+  ctx.fillStyle = fleshColor;
+  ctx.fillRect(-3, 10, 6, 4);
+  ctx.fillStyle = '#e2e8f0';
+  ctx.fillRect(-1, 11, 2, 2);
+  ctx.restore();
+
+  // Right Leg
+  ctx.save();
+  ctx.translate(6, 12 + wobble);
+  ctx.rotate(-legCycle * 0.04);
+  ctx.fillStyle = pantColor;
+  ctx.fillRect(-5, 0, 10, 22);
+  ctx.restore();
+
+  // 3. Torso / Tattered Ripped Clothes
+  ctx.fillStyle = ragColor;
   ctx.beginPath();
-  ctx.ellipse(0, -12, 16, 17, 0, 0, 2*Math.PI);
+  ctx.moveTo(-16, -14 + wobble);
+  ctx.lineTo(16, -14 + wobble);
+  ctx.lineTo(14, 14 + wobble);
+  // Ripped torn hem bottom
+  ctx.lineTo(8, 18 + wobble);
+  ctx.lineTo(2, 12 + wobble);
+  ctx.lineTo(-4, 17 + wobble);
+  ctx.lineTo(-10, 13 + wobble);
+  ctx.lineTo(-14, 14 + wobble);
+  ctx.closePath();
   ctx.fill();
+
+  // Exposed Ribcage / Blood stain on chest
+  ctx.fillStyle = '#ff0033';
+  ctx.beginPath(); ctx.ellipse(2, -2 + wobble, 5, 7, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#cbd5e1';
+  ctx.fillRect(-1, -6 + wobble, 5, 2);
+  ctx.fillRect(0, -3 + wobble, 4, 2);
+
+  // 4. Boss Armor Accessories (Spiked Metal Shoulder Pads)
+  if(isBoss) {
+    ctx.fillStyle = '#334155';
+    ctx.beginPath();
+    ctx.moveTo(-18, -14 + wobble);
+    ctx.lineTo(-26, -24 + wobble);
+    ctx.lineTo(-12, -18 + wobble);
+    ctx.fill();
+    ctx.strokeStyle = '#ff0055';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  // 5. Outstretched Clawing Arms with Sharp Claws
+  ctx.fillStyle = fleshColor;
+  // Back Arm
+  ctx.save();
+  ctx.translate(-14, -8 + wobble);
+  ctx.rotate(-0.4 + Math.sin(anim)*0.2);
+  ctx.fillRect(0, -4, 18, 7);
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(18, -4, 4, 2);
+  ctx.fillRect(18, -1, 4, 2);
+  ctx.restore();
+
+  // Front Arm (Reaching forward menacingly)
+  ctx.save();
+  ctx.translate(8, -8 + wobble);
+  ctx.rotate(-0.2 + Math.cos(anim)*0.3);
+  ctx.fillStyle = fleshColor;
+  ctx.fillRect(0, -4, 22, 8);
+  ctx.fillStyle = '#111827';
+  ctx.beginPath();
+  ctx.moveTo(22, -4); ctx.lineTo(27, -6); ctx.lineTo(22, -2); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(22, -1); ctx.lineTo(28, -1); ctx.lineTo(22, 2); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(22, 2); ctx.lineTo(26, 4); ctx.lineTo(22, 4); ctx.fill();
+  ctx.restore();
+
+  // 6. Detailed Head & Skull
+  ctx.fillStyle = fleshColor;
+  ctx.beginPath();
+  ctx.ellipse(0, -22 + wobble, 16, 17, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Rotten Brain / Skull Patch on top right
+  ctx.fillStyle = '#dc2626';
+  ctx.beginPath();
+  ctx.arc(6, -30 + wobble, 6, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = '#f87171';
+  ctx.beginPath(); ctx.arc(5, -31 + wobble, 3, 0, Math.PI*2); ctx.fill();
+
+  // Boss Spiked Horns
+  if(isBoss) {
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.moveTo(-8, -34 + wobble); ctx.lineTo(-14, -48 + wobble); ctx.lineTo(-2, -36 + wobble);
+    ctx.moveTo(2, -34 + wobble); ctx.lineTo(8, -48 + wobble); ctx.lineTo(12, -34 + wobble);
+    ctx.fill();
+  }
+
+  // 7. Glowing Evil Eyes with Halo
+  ctx.save();
+  ctx.shadowColor = isBoss ? '#ff0000' : (isRunner ? '#00ffcc' : '#ff0033');
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = isBoss ? '#ff0000' : (isRunner ? '#00ffcc' : '#ff1100');
   
-  // Scary Glowing Red Eyes
-  ctx.fillStyle='#ff0000';
-  ctx.beginPath(); ctx.arc(-6, -14, 4, 0, 2*Math.PI); ctx.fill();
-  ctx.beginPath(); ctx.arc(6, -14, 4, 0, 2*Math.PI); ctx.fill();
-  ctx.fillStyle='#ffff00';
-  ctx.beginPath(); ctx.arc(-6, -14, 1.5, 0, 2*Math.PI); ctx.fill();
-  ctx.beginPath(); ctx.arc(6, -14, 1.5, 0, 2*Math.PI); ctx.fill();
-  
-  // Open Mouth with sharp teeth
-  ctx.fillStyle='#111';
-  ctx.beginPath(); ctx.ellipse(0, -2, 7, 5, 0, 0, 2*Math.PI); ctx.fill();
-  ctx.fillStyle='#fff';
-  ctx.fillRect(-4,-6,2,3); ctx.fillRect(2,-6,2,3);
-  
-  // Arms
-  ctx.fillStyle=z.color;
-  ctx.fillRect(-22, z.h*0.05+wobble, 8, 22);
-  ctx.fillRect(14, z.h*0.05+wobble, 8, 22);
-  
-  // Legs
-  const legWobble = Math.sin(z.animT*0.05)*4;
-  ctx.fillRect(-12, z.h*0.32+wobble+legWobble, 10, 20);
-  ctx.fillRect(2, z.h*0.32+wobble-legWobble, 10, 20);
-  
-  // Health Bar
-  ctx.fillStyle='rgba(0,0,0,0.6)';
-  ctx.fillRect(-18, -38, 36, 7);
-  ctx.fillStyle='#ff3d6e';
-  ctx.fillRect(-18, -38, 36*(z.health/z.maxHealth), 7);
-  
+  ctx.beginPath(); ctx.arc(-6, -24 + wobble, 4.5, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(6, -24 + wobble, 4.5, 0, Math.PI*2); ctx.fill();
+
+  ctx.fillStyle = '#ffff00';
+  ctx.beginPath(); ctx.arc(-5, -24 + wobble, 2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(7, -24 + wobble, 2, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // 8. Open Mouth with Jagged Fangs & Dripping Slime
+  ctx.fillStyle = '#09090b';
+  ctx.beginPath();
+  ctx.ellipse(2, -12 + wobble, 8, 6, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle = '#fef08a';
+  ctx.beginPath(); ctx.moveTo(-3, -17 + wobble); ctx.lineTo(-1, -12 + wobble); ctx.lineTo(1, -17 + wobble); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(3, -17 + wobble); ctx.lineTo(5, -12 + wobble); ctx.lineTo(7, -17 + wobble); ctx.fill();
+
+  ctx.fillStyle = isBoss ? '#ff0033' : '#22c55e';
+  ctx.beginPath();
+  ctx.arc(3, -6 + wobble + Math.sin(anim*3)*2, 2, 0, Math.PI*2);
+  ctx.fill();
+
+  // 9. Sleek Glass Health Bar Above Head
+  const hpRatio = Math.max(0, Math.min(1, z.health / z.maxHealth));
+  const barW = isBoss ? 52 : 36;
+  const barH = isBoss ? 8 : 6;
+  const barX = -barW / 2;
+  const barY = -48 + wobble;
+
+  ctx.fillStyle = 'rgba(10, 15, 26, 0.82)';
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(barX, barY, barW, barH, 3);
+  else ctx.fillRect(barX, barY, barW, barH);
+  ctx.fill();
+
+  const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+  grad.addColorStop(0, '#ef4444');
+  grad.addColorStop(1, isBoss ? '#a855f7' : '#f59e0b');
+
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(barX, barY, barW * hpRatio, barH, 3);
+  else ctx.fillRect(barX, barY, barW * hpRatio, barH);
+  ctx.fill();
+
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(barX, barY, barW, barH);
+
+  if(isBoss) {
+    ctx.font = 'bold 9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ff3d6e';
+    ctx.fillText('👑 BOSS', 0, barY - 4);
+  }
+
   ctx.restore();
 }
 
@@ -3574,6 +4658,336 @@ function drawParticles(){
     ctx.restore();
   }
   ctx.globalAlpha = 1;
+}
+
+// ---------- Detailed Gun Renderer ----------
+function drawDetailedGun(ctx, mode = 'pistol', opts = {}) {
+  const scale = opts.scale || 1;
+  const recoil = opts.recoil || 0;
+  const time = opts.time || (state ? state.time : 0);
+  const showLaser = opts.showLaser !== false;
+  const isFiring = opts.isFiring || false;
+
+  ctx.save();
+  ctx.scale(scale, scale);
+  ctx.translate(-recoil, 0);
+
+  if (mode === 'pistol') {
+    // 🔫 Plasma Pistol (Ultra-Detailed Tactical Pistol)
+    // Textured Carbon Fiber Pistol Grip
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.moveTo(-4, 2); ctx.lineTo(-12, 18); ctx.lineTo(-3, 20); ctx.lineTo(5, 5);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#38c6ff'; ctx.lineWidth = 1; ctx.stroke();
+    // Grip Ribs
+    ctx.fillStyle = '#334155';
+    for(let gy = 6; gy <= 16; gy += 4) {
+      ctx.fillRect(-9 + gy*0.2, gy, 6, 2);
+    }
+
+    // Lower Frame & Trigger Guard
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(-6, -2, 28, 8);
+    ctx.strokeStyle = '#475569'; ctx.lineWidth = 1; ctx.strokeRect(-6, -2, 28, 8);
+    // Trigger
+    ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(2, 6, 4, 0, Math.PI); ctx.stroke();
+
+    // Upper Slide (Dual-Tone Metallic)
+    const slideGrad = ctx.createLinearGradient(0, -8, 0, 0);
+    slideGrad.addColorStop(0, '#64748b'); slideGrad.addColorStop(0.4, '#334155'); slideGrad.addColorStop(1, '#0f172a');
+    ctx.fillStyle = slideGrad;
+    ctx.fillRect(-8, -8, 34, 8);
+    ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1; ctx.strokeRect(-8, -8, 34, 8);
+
+    // Serrations on back slide
+    ctx.fillStyle = '#0f172a';
+    for(let sx = -6; sx <= 0; sx += 2) { ctx.fillRect(sx, -7, 1, 6); }
+
+    // Ejection Port with Brass Cartridge detail
+    ctx.fillStyle = '#1e293b'; ctx.fillRect(6, -7, 8, 4);
+    ctx.fillStyle = '#eab308'; ctx.fillRect(8, -6, 4, 2);
+
+    // Plasma Core Conduit Tube
+    ctx.fillStyle = '#0284c7'; ctx.fillRect(14, -5, 12, 3);
+    ctx.fillStyle = '#38c6ff'; ctx.fillRect(16, -4, 8, 1);
+
+    // Tactical Under-Barrel Laser Module
+    ctx.fillStyle = '#090d16'; ctx.fillRect(10, 0, 12, 5);
+    ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(22, 2.5, 1.5, 0, Math.PI*2); ctx.fill();
+
+    // Holo-Sight Optic on Top Rail
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(2, -12, 10, 4);
+    ctx.strokeStyle = '#38c6ff'; ctx.lineWidth = 1; ctx.strokeRect(2, -12, 10, 4);
+    ctx.fillStyle = 'rgba(56, 198, 255, 0.7)'; ctx.fillRect(4, -11, 6, 2);
+
+    // Extended Threaded Muzzle Brake
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(26, -6, 8, 5);
+    ctx.fillStyle = '#38c6ff'; ctx.fillRect(32, -7, 2, 7);
+
+    if (showLaser) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 61, 110, 0.85)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(34, -3.5); ctx.lineTo(180, -3.5); ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(180, -3.5, 2.5, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+
+    if (isFiring) {
+      ctx.save();
+      ctx.fillStyle = '#38c6ff'; ctx.shadowColor = '#38c6ff'; ctx.shadowBlur = 16;
+      ctx.beginPath(); ctx.arc(36, -3.5, 8, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+
+  } else if (mode === 'shotgun') {
+    // 💥 Heavy Tactical Shotgun (Dual Barrel & Shell Saddle)
+    // Polymer Stock with Rubber Buttpad
+    ctx.fillStyle = '#1c1917';
+    ctx.beginPath();
+    ctx.moveTo(-10, -2); ctx.lineTo(-24, 6); ctx.lineTo(-24, 16); ctx.lineTo(-14, 18); ctx.lineTo(-6, 10);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#dc2626'; ctx.fillRect(-24, 6, 3, 10); // Red recoil pad accent
+
+    // Main Steel Receiver Box
+    const recGrad = ctx.createLinearGradient(0, -8, 0, 8);
+    recGrad.addColorStop(0, '#44403c'); recGrad.addColorStop(0.5, '#27272a'); recGrad.addColorStop(1, '#18181b');
+    ctx.fillStyle = recGrad;
+    ctx.fillRect(-6, -8, 28, 16);
+    ctx.strokeStyle = '#71717a'; ctx.lineWidth = 1.2; ctx.strokeRect(-6, -8, 28, 16);
+
+    // Ejection Door with Brass Shell
+    ctx.fillStyle = '#09090b'; ctx.fillRect(4, -6, 10, 6);
+    ctx.fillStyle = '#eab308'; ctx.fillRect(6, -5, 6, 4);
+
+    // Red Ammo Shell Saddle Bracket Mounted on Side (4 Shells)
+    for (let i = 0; i < 4; i++) {
+      ctx.fillStyle = '#dc2626'; ctx.fillRect(-2 + i * 5, -12, 4, 4);
+      ctx.fillStyle = '#eab308'; ctx.fillRect(-2 + i * 5, -8, 4, 1.5);
+    }
+
+    // Ribbed Pump-Action Forearm Grip
+    ctx.fillStyle = '#3f3f46'; ctx.fillRect(18, 2, 16, 7);
+    ctx.fillStyle = '#18181b';
+    for (let x = 20; x <= 30; x += 3) { ctx.fillRect(x, 2, 1.5, 7); }
+
+    // Dual Heavy Steel Barrels
+    ctx.fillStyle = '#52525b';
+    ctx.fillRect(22, -7, 24, 5); // Upper barrel
+    ctx.fillRect(22, -1, 24, 5); // Lower barrel
+
+    // Heat Vents on Upper Barrel Shroud
+    ctx.fillStyle = '#18181b';
+    for (let hx = 24; x = hx <= 42; hx += 4) { ctx.fillRect(hx, -6, 2, 3); }
+
+    // Choke Muzzle Compensators
+    ctx.fillStyle = '#27272a';
+    ctx.fillRect(46, -8, 5, 7);
+    ctx.fillRect(46, -2, 5, 7);
+
+    // Fiber-optic Front Sight
+    ctx.fillStyle = '#22c55e'; ctx.fillRect(44, -10, 3, 2);
+
+    if (showLaser) {
+      ctx.strokeStyle = 'rgba(239, 68, 68, 0.8)';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath(); ctx.moveTo(51, -4.5); ctx.lineTo(180, -4.5); ctx.stroke();
+    }
+
+    if (isFiring) {
+      ctx.save();
+      ctx.fillStyle = '#ff7700'; ctx.shadowColor = '#ffaa00'; ctx.shadowBlur = 20;
+      ctx.beginPath(); ctx.arc(52, -4.5, 12, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffff55'; ctx.beginPath(); ctx.arc(52, -4.5, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+
+  } else if (mode === 'triple') {
+    // 🔥 Triple Beam Laser Rifle (High-Tech Tri-Barrel)
+    // Main Sci-fi Receiver Body
+    const mainGrad = ctx.createLinearGradient(0, -9, 0, 9);
+    mainGrad.addColorStop(0, '#1e293b'); mainGrad.addColorStop(0.5, '#0f172a'); mainGrad.addColorStop(1, '#020617');
+    ctx.fillStyle = mainGrad;
+    ctx.fillRect(-10, -8, 28, 16);
+    ctx.strokeStyle = '#38c6ff'; ctx.lineWidth = 1.2; ctx.strokeRect(-10, -8, 28, 16);
+
+    // Extended Pulsing Energy Cartridge Magazine
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(-2, 8, 10, 12);
+    ctx.fillStyle = '#0284c7'; ctx.fillRect(0, 10, 6, 8);
+    const pulseGlow = Math.sin(time * 0.01) * 0.3 + 0.7;
+    ctx.fillStyle = `rgba(56, 198, 255, ${pulseGlow})`; ctx.fillRect(1, 11, 4, 6);
+
+    // Holographic Target Scope on Upper Rail
+    ctx.fillStyle = '#1e293b'; ctx.fillRect(2, -14, 14, 5);
+    ctx.strokeStyle = '#ff3d6e'; ctx.lineWidth = 1; ctx.strokeRect(2, -14, 14, 5);
+    ctx.fillStyle = '#ff3d6e'; ctx.beginPath(); ctx.arc(9, -11.5, 2, 0, Math.PI*2); ctx.fill();
+
+    // 3 Triangular Barrel Coils Assembly
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(18, -10, 24, 4); // Top barrel
+    ctx.fillRect(18, -3, 24, 4);  // Middle barrel
+    ctx.fillRect(18, 4, 24, 4);   // Bottom barrel
+
+    // Neon Cyan Energy Conduit Rings
+    for (let bx = 22; bx <= 38; bx += 6) {
+      ctx.fillStyle = '#38c6ff';
+      ctx.fillRect(bx, -11, 2, 20);
+    }
+
+    // Heavy Muzzle Emitters
+    ctx.fillStyle = '#ffd23f';
+    ctx.fillRect(42, -11, 4, 6);
+    ctx.fillRect(42, -4, 4, 6);
+    ctx.fillRect(42, 3, 4, 6);
+
+    if (showLaser) {
+      ctx.strokeStyle = 'rgba(56, 198, 255, 0.75)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(46, -8); ctx.lineTo(180, -12);
+      ctx.moveTo(46, -1); ctx.lineTo(180, -1);
+      ctx.moveTo(46, 5); ctx.lineTo(180, 10);
+      ctx.stroke();
+    }
+
+    if (isFiring) {
+      ctx.save();
+      ctx.fillStyle = '#38c6ff'; ctx.shadowColor = '#ff3d6e'; ctx.shadowBlur = 15;
+      ctx.beginPath(); ctx.arc(48, -8, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(48, -1, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(48, 5, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+
+  } else if (mode === 'plasma') {
+    // ⚛ Plasma Cannon (Animated Plasma Core & Copper Field Coils)
+    // Main Frame
+    ctx.fillStyle = '#1e293b'; ctx.fillRect(-14, -9, 16, 18);
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(2, -11, 26, 22);
+    ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 1.5; ctx.strokeRect(2, -11, 26, 22);
+
+    // Glass Containment Cylinder housing Swirling Plasma Orb
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 255, 204, 0.25)';
+    ctx.beginPath(); ctx.ellipse(15, 0, 10, 8, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 1; ctx.stroke();
+
+    // Swirling Internal Plasma Orb
+    const orbX = 15 + Math.sin(time * 0.008) * 4;
+    const orbY = Math.cos(time * 0.008) * 3;
+    ctx.fillStyle = '#00ffcc'; ctx.shadowColor = '#00ffcc'; ctx.shadowBlur = 12;
+    ctx.beginPath(); ctx.arc(orbX, orbY, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    // Copper Field Coils wrapped around outer barrel
+    for (let cxPos = 28; cxPos <= 38; cxPos += 4) {
+      ctx.fillStyle = '#b45309'; ctx.fillRect(cxPos, -9, 2.5, 18);
+      ctx.fillStyle = '#f59e0b'; ctx.fillRect(cxPos + 0.5, -9, 1, 18);
+    }
+
+    // Heavy Front Plasma Nozzle Funnel
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(40, -7, 8, 14);
+    ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 1; ctx.strokeRect(40, -7, 8, 14);
+
+    if (showLaser) {
+      ctx.strokeStyle = 'rgba(0, 255, 204, 0.7)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(48, 0); ctx.lineTo(180, 0); ctx.stroke();
+    }
+
+    if (isFiring) {
+      ctx.save();
+      ctx.fillStyle = '#00ffcc'; ctx.shadowColor = '#00ffcc'; ctx.shadowBlur = 22;
+      ctx.beginPath(); ctx.arc(50, 0, 10, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+
+  } else if (mode === 'minigun') {
+    // ⚡ Vulcan Heavy Minigun (6 Rotating Barrels & Belt Feeder)
+    // Motor Housing Frame
+    ctx.fillStyle = '#111827'; ctx.fillRect(-12, -9, 26, 18);
+    ctx.strokeStyle = '#38c6ff'; ctx.lineWidth = 1.2; ctx.strokeRect(-12, -9, 26, 18);
+
+    // Ammo Drum Container attached below frame
+    ctx.fillStyle = '#1f2937'; ctx.beginPath(); ctx.arc(-2, 11, 8, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 1; ctx.stroke();
+
+    // Flexible Ammo Belt Feed
+    ctx.fillStyle = '#eab308';
+    for (let ab = -8; ab <= 2; ab += 3) { ctx.fillRect(ab, 5, 2, 5); }
+
+    // Spinning Barrel Support Disk
+    const rot = (time * 0.08) % 6;
+    ctx.fillStyle = '#374151'; ctx.fillRect(14, -10, 6, 20);
+
+    // 6 Rotating Metallic Barrels
+    ctx.fillStyle = '#9ca3af';
+    ctx.fillRect(20, -9 + rot * 0.2, 26, 2.5);
+    ctx.fillRect(20, -5 - rot * 0.2, 26, 2.5);
+    ctx.fillRect(20, -1 + rot * 0.1, 26, 2.5);
+    ctx.fillRect(20, 3 - rot * 0.1, 26, 2.5);
+    ctx.fillRect(20, 7 + rot * 0.2, 26, 2.5);
+
+    // Front Muzzle Clamp Ring
+    ctx.fillStyle = '#1f2937'; ctx.fillRect(46, -10, 4, 20);
+
+    if (showLaser) {
+      ctx.strokeStyle = 'rgba(56, 198, 255, 0.65)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(50, 0); ctx.lineTo(180, 0); ctx.stroke();
+    }
+
+    if (isFiring) {
+      ctx.save();
+      ctx.fillStyle = '#ffd23f'; ctx.shadowColor = '#38c6ff'; ctx.shadowBlur = 18;
+      ctx.beginPath(); ctx.arc(52, (Math.random() - 0.5) * 8, 9, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+
+  } else if (mode === 'flamethrower') {
+    // 🔥 Hellfire Flamethrower (Dual Fuel Canisters & Ignition Pilot Light)
+    // Main Body Housing
+    ctx.fillStyle = '#271c19'; ctx.fillRect(-8, -8, 22, 16);
+
+    // Dual High-Pressure Red Fuel Tanks Mounted with Straps
+    ctx.fillStyle = '#dc2626';
+    ctx.fillRect(-6, 8, 8, 12);  // Tank 1
+    ctx.fillRect(3, 8, 8, 12);   // Tank 2
+    ctx.fillStyle = '#f59e0b'; ctx.fillRect(-6, 12, 17, 2); // Metal Mounting Strap
+    ctx.fillStyle = '#1c1917'; ctx.beginPath(); ctx.arc(-2, 10, 2, 0, Math.PI*2); ctx.fill(); // Pressure Gauge
+
+    // Long Burner Tube wrapped with Heat-Resistant Insulation
+    ctx.fillStyle = '#44403c'; ctx.fillRect(14, -6, 20, 12);
+    ctx.fillStyle = '#78350f'; ctx.fillRect(20, -6, 3, 12); ctx.fillRect(28, -6, 3, 12); // Insulation wraps
+
+    // Flared Heat Shield Cone Nozzle
+    ctx.fillStyle = '#1c1917';
+    ctx.beginPath();
+    ctx.moveTo(34, -8); ctx.lineTo(42, -10); ctx.lineTo(42, 10); ctx.lineTo(34, 8);
+    ctx.closePath(); ctx.fill();
+
+    // Ignition Pilot Light Flame Tip
+    ctx.save();
+    const flameSize = 3 + Math.sin(time * 0.03) * 1.5;
+    ctx.fillStyle = '#f97316'; ctx.shadowColor = '#ef4444'; ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.arc(44, 0, flameSize, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    if (isFiring) {
+      ctx.save();
+      for (let i = 0; i < 4; i++) {
+        ctx.fillStyle = i % 2 === 0 ? '#ef4444' : '#eab308';
+        ctx.shadowColor = '#f97316'; ctx.shadowBlur = 16;
+        ctx.beginPath(); ctx.arc(46 + i * 12, (Math.random() - 0.5) * 8, 7 + i * 3.5, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  ctx.restore();
 }
 
 // ---------- Dino Character Drawing ----------
@@ -3725,6 +5139,12 @@ function drawPlayer(){
     headColor = '#ffe066';
     maskColor = '#222222';
     eyeColor  = '#ffffff';
+  } else if(skin === 'lasha'){
+    legsColor = '#111111';
+    bodyColor = '#111111';
+    headColor = '#ffffff';
+    maskColor = '#000000';
+    eyeColor  = '#000000';
   } else if(skin === 'cyber'){
     legsColor = '#7000ff';
     bodyColor = '#ff00aa';
@@ -3788,127 +5208,132 @@ function drawPlayer(){
   ctx.closePath();
   ctx.fill();
 
-  // Arms & High-Tech Gun Blaster
-  ctx.fillStyle = bodyColor;
+  // Left Arm & Hand (Slow, natural, realistic motion)
+  const armSwing = running 
+    ? Math.sin(player.animT * 0.008) * 0.25 
+    : Math.sin(state.time * 0.002) * 0.05;
+
   ctx.save();
-  ctx.translate(-14, 0);
-  ctx.rotate(Math.sin(player.animT*0.03)*0.4);
-  ctx.fillRect(-3,-6,7,20);
+  ctx.translate(-13, -3); // Shoulder joint
+  ctx.rotate(armSwing);
+  ctx.fillStyle = bodyColor;
+  ctx.fillRect(-3, 0, 7, 14); // Upper sleeve
+  // Forearm & Hand Fist
+  ctx.fillStyle = (skin === 'gold' || skin === 'cyber' || skin === 'zombie') ? headColor : '#fcd34d';
+  ctx.fillRect(-2.5, 12, 6, 6);
+  ctx.beginPath();
+  ctx.arc(0.5, 18, 3.5, 0, Math.PI * 2);
+  ctx.fill();
   ctx.restore();
 
-  // Right arm holding Gun with mode-specific visuals
+  // Right arm holding Detailed Weapon
   ctx.save();
-  ctx.translate(10 - player.gunRecoil, -2);
-
-  const mode = player.weaponMode || 'pistol';
-
-  if(mode === 'pistol'){
-    ctx.fillStyle='#1e2230'; ctx.fillRect(4, -4, 22, 9);
-    ctx.fillStyle='#38c6ff'; ctx.fillRect(8, -2, 12, 3);
-    ctx.fillStyle='#ff3d6e'; ctx.fillRect(4, 3, 20, 3);
-    ctx.fillStyle='#101420'; ctx.fillRect(26, -3, 6, 7);
-    ctx.fillStyle='#ffd23f'; ctx.fillRect(32, -1, 3, 3);
-  } else if(mode === 'triple'){
-    ctx.fillStyle='#22263a'; ctx.fillRect(4, -6, 26, 13);
-    ctx.fillStyle='#ff3d6e'; ctx.fillRect(6, -4, 18, 3);
-    ctx.fillStyle='#38c6ff'; ctx.fillRect(6, 2, 18, 3);
-    ctx.fillStyle='#ffd23f'; ctx.fillRect(30, -6, 6, 4);
-    ctx.fillRect(30, -1, 6, 4); ctx.fillRect(30, 4, 6, 4);
-  } else if(mode === 'shotgun'){
-    ctx.fillStyle='#1a1d28'; ctx.fillRect(2, -5, 28, 11);
-    ctx.fillStyle='#ff7700'; ctx.fillRect(6, -2, 16, 5);
-    ctx.fillStyle='#7f8c8d'; ctx.fillRect(30, -5, 12, 4);
-    ctx.fillRect(30, 1, 12, 4);
-  } else if(mode === 'minigun'){
-    ctx.fillStyle='#111522'; ctx.fillRect(0, -6, 28, 14);
-    ctx.fillStyle='#38c6ff'; ctx.fillRect(4, -3, 18, 6);
-    // Rotary barrels
-    const rot = (state.time * 0.05) % 6;
-    ctx.fillStyle='#8899aa';
-    ctx.fillRect(28, -6 + rot, 16, 3);
-    ctx.fillRect(28, -2 + rot, 16, 3);
-    ctx.fillRect(28, 2 + rot, 16, 3);
-  } else if(mode === 'plasma'){
-    ctx.fillStyle='#0f172a'; ctx.fillRect(0, -7, 30, 15);
-    ctx.fillStyle='#00ffcc'; ctx.fillRect(4, -4, 20, 8);
-    // Glowing plasma ball at tip
-    ctx.fillStyle='#00ffcc';
-    ctx.beginPath();
-    ctx.arc(36, 0, 7 + Math.sin(state.time*0.02)*2, 0, Math.PI*2);
-    ctx.fill();
-  } else if(mode === 'flamethrower'){
-    ctx.fillStyle='#2b1704'; ctx.fillRect(0, -6, 32, 13);
-    ctx.fillStyle='#ff5500'; ctx.fillRect(6, -3, 18, 6);
-    // Flame tank & nozzle
-    ctx.fillStyle='#ff1100'; ctx.fillRect(2, 4, 14, 8);
-    ctx.fillStyle='#ffaa00'; ctx.fillRect(32, -4, 8, 9);
-  }
-
-  // Laser sight line
-  ctx.strokeStyle = mode === 'plasma' ? 'rgba(0,255,204,0.5)' : 'rgba(255,61,110,0.4)';
-  ctx.lineWidth=1;
-  ctx.beginPath();
-  ctx.moveTo(38, 0);
-  ctx.lineTo(180, 0);
-  ctx.stroke();
-
+  ctx.translate(6, -2);
+  drawDetailedGun(ctx, player.weaponMode || 'pistol', {
+    scale: 0.9,
+    recoil: player.gunRecoil,
+    time: state.time,
+    showLaser: true
+  });
   ctx.restore();
 
   // Head
-  ctx.fillStyle = headColor;
-  ctx.beginPath();
-  ctx.ellipse(0,-22,14,15,0,0,2*Math.PI);
-  ctx.fill();
-
-  // Mask Band / Visor
-  ctx.fillStyle = maskColor;
-  ctx.fillRect(-14,-28,28,8);
-
-  // Cyber Visor Glow
-  if(skin === 'cyber'){
+  if(skin === 'lasha'){
     ctx.save();
-    ctx.fillStyle = '#00f0ff';
-    ctx.shadowColor = '#00f0ff';
-    ctx.shadowBlur = 8;
-    ctx.fillRect(-12, -26, 24, 4);
-    ctx.restore();
-  }
-
-  // Dragon Horns
-  if(skin === 'dragon'){
-    ctx.save();
-    ctx.fillStyle = '#ffd23f';
+    // Wild Black Hair/Scribbles on sides
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 3.5;
+    ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(-8, -30); ctx.lineTo(-16, -42); ctx.lineTo(-3, -33);
-    ctx.moveTo(8, -30); ctx.lineTo(16, -42); ctx.lineTo(3, -33);
-    ctx.fill();
-    ctx.restore();
-  }
+    // Left hair scribbles
+    ctx.moveTo(-14, -24); ctx.lineTo(-25, -26); ctx.lineTo(-18, -21); ctx.lineTo(-27, -17);
+    // Right hair scribbles
+    ctx.moveTo(14, -24); ctx.lineTo(25, -26); ctx.lineTo(18, -21); ctx.lineTo(27, -17);
+    ctx.stroke();
 
-  // Golden Ninja Crown
-  if(skin === 'gold'){
-    ctx.save();
-    ctx.fillStyle = '#ffd23f';
+    // White Square Paper Face
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.moveTo(-10, -32); ctx.lineTo(-5, -42); ctx.lineTo(0, -34); ctx.lineTo(5, -42); ctx.lineTo(10, -32);
-    ctx.closePath();
+    if(ctx.roundRect) ctx.roundRect(-14, -35, 28, 27, 3);
+    else ctx.fillRect(-14, -35, 28, 27);
     ctx.fill();
-    ctx.fillStyle = '#ff0055';
-    ctx.beginPath(); ctx.arc(0, -36, 2.5, 0, Math.PI*2); ctx.fill();
+    ctx.stroke();
+
+    // X X Eyes
+    ctx.lineWidth = 2.8;
+    ctx.beginPath();
+    // Left X
+    ctx.moveTo(-9, -29); ctx.lineTo(-3, -21);
+    ctx.moveTo(-3, -29); ctx.lineTo(-9, -21);
+    // Right X
+    ctx.moveTo(3, -29); ctx.lineTo(9, -21);
+    ctx.moveTo(9, -29); ctx.lineTo(3, -21);
+    ctx.stroke();
+
+    // Smile
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.arc(0, -18, 5, 0.15*Math.PI, 0.85*Math.PI);
+    ctx.stroke();
     ctx.restore();
+  } else {
+    ctx.fillStyle = headColor;
+    ctx.beginPath();
+    ctx.ellipse(0,-22,14,15,0,0,2*Math.PI);
+    ctx.fill();
+
+    // Mask Band / Visor
+    ctx.fillStyle = maskColor;
+    ctx.fillRect(-14,-28,28,8);
+
+    // Cyber Visor Glow
+    if(skin === 'cyber'){
+      ctx.save();
+      ctx.fillStyle = '#00f0ff';
+      ctx.shadowColor = '#00f0ff';
+      ctx.shadowBlur = 8;
+      ctx.fillRect(-12, -26, 24, 4);
+      ctx.restore();
+    }
+
+    // Dragon Horns
+    if(skin === 'dragon'){
+      ctx.save();
+      ctx.fillStyle = '#ffd23f';
+      ctx.beginPath();
+      ctx.moveTo(-8, -30); ctx.lineTo(-16, -42); ctx.lineTo(-3, -33);
+      ctx.moveTo(8, -30); ctx.lineTo(16, -42); ctx.lineTo(3, -33);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Golden Ninja Crown
+    if(skin === 'gold'){
+      ctx.save();
+      ctx.fillStyle = '#ffd23f';
+      ctx.beginPath();
+      ctx.moveTo(-10, -32); ctx.lineTo(-5, -42); ctx.lineTo(0, -34); ctx.lineTo(5, -42); ctx.lineTo(10, -32);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#ff0055';
+      ctx.beginPath(); ctx.arc(0, -36, 2.5, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+
+    // Eyes
+    ctx.fillStyle = eyeColor;
+    ctx.beginPath(); ctx.ellipse(-5,-22,3.8,3,0,0,2*Math.PI); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(5,-22,3.8,3,0,0,2*Math.PI); ctx.fill();
+    ctx.fillStyle='#0b0e14';
+    ctx.beginPath(); ctx.arc(-4,-22,1.8,0,2*Math.PI); ctx.fill();
+    ctx.beginPath(); ctx.arc(6,-22,1.8,0,2*Math.PI); ctx.fill();
+
+    // Mouth
+    ctx.fillStyle='#0b0e14';
+    ctx.beginPath(); ctx.ellipse(0,-14,5,4,0,0,2*Math.PI); ctx.fill();
   }
-
-  // Eyes
-  ctx.fillStyle = eyeColor;
-  ctx.beginPath(); ctx.ellipse(-5,-22,3.8,3,0,0,2*Math.PI); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(5,-22,3.8,3,0,0,2*Math.PI); ctx.fill();
-  ctx.fillStyle='#0b0e14';
-  ctx.beginPath(); ctx.arc(-4,-22,1.8,0,2*Math.PI); ctx.fill();
-  ctx.beginPath(); ctx.arc(6,-22,1.8,0,2*Math.PI); ctx.fill();
-
-  // Mouth
-  ctx.fillStyle='#0b0e14';
-  ctx.beginPath(); ctx.ellipse(0,-14,5,4,0,0,2*Math.PI); ctx.fill();
 
   ctx.restore();
 
@@ -3979,52 +5404,58 @@ function drawSponsorPopup(){
   ctx.fillRect(0,0,W,H);
 
   const sp = sponsorPopup;
+  sp.w = 520;
+  sp.h = 320;
+  sp.x = W/2 - sp.w/2;
+  sp.y = H/2 - sp.h/2;
+
   const gx = (Math.random()-0.5)*4;
   const gy = (Math.random()-0.5)*4;
 
   // Window Frame
   ctx.fillStyle = '#101426';
-  ctx.fillRect(sp.x + gx, sp.y + gy, sp.w, sp.h);
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(sp.x + gx, sp.y + gy, sp.w, sp.h, 12);
+  else ctx.fillRect(sp.x + gx, sp.y + gy, sp.w, sp.h);
+  ctx.fill();
+
   ctx.strokeStyle = '#ff3d6e';
   ctx.lineWidth = 4;
-  ctx.strokeRect(sp.x + gx, sp.y + gy, sp.w, sp.h);
-
-  // Creepy Glowing Eyes in Popup Background
-  ctx.fillStyle = 'rgba(255, 0, 50, 0.4)';
-  ctx.beginPath(); ctx.arc(sp.x + 80, sp.y + 70, 12, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(sp.x + 110, sp.y + 70, 12, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(sp.x + sp.w - 110, sp.y + 70, 12, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(sp.x + sp.w - 80, sp.y + 70, 12, 0, Math.PI*2); ctx.fill();
+  ctx.stroke();
 
   // Header Title
   ctx.textAlign = 'center';
   ctx.fillStyle = '#ffd23f';
-  ctx.font = 'bold 30px sans-serif';
-  ctx.fillText('⚡ codezero.ge ⚡', sp.x + sp.w/2, sp.y + 50);
+  ctx.font = 'bold 28px sans-serif';
+  ctx.fillText('⚡ CODEZERO.GE — პროგრამირების აკადემია ⚡', sp.x + sp.w/2, sp.y + 48);
 
   // Subtitle
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 20px sans-serif';
-  ctx.fillText('საუკეთესო პროგრამირების ელექტრონული წიგნები!', sp.x + sp.w/2, sp.y + 95);
+  ctx.font = 'bold 18px sans-serif';
+  ctx.fillText('საუკეთესო პროგრამირების ელექტრონული წიგნები!', sp.x + sp.w/2, sp.y + 92);
 
   ctx.fillStyle = '#38c6ff';
-  ctx.font = 'bold 16px sans-serif';
-  ctx.fillText('ისწავლე C++, Python & React სანამ ზომბი შეგჭამს! 💻🧟', sp.x + sp.w/2, sp.y + 135);
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillText('ისწავლე C++, Python & React სანამ ზომბი შეგჭამს! 💻🧟', sp.x + sp.w/2, sp.y + 132);
 
   ctx.fillStyle = '#ff3d6e';
-  ctx.font = '14px sans-serif';
-  ctx.fillText('🔥 სპეციალური ფასდაკლება გეოდინოს არხის მაყურებლებს! 🔥', sp.x + sp.w/2, sp.y + 175);
+  ctx.font = 'bold 13px sans-serif';
+  ctx.fillText('🔥 სპეციალური ფასდაკლება გეოდინოს არხის მაყურებლებს! 🔥', sp.x + sp.w/2, sp.y + 172);
 
   // Interactive Close Button
-  const bw = 220, bh = 42;
+  const bw = 240, bh = 42;
   const bx = sp.x + sp.w/2 - bw/2;
-  const by = sp.y + sp.h - 60;
+  const by = sp.y + sp.h - 64;
 
   ctx.fillStyle = '#ff3d6e';
-  ctx.fillRect(bx, by, bw, bh);
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 8);
+  else ctx.fillRect(bx, by, bw, bh);
+  ctx.fill();
+
   ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 2;
-  ctx.strokeRect(bx, by, bw, bh);
+  ctx.stroke();
 
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 16px sans-serif';
@@ -4334,7 +5765,7 @@ function drawBiteStruggleUI(){
 
   const barW = 380, barH = 28;
   const bx = W/2 - barW/2;
-  const by = 110;
+  const by = 135;
 
   ctx.save();
   // Dark backdrop panel with glowing alert border
@@ -4483,14 +5914,28 @@ function drawHUD(){
 
   if(state.toastTimer>0){
     ctx.save();
-    ctx.textAlign='center';
-    ctx.font='bold 22px sans-serif';
+    ctx.font='bold 15px sans-serif';
+    const tm = ctx.measureText(state.toastText);
+    const tw = Math.min(W - 40, tm.width + 36);
+    const th = 38;
+    const tx = W/2 - tw/2;
+    const ty = 82;
     const alpha = Math.min(1, state.toastTimer/300);
     ctx.globalAlpha = alpha;
-    ctx.fillStyle='#000';
-    ctx.fillText(state.toastText, W/2+2, 92+2);
+
+    ctx.fillStyle = 'rgba(10, 15, 26, 0.92)';
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(tx, ty, tw, th, 19);
+    else ctx.fillRect(tx, ty, tw, th);
+    ctx.fill();
+
+    ctx.strokeStyle = '#ffd23f';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.textAlign='center';
     ctx.fillStyle='#ffd23f';
-    ctx.fillText(state.toastText, W/2, 92);
+    ctx.fillText(state.toastText, W/2, ty + 24);
     ctx.restore();
     state.toastTimer -= 16;
   }
@@ -4861,6 +6306,7 @@ const shopUpgrades = [
 
 const shopSkins = [
   { id: 'classic', title: '🦕 კლასიკური დინო', desc: 'ორიგინალი ლურჯ-ვარდისფერი ხულიგანი.', cost: 0, icon: '🦕' },
+  { id: 'lasha', title: '✏️ ლაშა (LASHA)', desc: 'შავი პერანგი, შავი შარვალი და X-თვალებიანი სახე!', cost: 180, icon: '✏️' },
   { id: 'gold', title: '👑 ოქროს ნინძა დინო', desc: 'ოქროსფრად მოციმციმე ლეგენდარული გმირი!', cost: 100, icon: '👑' },
   { id: 'cyber', title: '🌆 კიბერპანკ 2077 დინო', desc: 'ნეონის ნათებითა და კიბერ-ვიზორით!', cost: 150, icon: '🌆' },
   { id: 'zombie', title: '🧟 ტოქსიკური ზომბი დინო', desc: 'ტოქსიკური მწვანე კანი და წითელი თვალები!', cost: 120, icon: '🧟' },
@@ -4876,6 +6322,534 @@ const shopWeapons = [
   { id: 'minigun', title: '⚡ სუპერ მინიგანი', desc: 'ტყვიების უწყვეტი ცეცხლოვანი ქარიშხალი!', cost: 160, icon: '⚡' },
   { id: 'flamethrower', title: '🔥 ცეცხლსაფრქვევი', desc: 'ალმოდებული ცეცხლის ნაკადი ზომბებზე!', cost: 200, icon: '🔥' }
 ];
+
+// ---------- Product Preview Modal & Shop Functions ----------
+function openPreviewModal(item, type) {
+  state.previewModal = {
+    active: true,
+    item: item,
+    type: type || 'skins',
+    animState: 'idle',
+    testFiring: false
+  };
+  sfxBell();
+}
+
+function closePreviewModal() {
+  if (state.previewModal) {
+    state.previewModal.active = false;
+  }
+  sfxBell();
+}
+
+function executeItemTransaction(item, type) {
+  let isBought = false;
+  let isEquipped = false;
+
+  if (type === 'upgrades') {
+    isBought = state.upgrades[item.id];
+  } else if (type === 'skins') {
+    isBought = (state.unlockedSkins || []).includes(item.id);
+    isEquipped = state.equippedSkin === item.id;
+  } else if (type === 'weapons') {
+    isBought = (state.unlockedWeapons || []).includes(item.id);
+    isEquipped = state.equippedWeapon === item.id;
+  }
+
+  if (isEquipped) {
+    toast(`✅ ${item.title} უკვე არჩეულია!`, 1500);
+    return;
+  }
+
+  if (isBought) {
+    if (type === 'skins') {
+      state.equippedSkin = item.id;
+      saveData();
+      sfxCoin();
+      toast(`👕 სკინი არჩეულია: ${item.title}`, 1800);
+    } else if (type === 'weapons') {
+      state.equippedWeapon = item.id;
+      player.weaponMode = item.id;
+      saveData();
+      sfxCoin();
+      toast(`🔫 იარაღი არჩეულია: ${item.title}`, 1800);
+    }
+  } else {
+    if (state.coinsCollected >= item.cost) {
+      state.coinsCollected -= item.cost;
+      if (type === 'upgrades') {
+        state.upgrades[item.id] = true;
+      } else if (type === 'skins') {
+        if (!state.unlockedSkins) state.unlockedSkins = ['classic'];
+        state.unlockedSkins.push(item.id);
+        state.equippedSkin = item.id;
+      } else if (type === 'weapons') {
+        if (!state.unlockedWeapons) state.unlockedWeapons = ['pistol'];
+        state.unlockedWeapons.push(item.id);
+        state.equippedWeapon = item.id;
+        player.weaponMode = item.id;
+      }
+      saveData();
+      sfxCoin();
+      sfxWin();
+      triggerFlash('56,198,255', 0.7);
+      toast(`🎉 წარმატებით შეიძინე: ${item.title}`, 2200);
+    } else {
+      sfxHurt();
+      toast(`❌ არ გყოფნის მონეტები! (საჭიროა ${item.cost})`, 1800);
+    }
+  }
+}
+
+function handlePreviewModalClick(mx, my) {
+  if (!state.previewModal || !state.previewModal.active || !state.previewModal.item) return false;
+
+  const item = state.previewModal.item;
+  const type = state.previewModal.type || 'skins';
+  const mw = 840, mh = 510;
+  const mxPos = W / 2 - mw / 2, myPos = H / 2 - mh / 2;
+
+  // Close Button (top right ✖)
+  const closeW = 40, closeH = 32;
+  const cxBtn = mxPos + mw - closeW - 14, cyBtn = myPos + 10;
+  if (mx >= cxBtn && mx <= cxBtn + closeW && my >= cyBtn && my <= cyBtn + closeH) {
+    closePreviewModal();
+    return true;
+  }
+
+  // Clicks outside modal -> close
+  if (mx < mxPos || mx > mxPos + mw || my < myPos || my > myPos + mh) {
+    closePreviewModal();
+    return true;
+  }
+
+  const stageX = mxPos + 20, stageY = myPos + 64, stageW = 380, stageH = 422;
+
+  if (type === 'skins') {
+    const poseW = 100, poseH = 32;
+    const poses = ['idle', 'run', 'jump'];
+    poses.forEach((p, idx) => {
+      const pxBtn = stageX + 24 + idx * (poseW + 12), pyBtn = stageY + stageH - 46;
+      if (mx >= pxBtn && mx <= pxBtn + poseW && my >= pyBtn && my <= pyBtn + poseH) {
+        state.previewModal.animState = p;
+        sfxCoin();
+      }
+    });
+  } else if (type === 'weapons') {
+    const tfW = 200, tfH = 36;
+    const tfX = stageX + stageW / 2 - tfW / 2, tfY = stageY + stageH - 48;
+    if (mx >= tfX && mx <= tfX + tfW && my >= tfY && my <= tfY + tfH) {
+      state.previewModal.testFiring = true;
+      sfxShoot();
+      shake(5);
+      spawnParticles(stageX + stageW / 2 + 60, stageY + stageH / 2 - 20, '#38c6ff', 10, 2);
+      setTimeout(() => {
+        if (state.previewModal) state.previewModal.testFiring = false;
+      }, 250);
+      return true;
+    }
+  }
+
+  const panelX = mxPos + 424, panelY = myPos + 64;
+  const actionW = 390, actionH = 48;
+  const actionX = panelX, actionY = panelY + 372;
+
+  if (mx >= actionX && mx <= actionX + actionW && my >= actionY && my <= actionY + actionH) {
+    executeItemTransaction(item, type);
+    return true;
+  }
+
+  return true;
+}
+
+function drawPreviewModal() {
+  if (!state.previewModal || !state.previewModal.active || !state.previewModal.item) return;
+
+  const item = state.previewModal.item;
+  const type = state.previewModal.type || 'skins';
+
+  ctx.save();
+  // 1. Dark, tactile obsidian overlay (No floating AI dots)
+  ctx.fillStyle = 'rgba(8, 12, 20, 0.92)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Subtle background grid accent lines
+  ctx.strokeStyle = 'rgba(30, 41, 59, 0.4)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 60) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let y = 0; y < H; y += 60) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+
+  const mw = 840, mh = 510;
+  const mxPos = W / 2 - mw / 2, myPos = H / 2 - mh / 2;
+
+  // 2. Main Modal Container Frame
+  ctx.fillStyle = '#0b1120';
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(mxPos, myPos, mw, mh, 12);
+  else ctx.fillRect(mxPos, myPos, mw, mh);
+  ctx.fill();
+
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Top Header Bar
+  ctx.fillStyle = '#111827';
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(mxPos, myPos, mw, 50, [12, 12, 0, 0]);
+  else ctx.fillRect(mxPos, myPos, mw, 50);
+  ctx.fill();
+  ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 1; ctx.stroke();
+
+  // Category Path Breadcrumb Header
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.fillStyle = '#64748b';
+  const catPath = type === 'skins' ? 'ARMORY / SKINS /' : (type === 'weapons' ? 'ARMORY / WEAPONS /' : 'ARMORY / ABILITIES /');
+  ctx.fillText(catPath, mxPos + 20, myPos + 30);
+
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillText(item.title, mxPos + 20 + ctx.measureText(catPath).width + 6, myPos + 30);
+
+  // Close Button ✖
+  const closeW = 40, closeH = 30;
+  const cxBtn = mxPos + mw - closeW - 14, cyBtn = myPos + 10;
+  ctx.fillStyle = '#1e293b';
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(cxBtn, cyBtn, closeW, closeH, 6);
+  else ctx.fillRect(cxBtn, cyBtn, closeW, closeH);
+  ctx.fill();
+  ctx.strokeStyle = '#334155'; ctx.lineWidth = 1; ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('✕', cxBtn + closeW / 2, cyBtn + 20);
+
+  // 3. Showcase Vault Stage (Left Panel)
+  const stageX = mxPos + 20, stageY = myPos + 64, stageW = 380, stageH = 422;
+
+  ctx.fillStyle = '#070c18';
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(stageX, stageY, stageW, stageH, 8);
+  else ctx.fillRect(stageX, stageY, stageW, stageH);
+  ctx.fill();
+  ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1.5; ctx.stroke();
+
+  // Floor Grid Lines in Showcase Vault
+  ctx.save();
+  ctx.strokeStyle = 'rgba(51, 65, 85, 0.35)';
+  ctx.lineWidth = 1;
+  const floorY = stageY + stageH - 75;
+  for (let i = -4; i <= 4; i++) {
+    ctx.beginPath();
+    ctx.moveTo(stageX + stageW / 2 + i * 20, floorY - 30);
+    ctx.lineTo(stageX + stageW / 2 + i * 45, floorY + 40);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // Corner HUD Crosshairs
+  ctx.strokeStyle = '#334155'; ctx.lineWidth = 1.5;
+  const chSize = 8;
+  // TL
+  ctx.beginPath(); ctx.moveTo(stageX + 10, stageY + 10 + chSize); ctx.lineTo(stageX + 10, stageY + 10); ctx.lineTo(stageX + 10 + chSize, stageY + 10); ctx.stroke();
+  // TR
+  ctx.beginPath(); ctx.moveTo(stageX + stageW - 10 - chSize, stageY + 10); ctx.lineTo(stageX + stageW - 10, stageY + 10); ctx.lineTo(stageX + stageW - 10, stageY + 10 + chSize); ctx.stroke();
+
+  // Pedestal Ellipse
+  const pedX = stageX + stageW / 2, pedY = floorY;
+  ctx.save();
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath(); ctx.ellipse(pedX, pedY, 110, 22, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = type === 'skins' ? '#ff3d6e' : '#38c6ff';
+  ctx.lineWidth = 2; ctx.stroke();
+  ctx.restore();
+
+  if (type === 'skins') {
+    ctx.save();
+    const oldSkin = state.equippedSkin;
+    const oldX = player.x, oldY = player.y;
+    const oldFacing = player.facing;
+    const oldVx = player.vx;
+
+    state.equippedSkin = item.id;
+    player.x = pedX - player.w;
+    player.y = pedY - player.h - 8;
+    player.facing = 1;
+
+    if (state.previewModal.animState === 'run') {
+      player.vx = 4; player.onGround = true;
+    } else if (state.previewModal.animState === 'jump') {
+      player.vx = 0; player.onGround = false; player.y -= 25;
+    } else {
+      player.vx = 0; player.onGround = true;
+    }
+
+    drawPlayer();
+
+    state.equippedSkin = oldSkin;
+    player.x = oldX; player.y = oldY;
+    player.facing = oldFacing; player.vx = oldVx;
+    ctx.restore();
+
+    // Animation Pose Selector
+    const poseW = 100, poseH = 32;
+    const poses = [
+      { id: 'idle', label: '🧍 დგომა' },
+      { id: 'run', label: '🏃 სირბილი' },
+      { id: 'jump', label: '🦘 ნახტომი' }
+    ];
+    poses.forEach((p, idx) => {
+      const pxBtn = stageX + 24 + idx * (poseW + 12), pyBtn = stageY + stageH - 46;
+      const isAct = (state.previewModal.animState || 'idle') === p.id;
+      ctx.fillStyle = isAct ? '#38c6ff' : '#0f172a';
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(pxBtn, pyBtn, poseW, poseH, 6);
+      else ctx.fillRect(pxBtn, pyBtn, poseW, poseH);
+      ctx.fill();
+      ctx.strokeStyle = isAct ? '#ffffff' : '#334155';
+      ctx.lineWidth = 1; ctx.stroke();
+
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillStyle = isAct ? '#000000' : '#cbd5e1';
+      ctx.fillText(p.label, pxBtn + poseW / 2, pyBtn + 20);
+    });
+
+  } else if (type === 'weapons') {
+    ctx.save();
+    ctx.translate(pedX - 20, pedY - 45);
+    drawDetailedGun(ctx, item.id, {
+      scale: 2.6,
+      recoil: state.previewModal.testFiring ? 14 : 0,
+      isFiring: state.previewModal.testFiring,
+      time: state.time,
+      showLaser: true
+    });
+    ctx.restore();
+
+    // Test Fire Button
+    const tfW = 200, tfH = 36;
+    const tfX = stageX + stageW / 2 - tfW / 2, tfY = stageY + stageH - 48;
+    const isFiring = state.previewModal.testFiring;
+
+    ctx.fillStyle = isFiring ? '#ff3d6e' : '#0f172a';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(tfX, tfY, tfW, tfH, 6);
+    else ctx.fillRect(tfX, tfY, tfW, tfH);
+    ctx.fill();
+    ctx.strokeStyle = isFiring ? '#ffffff' : '#38c6ff'; ctx.lineWidth = 1.5; ctx.stroke();
+
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillStyle = isFiring ? '#ffffff' : '#38c6ff';
+    ctx.fillText('🎯 ტესტ გასროლა', tfX + tfW / 2, tfY + 22);
+
+  } else {
+    ctx.save();
+    ctx.font = '80px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(item.icon, pedX, pedY - 30);
+    ctx.restore();
+  }
+
+  // 4. Specs & Attributes Panel (Right Panel)
+  const panelX = mxPos + 424, panelY = myPos + 64;
+
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 22px sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(`${item.icon} ${item.title}`, panelX, panelY + 28);
+
+  // Clean Badge
+  let tagText = '✨ ლეგენდარული სკინი';
+  let tagColor = '#ff3d6e';
+  if (type === 'weapons') {
+    tagText = '💥 ტაქტიკური იარაღი';
+    tagColor = '#38c6ff';
+  } else if (type === 'upgrades') {
+    tagText = '⚡ პასიური უნარი';
+    tagColor = '#ffd23f';
+  }
+
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(panelX, panelY + 40, 180, 24, 4);
+  else ctx.fillRect(panelX, panelY + 40, 180, 24);
+  ctx.fill();
+  ctx.strokeStyle = tagColor; ctx.lineWidth = 1; ctx.stroke();
+
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillStyle = tagColor;
+  ctx.fillText(tagText, panelX + 10, panelY + 56);
+
+  ctx.font = '14px sans-serif';
+  ctx.fillStyle = '#cbd5e1';
+  ctx.fillText(item.desc, panelX, panelY + 90);
+
+  // Specifications Grid (CS2/Valorant Segmented Blocks)
+  ctx.save();
+  ctx.font = 'bold 13px sans-serif';
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('📊 ტექნიკური მახასიათებლები', panelX, panelY + 130);
+
+  let specs = [];
+  if (type === 'weapons') {
+    const wSpecs = {
+      pistol: [
+        { label: '⚡ სროლის სიჩქარე', score: 6, valText: '10.0 rps' },
+        { label: '💥 დაზიანება', score: 4, valText: '25 DMG' },
+        { label: '🎯 სიზუსტე & მანძილი', score: 7, valText: '90%' }
+      ],
+      shotgun: [
+        { label: '⚡ სროლის სიჩქარე', score: 3, valText: '3.5 rps' },
+        { label: '💥 დაზიანება', score: 8, valText: '75 DMG (3x)' },
+        { label: '🎯 სიზუსტე & მანძილი', score: 4, valText: '60%' }
+      ],
+      triple: [
+        { label: '⚡ სროლის სიჩქარე', score: 7, valText: '11.0 rps' },
+        { label: '💥 დაზიანება', score: 6, valText: '45 DMG' },
+        { label: '🎯 სიზუსტე & მანძილი', score: 8, valText: '95%' }
+      ],
+      plasma: [
+        { label: '⚡ სროლის სიჩქარე', score: 5, valText: '6.0 rps' },
+        { label: '💥 დაზიანება', score: 8, valText: '80 DMG (AOE)' },
+        { label: '🎯 სიზუსტე & მანძილი', score: 7, valText: '85%' }
+      ],
+      minigun: [
+        { label: '⚡ სროლის სიჩქარე', score: 8, valText: '20.0 rps' },
+        { label: '💥 დაზიანება', score: 7, valText: '35 DMG' },
+        { label: '🎯 სიზუსტე & მანძილი', score: 5, valText: '70%' }
+      ],
+      flamethrower: [
+        { label: '⚡ სროლის სიჩქარე', score: 8, valText: '15.0 rps' },
+        { label: '💥 დაზიანება', score: 8, valText: '65 DMG' },
+        { label: '🎯 სიზუსტე & მანძილი', score: 4, valText: '50%' }
+      ]
+    };
+    specs = wSpecs[item.id] || wSpecs.pistol;
+  } else if (type === 'skins') {
+    specs = [
+      { label: '🎨 ვიზუალური დიზაინი', score: 8, valText: 'LEGENDARY' },
+      { label: '👑 იშვიათობა', score: 7, valText: 'CLASS A' },
+      { label: '⚡ სპეციალური ეფექტები', score: 7, valText: 'AURA FX' }
+    ];
+  } else {
+    specs = [
+      { label: '⚡ ეფექტურობა', score: 7, valText: 'LEVEL MAX' },
+      { label: '🛡️ ბონუს უნარი', score: 8, valText: 'ACTIVE' }
+    ];
+  }
+
+  let specY = panelY + 155;
+  specs.forEach(sp => {
+    ctx.font = '12px sans-serif';
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillText(sp.label, panelX, specY);
+
+    ctx.textAlign = 'right';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillStyle = '#38c6ff';
+    ctx.fillText(sp.valText, panelX + 390, specY);
+
+    ctx.textAlign = 'left';
+    // 8 Segmented Blocks Bar
+    const bStartX = panelX, bY = specY + 6, bW = 390, blockNum = 8;
+    const blockWidth = (bW - (blockNum - 1) * 4) / blockNum;
+
+    for (let i = 0; i < blockNum; i++) {
+      const bx = bStartX + i * (blockWidth + 4);
+      const isFilled = i < sp.score;
+      ctx.fillStyle = isFilled ? '#38c6ff' : '#1e293b';
+      ctx.fillRect(bx, bY, blockWidth, 10);
+    }
+
+    specY += 38;
+  });
+  ctx.restore();
+
+  // Price & Wallet Box
+  const priceY = panelY + 308;
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(panelX, priceY, 390, 48, 8);
+  else ctx.fillRect(panelX, priceY, 390, 48);
+  ctx.fill();
+  ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1; ctx.stroke();
+
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillStyle = '#ffd23f';
+  ctx.fillText(`🪙 ფასი: ${item.cost} მონეტა`, panelX + 16, priceY + 29);
+
+  ctx.textAlign = 'right';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillStyle = '#38c6ff';
+  ctx.fillText(`💰 თქვენი ბალანსი: ${state.coinsCollected} 🪙`, panelX + 374, priceY + 29);
+
+  // Primary Action Button
+  let isBought = false;
+  let isEquipped = false;
+
+  if (type === 'upgrades') {
+    isBought = state.upgrades[item.id];
+  } else if (type === 'skins') {
+    isBought = (state.unlockedSkins || []).includes(item.id);
+    isEquipped = state.equippedSkin === item.id;
+  } else if (type === 'weapons') {
+    isBought = (state.unlockedWeapons || []).includes(item.id);
+    isEquipped = state.equippedWeapon === item.id;
+  }
+
+  const canAfford = state.coinsCollected >= item.cost;
+  const actionW = 390, actionH = 48;
+  const actionX = panelX, actionY = priceY + 64;
+
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 16px sans-serif';
+
+  if (isEquipped) {
+    ctx.fillStyle = 'rgba(34, 197, 94, 0.15)';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(actionX, actionY, actionW, actionH, 8);
+    else ctx.fillRect(actionX, actionY, actionW, actionH);
+    ctx.fill();
+    ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 1.5; ctx.stroke();
+
+    ctx.fillStyle = '#22c55e';
+    ctx.fillText('✅ არჩეულია', actionX + actionW / 2, actionY + 30);
+
+  } else if (isBought) {
+    ctx.fillStyle = '#38c6ff';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(actionX, actionY, actionW, actionH, 8);
+    else ctx.fillRect(actionX, actionY, actionW, actionH);
+    ctx.fill();
+
+    ctx.fillStyle = '#000000';
+    ctx.fillText('🎯 აღჭურვა', actionX + actionW / 2, actionY + 30);
+
+  } else {
+    ctx.fillStyle = canAfford ? '#ffd23f' : '#1e293b';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(actionX, actionY, actionW, actionH, 8);
+    else ctx.fillRect(actionX, actionY, actionW, actionH);
+    ctx.fill();
+    ctx.strokeStyle = canAfford ? '#ffffff' : '#334155'; ctx.lineWidth = 1; ctx.stroke();
+
+    ctx.fillStyle = canAfford ? '#000000' : '#64748b';
+    const btnLabel = canAfford ? `🛒 ყიდვა - ${item.cost} 🪙` : `❌ არ გყოფნის მონეტები (${item.cost} 🪙)`;
+    ctx.fillText(btnLabel, actionX + actionW / 2, actionY + 30);
+  }
+
+  ctx.restore();
+}
+
 
 function drawShop(){
   drawBackground('pink');
@@ -4934,16 +6908,17 @@ function drawShop(){
   if(state.shopTab === 'skins') currentItems = shopSkins;
   if(state.shopTab === 'weapons') currentItems = shopWeapons;
 
-  // Render Cards (2 rows of 3)
-  const cols = 3;
-  const cardW = 270, cardH = 145;
-  const startX = W/2 - (cols * cardW + (cols-1)*20)/2;
-  const startY = 135;
+  // Render Cards
+  const cols = currentItems.length > 6 ? 4 : 3;
+  const cardW = cols === 4 ? 210 : 270, cardH = 145;
+  const cardGap = cols === 4 ? 14 : 20;
+  const startX = W/2 - (cols * cardW + (cols-1)*cardGap)/2;
+  const startY = cols === 4 ? 132 : 135;
 
   currentItems.forEach((item, idx) => {
     const col = idx % cols;
     const row = Math.floor(idx / cols);
-    const cx = startX + col * (cardW + 20);
+    const cx = startX + col * (cardW + cardGap);
     const cy = startY + row * (cardH + 14);
 
     let isBought = false;
@@ -4978,43 +6953,68 @@ function drawShop(){
     ctx.fillStyle = isEquipped ? '#3fe07d' : (isBought ? '#38c6ff' : '#ffffff');
     ctx.fillText(`${item.icon} ${item.title}`, cx + 12, cy + 26);
 
-    // Desc
-    ctx.font = '12px sans-serif';
+    // Desc with line wrapping
+    ctx.font = '11px sans-serif';
     ctx.fillStyle = '#aaaaaa';
-    ctx.fillText(item.desc, cx + 12, cy + 50);
+    ctx.textAlign = 'left';
+    const maxDescW = cardW - 24;
+    const words = item.desc.split(' ');
+    let line = '';
+    let descY = cy + 46;
+    for (let n = 0; n < words.length; n++) {
+      const testLine = line + words[n] + ' ';
+      const metrics = ctx.measureText(testLine);
+      if (metrics.width > maxDescW && n > 0) {
+        ctx.fillText(line, cx + 12, descY);
+        line = words[n] + ' ';
+        descY += 15;
+        if (descY > cy + 85) break;
+      } else {
+        line = testLine;
+      }
+    }
+    if (descY <= cy + 85) {
+      ctx.fillText(line, cx + 12, descY);
+    }
 
-    // Bottom Action Area
-    ctx.font = 'bold 14px sans-serif';
+    // Preview Button (Left Bottom)
+    const prevW = cols === 4 ? 80 : 92, prevH = 30;
+    const prevBx = cx + 12, prevBy = cy + cardH - prevH - 10;
+    ctx.fillStyle = 'rgba(56, 198, 255, 0.22)';
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(prevBx, prevBy, prevW, prevH, 6);
+    else ctx.fillRect(prevBx, prevBy, prevW, prevH);
+    ctx.fill();
+    ctx.strokeStyle = '#38c6ff'; ctx.lineWidth = 1.5; ctx.stroke();
+
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.fillStyle = '#38c6ff';
+    ctx.fillText('👁️ პრევიუ', prevBx + prevW/2, prevBy + 20);
+
+    // Action Button Area (Right Bottom)
+    ctx.font = 'bold 13px sans-serif';
     if(isEquipped){
       ctx.fillStyle = '#3fe07d';
-      ctx.fillText('✅ არჩეულია (EQUIPPED)', cx + 12, cy + 105);
+      ctx.textAlign = 'right';
+      ctx.fillText('✅ არჩეულია', cx + cardW - 12, cy + cardH - 20);
     } else if(isBought){
-      ctx.fillStyle = '#38c6ff';
-      ctx.fillText('✅ იყიდება (UNLOCKED)', cx + 12, cy + 105);
-
-      // Equip Button Box for skins & weapons
-      if(state.shopTab === 'skins' || state.shopTab === 'weapons'){
-        const btnW = 100, btnH = 32;
-        const bx = cx + cardW - btnW - 12, by = cy + cardH - btnH - 10;
-        ctx.fillStyle = '#38c6ff';
-        ctx.beginPath();
-        if(ctx.roundRect) ctx.roundRect(bx, by, btnW, btnH, 6);
-        else ctx.fillRect(bx, by, btnW, btnH);
-        ctx.fill();
-
-        ctx.textAlign = 'center';
-        ctx.fillStyle = '#000000';
-        ctx.font = 'bold 13px sans-serif';
-        ctx.fillText('🎯 არჩევა', bx + btnW/2, by + 21);
-      }
-    } else {
-      ctx.fillStyle = '#ffd23f';
-      ctx.fillText(`🪙 ფასი: ${item.cost}`, cx + 12, cy + 85);
-
-      // Buy Button Box
-      const btnW = 110, btnH = 34;
+      const btnW = cols === 4 ? 85 : 100, btnH = 30;
       const bx = cx + cardW - btnW - 12, by = cy + cardH - btnH - 10;
-      ctx.fillStyle = canAfford ? '#38c6ff' : '#444444';
+      ctx.fillStyle = '#38c6ff';
+      ctx.beginPath();
+      if(ctx.roundRect) ctx.roundRect(bx, by, btnW, btnH, 6);
+      else ctx.fillRect(bx, by, btnW, btnH);
+      ctx.fill();
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.fillText('🎯 არჩევა', bx + btnW/2, by + 20);
+    } else {
+      const btnW = cols === 4 ? 85 : 105, btnH = 30;
+      const bx = cx + cardW - btnW - 12, by = cy + cardH - btnH - 10;
+      ctx.fillStyle = canAfford ? '#ffd23f' : '#444444';
       ctx.beginPath();
       if(ctx.roundRect) ctx.roundRect(bx, by, btnW, btnH, 6);
       else ctx.fillRect(bx, by, btnW, btnH);
@@ -5022,8 +7022,8 @@ function drawShop(){
 
       ctx.textAlign = 'center';
       ctx.fillStyle = canAfford ? '#000000' : '#888888';
-      ctx.font = 'bold 13px sans-serif';
-      ctx.fillText('🛒 ყიდვა', bx + btnW/2, by + 22);
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillText(`🛒 ${item.cost} 🪙`, bx + btnW/2, by + 20);
     }
     ctx.restore();
   });
@@ -5031,10 +7031,10 @@ function drawShop(){
   // Bottom Buttons: Promo Code & Back
   ctx.save();
   const bw = 260, bh = 42;
-  const gap = 20;
+  const btnGap = 20;
 
   // Promo Code Button (Left)
-  const pbx = W/2 - bw - gap/2, pby = H - 52;
+  const pbx = W/2 - bw - btnGap/2, pby = H - 52;
   ctx.fillStyle = 'rgba(255, 210, 63, 0.18)';
   ctx.beginPath();
   if(ctx.roundRect) ctx.roundRect(pbx, pby, bw, bh, 10);
@@ -5049,7 +7049,7 @@ function drawShop(){
   ctx.fillText('🎟️ პრომოკოდი (PROMO CODE)', pbx + bw/2, pby + 27);
 
   // Back Button (Right)
-  const bbx = W/2 + gap/2, bby = H - 52;
+  const bbx = W/2 + btnGap/2, bby = H - 52;
   ctx.fillStyle = '#ff3d6e';
   ctx.beginPath();
   if(ctx.roundRect) ctx.roundRect(bbx, bby, bw, bh, 10);
@@ -5066,14 +7066,24 @@ function drawShop(){
   const backLabel = isReturningToGame ? '⬅️ თამაშში დაბრუნება' : '⬅️ მენიუში დაბრუნება';
   ctx.fillText(backLabel, bbx + bw/2, bby + 27);
   ctx.restore();
+
+  // Render Product Preview Modal overlay if active
+  if (state.previewModal && state.previewModal.active) {
+    drawPreviewModal();
+  }
 }
 
 function handleShopClick(mx, my){
+  // 1. Handle preview modal clicks first if open
+  if (state.previewModal && state.previewModal.active) {
+    if (handlePreviewModalClick(mx, my)) return;
+  }
+
   const bw = 260, bh = 42;
-  const gap = 20;
+  const btnGap = 20;
 
   // Check Promo Code Button
-  const pbx = W/2 - bw - gap/2, pby = H - 52;
+  const pbx = W/2 - bw - btnGap/2, pby = H - 52;
   if(mx >= pbx && mx <= pbx + bw && my >= pby && my <= pby + bh){
     sfxBell();
     openPromoModal();
@@ -5081,7 +7091,7 @@ function handleShopClick(mx, my){
   }
 
   // Check Back Button
-  const bbx = W/2 + gap/2, bby = H - 52;
+  const bbx = W/2 + btnGap/2, bby = H - 52;
   if(mx >= bbx && mx <= bbx + bw && my >= bby && my <= bby + bh){
     sfxBell();
     if(state.returnMode === 'playing' || state.returnMode === 'paused'){
@@ -5111,85 +7121,32 @@ function handleShopClick(mx, my){
   }
 
   // Check Item Card Clicks
-  const cols = 3;
-  const cardW = 270, cardH = 145;
-  const startX = W/2 - (cols * cardW + (cols-1)*20)/2;
-  const startY = 135;
-
   let currentItems = shopUpgrades;
   if(state.shopTab === 'skins') currentItems = shopSkins;
   if(state.shopTab === 'weapons') currentItems = shopWeapons;
 
+  const cols = currentItems.length > 6 ? 4 : 3;
+  const cardW = cols === 4 ? 210 : 270, cardH = 145;
+  const cardGap = cols === 4 ? 14 : 20;
+  const startX = W/2 - (cols * cardW + (cols-1)*cardGap)/2;
+  const startY = cols === 4 ? 132 : 135;
+
   currentItems.forEach((item, idx) => {
     const col = idx % cols;
     const row = Math.floor(idx / cols);
-    const cx = startX + col * (cardW + 20);
+    const cx = startX + col * (cardW + cardGap);
     const cy = startY + row * (cardH + 14);
 
     if(mx >= cx && mx <= cx + cardW && my >= cy && my <= cy + cardH){
-      if(state.shopTab === 'upgrades'){
-        if(!state.upgrades[item.id]){
-          if(state.coinsCollected >= item.cost){
-            state.coinsCollected -= item.cost;
-            state.upgrades[item.id] = true;
-            saveData();
-            sfxCoin();
-            sfxWin();
-            triggerFlash('56,198,255', 0.6);
-            toast(`✅ ${item.title} წარმატებით შეიძინე!`, 2200);
-          } else {
-            sfxHurt();
-            toast(`❌ არ გყოფნის მონეტები! (საჭიროა ${item.cost})`, 1800);
-          }
-        }
-      } else if(state.shopTab === 'skins'){
-        const isBought = (state.unlockedSkins || []).includes(item.id);
-        if(isBought){
-          state.equippedSkin = item.id;
-          saveData();
-          sfxCoin();
-          toast(`👕 სკინი არჩეულია: ${item.title}`, 1800);
-        } else {
-          if(state.coinsCollected >= item.cost){
-            state.coinsCollected -= item.cost;
-            if(!state.unlockedSkins) state.unlockedSkins = ['classic'];
-            state.unlockedSkins.push(item.id);
-            state.equippedSkin = item.id;
-            saveData();
-            sfxCoin();
-            sfxWin();
-            triggerFlash('56,198,255', 0.6);
-            toast(`🎉 სკინი შეიძინე & აირჩიე: ${item.title}`, 2200);
-          } else {
-            sfxHurt();
-            toast(`❌ არ გყოფნის მონეტები! (საჭიროა ${item.cost})`, 1800);
-          }
-        }
-      } else if(state.shopTab === 'weapons'){
-        const isBought = (state.unlockedWeapons || []).includes(item.id);
-        if(isBought){
-          state.equippedWeapon = item.id;
-          player.weaponMode = item.id;
-          saveData();
-          sfxCoin();
-          toast(`🔫 იარაღი არჩეულია: ${item.title}`, 1800);
-        } else {
-          if(state.coinsCollected >= item.cost){
-            state.coinsCollected -= item.cost;
-            if(!state.unlockedWeapons) state.unlockedWeapons = ['pistol'];
-            state.unlockedWeapons.push(item.id);
-            state.equippedWeapon = item.id;
-            player.weaponMode = item.id;
-            saveData();
-            sfxCoin();
-            sfxWin();
-            triggerFlash('56,198,255', 0.6);
-            toast(`🎉 იარაღი შეიძინე & აირჩიე: ${item.title}`, 2200);
-          } else {
-            sfxHurt();
-            toast(`❌ არ გყოფნის მონეტები! (საჭიროა ${item.cost})`, 1800);
-          }
-        }
+      // Check if clicked right action button directly
+      const actionBtnW = cols === 4 ? 85 : 100, actionBtnH = 30;
+      const abx = cx + cardW - actionBtnW - 12, aby = cy + cardH - actionBtnH - 10;
+
+      if (mx >= abx && mx <= abx + actionBtnW && my >= aby && my <= aby + actionBtnH) {
+        executeItemTransaction(item, state.shopTab);
+      } else {
+        // Clicked card or Preview button -> Open Product Preview Page Modal!
+        openPreviewModal(item, state.shopTab);
       }
     }
   });
@@ -5208,16 +7165,16 @@ function drawLevelSelect(){
   ctx.shadowColor = '#38c6ff';
   ctx.shadowBlur = 15;
   ctx.fillStyle = '#38c6ff';
-  ctx.fillText('🗺️ დონეების არჩევა (LEVEL SELECT)', W/2, 38);
+  ctx.fillText('🗺️ დონეების არჩევა (LEVEL SELECT & DIFFICULTY)', W/2, 38);
   ctx.restore();
 
-  // Grid of levels (7 columns x N rows)
+  // Grid of levels (7 columns x 3 rows)
   const cols = 7;
-  const cardW = 118, cardH = 115;
+  const cardW = 120, cardH = 125;
   const gapX = 10, gapY = 10;
   const totalW = cols * cardW + (cols - 1) * gapX;
   const startX = (W - totalW) / 2;
-  const startY = 55;
+  const startY = 52;
 
   for(let idx = 0; idx < LEVELS.length; idx++){
     const col = idx % cols;
@@ -5243,26 +7200,42 @@ function drawLevelSelect(){
     ctx.textAlign = 'center';
 
     // Episode Badge
-    ctx.font = 'bold 14px sans-serif';
+    ctx.font = 'bold 13px sans-serif';
     ctx.fillStyle = isGodzilla ? '#ff3d6e' : (isUnlocked ? '#ffd23f' : '#666666');
-    ctx.fillText(`EP. ${idx + 1}` + (isGodzilla ? ' 🦖' : ''), cx + cardW/2, cy + 24);
+    ctx.fillText(`EP. ${idx + 1}` + (isGodzilla ? ' 🦖' : ''), cx + cardW/2, cy + 20);
 
     // Level Name
-    ctx.font = 'bold 11px sans-serif';
+    ctx.font = 'bold 10px sans-serif';
     ctx.fillStyle = isUnlocked ? '#ffffff' : '#555555';
     let shortName = lvl ? (lvl.name.split('—')[1] || lvl.name) : `Level ${idx+1}`;
     shortName = shortName.trim();
     if(shortName.length > 13) shortName = shortName.slice(0, 12) + '…';
-    ctx.fillText(shortName, cx + cardW/2, cy + 52);
+    ctx.fillText(shortName, cx + cardW/2, cy + 40);
+
+    // Difficulty Rating Badge
+    if(isUnlocked && lvl && lvl.diffRating){
+      ctx.font = 'bold 9px sans-serif';
+      ctx.fillStyle = lvl.diffColor || '#38c6ff';
+      ctx.fillText(`[${lvl.diffRating}]`, cx + cardW/2, cy + 58);
+
+      // Gimmick Mini Title
+      if(lvl.gimmickTitle){
+        ctx.font = '9px sans-serif';
+        ctx.fillStyle = '#cbd5e1';
+        let gTitle = lvl.gimmickTitle.split(' ')[0] + ' ' + (lvl.gimmickTitle.split(' ')[1] || '');
+        if(gTitle.length > 12) gTitle = gTitle.slice(0, 11) + '…';
+        ctx.fillText(gTitle, cx + cardW/2, cy + 74);
+      }
+    }
 
     // Play/Locked Status
     ctx.font = 'bold 12px sans-serif';
     if(isUnlocked){
       ctx.fillStyle = isGodzilla ? '#ff3d6e' : '#3fe07d';
-      ctx.fillText('▶ PLAY', cx + cardW/2, cy + 88);
+      ctx.fillText('▶ PLAY', cx + cardW/2, cy + 106);
     } else {
       ctx.fillStyle = '#ff3d6e';
-      ctx.fillText('🔒 LOCKED', cx + cardW/2, cy + 88);
+      ctx.fillText('🔒 LOCKED', cx + cardW/2, cy + 106);
     }
     ctx.restore();
   }
@@ -5304,11 +7277,11 @@ function handleLevelSelectClick(mx, my){
   }
 
   const cols = 7;
-  const cardW = 118, cardH = 115;
+  const cardW = 120, cardH = 125;
   const gapX = 10, gapY = 10;
   const totalW = cols * cardW + (cols - 1) * gapX;
   const startX = (W - totalW) / 2;
-  const startY = 55;
+  const startY = 52;
 
   for(let idx = 0; idx < LEVELS.length; idx++){
     const col = idx % cols;
@@ -5463,57 +7436,52 @@ function drawGameOver(){
   if(state.lastKilledByGodzilla || (level && level.isGodzillaLevel)){
     // Godzilla Victory Screen
     ctx.fillStyle = '#ff3d6e';
-    ctx.font = 'bold 36px sans-serif';
-    ctx.fillText('🦖 გოდზილას აპოკალიფსური გამარჯვება! 🏙️', W/2, 90);
-
-    // Render Godzilla icon in center background
-    ctx.font = '120px sans-serif';
-    ctx.fillText('🦖', W/2 - 140, H/2 - 20);
+    ctx.font = 'bold 34px sans-serif';
+    ctx.fillText('🦖 გოდზილას აპოკალიფსური გამარჯვება! 🏙️', W/2, 75);
 
     // Dark Ominous Speech Cloud from Godzilla
-    const cloudX = W/2 + 20, cloudY = H/2 - 120, cloudW = 420, cloudH = 100;
+    const cloudW = 480, cloudH = 110;
+    const cloudX = W/2 - cloudW/2, cloudY = H/2 - 130;
     ctx.fillStyle = '#120517';
-    ctx.fillRect(cloudX, cloudY, cloudW, cloudH);
-    ctx.strokeStyle = '#ff3d6e';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(cloudX, cloudY, cloudW, cloudH);
-
-    // Cloud pointer tail
     ctx.beginPath();
-    ctx.moveTo(cloudX - 22, cloudY + 50);
-    ctx.lineTo(cloudX, cloudY + 32);
-    ctx.lineTo(cloudX, cloudY + 68);
-    ctx.fillStyle = '#120517';
+    if(ctx.roundRect) ctx.roundRect(cloudX, cloudY, cloudW, cloudH, 12);
+    else ctx.fillRect(cloudX, cloudY, cloudW, cloudH);
     ctx.fill();
+
+    ctx.strokeStyle = '#ff3d6e';
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
 
     // Exact requested quote in cloud
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 22px Georgia, serif';
-    ctx.fillText('"შენი დროც დადგა', cloudX + cloudW/2, cloudY + 40);
+    ctx.fillText('"შენი დროც დადგა —', cloudX + cloudW/2, cloudY + 42);
     ctx.fillStyle = '#ffd23f';
-    ctx.fillText('ნიღაბი უნდა მოიხსნა"', cloudX + cloudW/2, cloudY + 74);
+    ctx.fillText('ნიღაბი უნდა მოიხსნა!"', cloudX + cloudW/2, cloudY + 78);
 
     ctx.fillStyle = '#ff3d6e';
     ctx.font = 'bold 26px sans-serif';
-    ctx.fillText('გაცული ხარ ხულიგაში! 💀', W/2, H/2 + 105);
+    ctx.fillText('გადაქცეული ხარ ხულიგნად! 💀', W/2, H/2 + 25);
 
-    ctx.fillStyle = '#fff';
-    ctx.font = '22px sans-serif';
-    ctx.fillText('ქულა: ' + state.score, W/2, H/2 + 142);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.fillText('საბოლოო ქულა: ' + state.score, W/2, H/2 + 65);
 
     ctx.font = 'bold 20px sans-serif';
     const blink = Math.floor(state.time/400)%2===0;
-    if(blink) ctx.fillText('დააჭირე SPACE თავიდან საცდელად 🔄', W/2, H/2 + 182);
+    ctx.fillStyle = blink ? '#ffd23f' : '#ffffff';
+    ctx.fillText('დააჭირე SPACE / ENTER თავიდან საცდელად 🔄', W/2, H/2 + 115);
   } else {
     ctx.fillStyle='#ff3d6e';
-    ctx.font='bold 44px sans-serif';
+    ctx.font='bold 42px sans-serif';
     ctx.fillText('💀 8-ვე სიცოცხლე ამოიწურა! 💀', W/2, H/2 - 40);
     ctx.fillStyle='#fff';
-    ctx.font='22px sans-serif';
-    ctx.fillText('საბოლოო ქულა: ' + state.score, W/2, H/2 + 5);
+    ctx.font='bold 24px sans-serif';
+    ctx.fillText('საბოლოო ქულა: ' + state.score, W/2, H/2 + 10);
     ctx.font='bold 20px sans-serif';
     const blink = Math.floor(state.time/400)%2===0;
-    if(blink) ctx.fillText('დააჭირე SPACE / შეეხე თამაშის თავიდან დასაწყებად (Level 1) 🔄', W/2, H/2 + 55);
+    ctx.fillStyle = blink ? '#ffd23f' : '#ffffff';
+    ctx.fillText('დააჭირე SPACE / ENTER თამაშის თავიდან დასაწყებად 🔄', W/2, H/2 + 65);
   }
 }
 
@@ -5552,6 +7520,103 @@ function drawWin(){
   if(blink) ctx.fillText('დააჭირე SPACE თამაშის თავიდან საწყებად', W/2, H/2+65);
 }
 
+function drawDeathCamOverlay(){
+  if(!state.deathCam || !state.deathCam.active) return;
+
+  const progress = 1 - Math.max(0, state.deathCam.timer) / state.deathCam.maxTimer;
+  const ease = Math.sin(progress * Math.PI * 0.5);
+
+  ctx.save();
+
+  // 1. Dark Crimson Radial Vignette
+  const vignetteGrad = ctx.createRadialGradient(W/2, H/2, W*0.18, W/2, H/2, W*0.75);
+  vignetteGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+  vignetteGrad.addColorStop(0.65, 'rgba(120, 0, 20, 0.42)');
+  vignetteGrad.addColorStop(1, 'rgba(20, 0, 5, 0.90)');
+  ctx.fillStyle = vignetteGrad;
+  ctx.fillRect(0, 0, W, H);
+
+  // 2. Cinematic Black Letterbox Bars
+  const barHeight = Math.min(52, 52 * ease);
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, W, barHeight);
+  ctx.fillRect(0, H - barHeight, W, barHeight);
+
+  // 3. Header Banner Text
+  ctx.font = '900 15px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ff3d6e';
+  ctx.shadowColor = '#ff3d6e';
+  ctx.shadowBlur = 12;
+  const recDot = (Math.floor(state.time / 250) % 2 === 0) ? '🔴 ' : '⭕ ';
+  ctx.fillText(`${recDot}DEATH CAM • SLOW MOTION [0.25x SPEED]`, W / 2, Math.max(22, barHeight * 0.62));
+
+  // 4. Center Target Locking Reticle
+  const cx = W / 2, cy = H / 2;
+  const reticleSize = 48 - ease * 16;
+  const pulse = Math.sin(state.time * 0.012) * 5;
+
+  ctx.strokeStyle = '#ff3d6e';
+  ctx.lineWidth = 2.5;
+  ctx.shadowColor = '#ff0033';
+  ctx.shadowBlur = 14;
+
+  // Pulsing Target Circle
+  ctx.beginPath();
+  ctx.arc(cx, cy, Math.max(10, reticleSize + pulse), 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Outer Dashed Rotating Ring
+  ctx.setLineDash([8, 8]);
+  ctx.beginPath();
+  ctx.arc(cx, cy, reticleSize + 20, state.time * 0.003, state.time * 0.003 + Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Crosshair Corner Ticks
+  const tickLen = 14;
+  ctx.beginPath();
+  ctx.moveTo(cx - reticleSize - tickLen, cy); ctx.lineTo(cx - reticleSize + 4, cy);
+  ctx.moveTo(cx + reticleSize - 4, cy); ctx.lineTo(cx + reticleSize + tickLen, cy);
+  ctx.moveTo(cx, cy - reticleSize - tickLen); ctx.lineTo(cx, cy - reticleSize + 4);
+  ctx.moveTo(cx, cy + reticleSize - 4); ctx.lineTo(cx, cy + reticleSize + tickLen);
+  ctx.stroke();
+
+  // Target Location Coordinates Badge
+  ctx.fillStyle = '#ff3d6e';
+  ctx.font = 'bold 11px monospace';
+  ctx.fillText(`LOC: X:${Math.round(state.deathCam.deathX)} Y:${Math.round(state.deathCam.deathY)} • FATAL IMPACT`, cx, cy + reticleSize + 32);
+
+  // 5. Georgian Death Cause Banner
+  const msg = state.deathCam.causeMsg || "კრიტიკული დამარცხება! 💀";
+  ctx.font = '900 18px sans-serif';
+  const textWidth = ctx.measureText(msg).width;
+  const pw = Math.max(320, textWidth + 60);
+
+  ctx.fillStyle = 'rgba(15, 0, 5, 0.88)';
+  ctx.fillRect(W/2 - pw/2, H - barHeight - 42, pw, 34);
+  ctx.strokeStyle = '#ff3d6e';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(W/2 - pw/2, H - barHeight - 42, pw, 34);
+
+  ctx.fillStyle = '#ffd23f';
+  ctx.shadowColor = '#ff0033';
+  ctx.shadowBlur = 10;
+  ctx.fillText(msg, W / 2, H - barHeight - 19);
+
+  // 6. Slow-Mo Replay Progress Countdown Bar
+  const barW = 300;
+  const fillW = barW * (1 - progress);
+  ctx.fillStyle = 'rgba(255, 61, 110, 0.25)';
+  ctx.fillRect(W/2 - barW/2, H - 10, barW, 5);
+  ctx.fillStyle = '#ff3d6e';
+  ctx.shadowColor = '#ff3d6e';
+  ctx.shadowBlur = 8;
+  ctx.fillRect(W/2 - barW/2, H - 10, fillW, 5);
+
+  ctx.restore();
+}
+
 // ---------- Main Game Loop ----------
 let lastTime = performance.now();
 function loop(now){
@@ -5585,14 +7650,35 @@ function loop(now){
   } else if(state.mode==='levelselect'){
     drawLevelSelect();
   } else {
-    drawBackground(level.bgHue);
+    drawBackground(level.theme || level.bgHue);
     drawWeatherWorld();
 
     ctx.save();
-    ctx.translate(0, -camY);
+    if(state.deathCam && state.deathCam.active){
+      const progress = 1 - Math.max(0, state.deathCam.timer) / state.deathCam.maxTimer;
+      const ease = Math.sin(progress * Math.PI * 0.5);
+      const zoom = 1 + ease * 1.35;
+
+      const deathX = state.deathCam.deathX;
+      const deathY = state.deathCam.deathY;
+
+      const startX = camX + W * 0.38;
+      const startY = camY + H * 0.5;
+
+      const curFocusX = startX + (deathX - startX) * ease;
+      const curFocusY = startY + (deathY - startY) * ease;
+
+      ctx.translate(W / 2, H / 2);
+      ctx.scale(zoom, zoom);
+      ctx.translate(-curFocusX, -curFocusY);
+    } else {
+      ctx.translate(0, -camY);
+    }
 
     drawCityBuildings();
-    drawGround();
+    drawGround(level.theme || level.bgHue);
+    if(level.lavas) level.lavas.forEach(drawLava);
+    if(level.waters) level.waters.forEach(drawWater);
     level.signs.forEach(drawSign);
     level.fakespikes.forEach(drawFakespike);
     level.spikes.forEach(drawSpike);
@@ -5615,13 +7701,29 @@ function loop(now){
     drawNukeSequence();
     drawJumpscare();
     drawSponsorPopup();
+    if(state.deathCam && state.deathCam.active){
+      drawDeathCamOverlay();
+    }
     drawHUD();
 
     if(state.mode==='playing'){
-      updatePlayer(dt);
-      updateGodzilla(dt);
-      updateNukeSequence(dt);
-      updateWeather(dt);
+      if(state.deathCam && state.deathCam.active){
+        const slowDt = dt * 0.22;
+        state.deathCam.timer -= dt;
+        updateParticles(0.22);
+        updateZombies(slowDt);
+        if(state.deathCam.timer <= 0){
+          state.deathCam.active = false;
+          if(!nukeSeq.active){
+            state.mode = 'gameover';
+          }
+        }
+      } else {
+        updatePlayer(dt);
+        updateGodzilla(dt);
+        updateNukeSequence(dt);
+        updateWeather(dt);
+      }
     } else if(state.mode==='paused'){
       drawPauseOverlay();
     } else if(state.mode==='gameover'){
