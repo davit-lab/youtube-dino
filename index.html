@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>გეოდინო: ხულიგანური პარკური & Horror Edition</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
   :root{
     --ink:#0b0e14;
@@ -20,7 +21,7 @@
   html,body{
     margin:0; padding:0; height:100%; overflow:hidden;
     background: radial-gradient(ellipse at 50% 0%, #1c2438 0%, #06080d 80%);
-    font-family: 'Trebuchet MS', 'BPG Nino Mtavruli', 'Segoe UI', sans-serif;
+    font-family: 'Noto Sans Georgian', 'Arial', 'Trebuchet MS', sans-serif;
     color: var(--cream);
   }
   #wrap{
@@ -30,7 +31,7 @@
   canvas{
     background:#080b10;
     image-rendering: pixelated;
-    box-shadow: 0 0 0 4px var(--blue-dark), 0 0 50px rgba(56,198,255,.4), 0 0 100px rgba(255,61,110,.2);
+    border: 3px solid var(--blue-dark);
     border-radius: 8px;
     max-width: 98vw;
     max-height: 94vh;
@@ -793,6 +794,291 @@ let godzillaBoss = {
 let godzillaProjectiles = [];
 let cityBuildings = [];
 
+// ---------- Final Boss System (every 4 levels) ----------
+const FINAL_BOSS_TIERS = [
+  { tier:1, name:'ZOMBIE KING',   nameGeo:'ზომბების მეფე',    color:'#7c3aed', auraColor:'#4c1d95', hp:180, speed:1.8, size:1.6, atk:'stomp',  reward: 150 },
+  { tier:2, name:'STEEL TITAN',   nameGeo:'ფოლადის ტიტანი',  color:'#374151', auraColor:'#6b7280', hp:300, speed:2.2, size:2.0, atk:'charge',  reward: 250 },
+  { tier:3, name:'FLAME DEMON',   nameGeo:'ცეცხლის დემონი',  color:'#991b1b', auraColor:'#dc2626', hp:440, speed:2.6, size:2.2, atk:'fireball', reward: 350 },
+  { tier:4, name:'FROST WRAITH',  nameGeo:'ყინვის ჩრდილი',   color:'#1e3a8a', auraColor:'#3b82f6', hp:600, speed:3.0, size:2.4, atk:'icebolt',  reward: 500 },
+  { tier:5, name:'OMEGA OVERLORD',nameGeo:'ომეგა მმართველი', color:'#7f1d1d', auraColor:'#f97316', hp:880, speed:3.5, size:2.8, atk:'multi',    reward: 800 },
+];
+
+let finalBoss = {
+  active: false,
+  tier: 1,
+  x: 0, y: 0, w: 80, h: 100,
+  hp: 0, maxHp: 0,
+  speed: 0, color: '#7c3aed', auraColor: '#4c1d95',
+  animT: 0, facing: -1,
+  name: '', nameGeo: '',
+  attackTimer: 0, enraged: false,
+  projectiles: [],
+  deathAnimTimer: 0, dead: false,
+  reward: 0
+};
+
+function initFinalBoss(levelIndex){
+  // Boss on levels 4, 8, 12, 16, 20 (index 3,7,11,15,19)
+  const bossLevels = [3, 7, 11, 15, 19];
+  const bossIdx = bossLevels.indexOf(levelIndex);
+  if(bossIdx === -1){ finalBoss.active = false; return; }
+  const td = FINAL_BOSS_TIERS[bossIdx];
+  finalBoss.active = true;
+  finalBoss.dead = false;
+  finalBoss.deathAnimTimer = 0;
+  finalBoss.tier = td.tier;
+  finalBoss.name = td.name;
+  finalBoss.nameGeo = td.nameGeo;
+  finalBoss.hp = td.hp;
+  finalBoss.maxHp = td.hp;
+  finalBoss.speed = td.speed;
+  finalBoss.color = td.color;
+  finalBoss.auraColor = td.auraColor;
+  finalBoss.w = 58 * td.size;
+  finalBoss.h = 80 * td.size;
+  finalBoss.x = (level.width || 4000) * 0.7;
+  finalBoss.y = GROUND_Y - finalBoss.h;
+  finalBoss.vx = 0; finalBoss.vy = 0;
+  finalBoss.animT = 0; finalBoss.facing = -1;
+  finalBoss.attackTimer = 0; finalBoss.enraged = false;
+  finalBoss.projectiles = [];
+  finalBoss.reward = td.reward;
+  shake(25); sfxDemonic();
+  triggerFlash('120,0,200', 0.7);
+  toast(`⚔️ ${td.nameGeo} — TIER ${td.tier} BOSS! ⚔️`, 3500);
+}
+
+function updateFinalBoss(dt){
+  if(!finalBoss.active || finalBoss.dead) return;
+  const fb = finalBoss;
+  fb.animT += dt;
+
+  // Enrage at 30% HP
+  if(fb.hp <= fb.maxHp * 0.3 && !fb.enraged){
+    fb.enraged = true;
+    shake(30); sfxDemonic();
+    triggerFlash('255,0,0', 0.7);
+    toast(`💢 ${fb.nameGeo} — ENRAGE! 💢`, 2500);
+  }
+
+  // Movement toward player
+  const dx = (player.x + player.w/2) - (fb.x + fb.w/2);
+  fb.facing = dx > 0 ? 1 : -1;
+  const spd = fb.speed * (fb.enraged ? 1.5 : 1);
+  fb.vx = (dx / (Math.abs(dx) + 0.01)) * spd;
+
+  // Platform collision
+  let onGround = false;
+  for(const p of level.plats){
+    const bBox = {x: fb.x, y: fb.y, w: fb.w, h: fb.h};
+    if(overlap(bBox, p)){
+      const prevBottom = fb.y - (fb.vy || 0) + fb.h;
+      if((fb.vy||0) >= 0 && prevBottom <= p.y + 6){
+        fb.y = p.y - fb.h;
+        fb.vy = 0;
+        onGround = true;
+      }
+    }
+  }
+  fb.vy = (fb.vy || 0) + GRAVITY * 0.8;
+  if(fb.vy > 16) fb.vy = 16;
+  fb.x += fb.vx;
+  fb.y += fb.vy;
+
+  // Attack system
+  fb.attackTimer += dt;
+  const interval = fb.enraged ? 900 : 1600;
+  if(fb.attackTimer > interval){
+    fb.attackTimer = 0;
+    const atk = fb.enraged ? 'multi' : FINAL_BOSS_TIERS[fb.tier-1].atk;
+    // Launch projectile toward player
+    const angle = Math.atan2((player.y+10)-(fb.y+fb.h*0.3), (player.x+player.w/2)-(fb.x+fb.w/2));
+    if(atk === 'multi'){
+      for(let ai=-1; ai<=1; ai++){
+        fb.projectiles.push({ x:fb.x+fb.w/2, y:fb.y+fb.h*0.3, vx:Math.cos(angle+ai*0.4)*8, vy:Math.sin(angle+ai*0.4)*8, life:90, color:fb.auraColor, size:9 });
+      }
+    } else {
+      fb.projectiles.push({ x:fb.x+fb.w/2, y:fb.y+fb.h*0.3, vx:Math.cos(angle)*7, vy:Math.sin(angle)*7, life:110, color:fb.auraColor, size:fb.tier===3?14:10 });
+    }
+    shake(10); sfxDemonic();
+    spawnParticles(fb.x+fb.w/2, fb.y+fb.h*0.3, fb.auraColor, 15, 1.5);
+  }
+
+  // Update projectiles
+  for(let i = fb.projectiles.length-1; i>=0; i--){
+    const p = fb.projectiles[i];
+    p.x += p.vx; p.y += p.vy; p.life--;
+    if(Math.random()<0.4) spawnParticles(p.x, p.y, p.color, 2, 0.4);
+    // Hit player
+    if(!player.dead && !player.invuln){
+      const pBox = {x:p.x-p.size,y:p.y-p.size,w:p.size*2,h:p.size*2};
+      if(overlap(pBox, {x:player.x,y:player.y,w:player.w,h:player.h})){
+        state.lives--;
+        player.invuln = 80;
+        shake(18); sfxHurt();
+        spawnParticles(player.x+player.w/2, player.y+player.h/2, '#ff3d6e', 20, 2);
+        if(state.lives <= 0){ player.dead = true; state.mode='gameover'; }
+        p.life = 0;
+      }
+    }
+    if(p.life <= 0) fb.projectiles.splice(i, 1);
+  }
+
+  // Melee hit player on contact
+  if(!player.dead && !player.invuln){
+    if(overlap({x:fb.x,y:fb.y,w:fb.w,h:fb.h},{x:player.x,y:player.y,w:player.w,h:player.h})){
+      state.lives--;
+      player.invuln = 80;
+      shake(22); sfxHurt();
+      if(state.lives<=0){ player.dead=true; state.mode='gameover'; }
+    }
+  }
+
+  // Bullet hits
+  for(let i = bullets.length-1; i>=0; i--){
+    const b = bullets[i];
+    const bBox={x:b.x-b.size,y:b.y-b.size,w:b.size*2,h:b.size*2};
+    if(overlap(bBox,{x:fb.x,y:fb.y,w:fb.w,h:fb.h})){
+      fb.hp -= (b.damage || 1);
+      spawnParticles(b.x, b.y, fb.auraColor, 10, 1.2);
+      sfxZombieHit();
+      addFloatingText(fb.x+fb.w/2, fb.y-12, '-'+(b.damage||1), fb.auraColor);
+      if(b.isRocket && !b.hasExploded){
+        b.hasExploded = true; fb.hp -= 10;
+        shake(24); spawnParticles(b.x,b.y,'#ff4400',40,3.5);
+      }
+      bullets.splice(i, 1);
+    }
+  }
+
+  // Boss death
+  if(fb.hp <= 0 && !fb.dead){
+    fb.dead = true;
+    fb.deathAnimTimer = 120;
+    for(let i=0;i<8;i++) spawnParticles(fb.x+fb.w/2+Math.random()*80-40, fb.y+Math.random()*fb.h, fb.auraColor, 30, 3);
+    shake(40); sfxWin(); sfxDemonic();
+    triggerFlash('255,210,63', 0.9);
+    addScore(fb.reward);
+    state.coinsCollected = (state.coinsCollected||0) + Math.floor(fb.reward/5);
+    toast(`🏆 ${fb.nameGeo} დამარცხდა! +${fb.reward} ქულა!`, 4000);
+    finalBoss.active = false;
+  }
+}
+
+function drawFinalBoss(){
+  if(!finalBoss.active && !(finalBoss.dead && finalBoss.deathAnimTimer > 0)) return;
+  const fb = finalBoss;
+  const sx = fb.x - camX;
+  if(sx + fb.w < -100 || sx > W + 100) return;
+
+  ctx.save();
+  ctx.translate(sx + fb.w/2, fb.y + fb.h/2);
+  ctx.scale(fb.facing, 1);
+
+  const wobble = Math.sin(fb.animT * 0.007) * (fb.enraged ? 8 : 4);
+  const pulse = Math.sin(fb.animT * 0.012) * 0.15 + 0.85;
+
+  // Aura ring
+  ctx.save();
+  ctx.globalAlpha = 0.25 * pulse;
+  ctx.fillStyle = fb.auraColor;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, fb.w*0.7, fb.h*0.6, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  const hw = fb.w / 2, hh = fb.h / 2;
+
+  // Thick heavy legs
+  ctx.fillStyle = fb.color;
+  ctx.fillRect(-hw*0.4, hh*0.4 + wobble*0.3, hw*0.35, hh*0.6);
+  ctx.fillRect(hw*0.05, hh*0.4 - wobble*0.3, hw*0.35, hh*0.6);
+
+  // Main body
+  ctx.fillStyle = fb.color;
+  ctx.beginPath();
+  ctx.ellipse(0, wobble*0.2, hw*0.75, hh*0.7, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle = fb.auraColor;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // Shoulder armor plates
+  ctx.fillStyle = fb.auraColor;
+  ctx.beginPath();
+  ctx.moveTo(-hw*0.7, -hh*0.1); ctx.lineTo(-hw*1.1, -hh*0.4+wobble); ctx.lineTo(-hw*0.5, -hh*0.3); ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(hw*0.7, -hh*0.1); ctx.lineTo(hw*1.1, -hh*0.4+wobble); ctx.lineTo(hw*0.5, -hh*0.3); ctx.closePath(); ctx.fill();
+
+  // Arms reaching forward
+  ctx.fillStyle = fb.color;
+  ctx.fillRect(hw*0.5, -hh*0.2 + wobble, hw*0.7, hh*0.25);
+  ctx.fillRect(-hw*1.2, -hh*0.2 - wobble, hw*0.7, hh*0.25);
+
+  // Head
+  ctx.fillStyle = fb.color;
+  ctx.beginPath();
+  ctx.ellipse(0, -hh*0.8 + wobble, hw*0.55, hh*0.4, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle = fb.auraColor;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Crown / horns based on tier
+  ctx.fillStyle = fb.auraColor;
+  if(fb.tier >= 1){
+    // Crown spikes
+    for(let ci=-2; ci<=2; ci++){
+      ctx.beginPath(); ctx.moveTo(ci*hw*0.2, -hh*1.1+wobble); ctx.lineTo(ci*hw*0.2-6, -hh*1.4+wobble); ctx.lineTo(ci*hw*0.2+6, -hh*1.4+wobble); ctx.closePath(); ctx.fill();
+    }
+  }
+
+  // Glowing eyes
+  ctx.save();
+  ctx.shadowColor = fb.auraColor; ctx.shadowBlur = 16;
+  ctx.fillStyle = fb.auraColor;
+  ctx.beginPath(); ctx.arc(-hw*0.2, -hh*0.85+wobble, hh*0.1, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(hw*0.2, -hh*0.85+wobble, hh*0.1, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath(); ctx.arc(-hw*0.18, -hh*0.86+wobble, hh*0.04, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(hw*0.22, -hh*0.86+wobble, hh*0.04, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  ctx.restore();
+
+  // Draw projectiles
+  for(const p of fb.projectiles){
+    const px = p.x - camX;
+    ctx.save();
+    ctx.fillStyle = p.color; ctx.shadowColor = p.color; ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.arc(px, p.y, p.size, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  // Boss HP bar at top of screen
+  const barW = 440, barH = 20, bx = W/2 - barW/2, by = 48;
+  ctx.fillStyle = 'rgba(0,0,0,0.85)';
+  ctx.fillRect(bx-14, by-28, barW+28, barH+40);
+  ctx.strokeStyle = fb.auraColor; ctx.lineWidth = 2;
+  ctx.strokeRect(bx-14, by-28, barW+28, barH+40);
+
+  ctx.fillStyle = fb.enraged ? '#ef4444' : fb.auraColor;
+  ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(`${fb.enraged ? '💢 ENRAGED — ' : ''}${fb.name} — ${fb.nameGeo} [TIER ${fb.tier}]`, W/2, by-10);
+
+  ctx.fillStyle = '#1a1a2e'; ctx.fillRect(bx, by, barW, barH);
+  const hpFill = Math.max(0, fb.hp / fb.maxHp);
+  const hpGrad = ctx.createLinearGradient(bx,0,bx+barW,0);
+  hpGrad.addColorStop(0, fb.auraColor); hpGrad.addColorStop(1, fb.enraged ? '#ef4444' : '#ffffff');
+  ctx.fillStyle = hpGrad;
+  ctx.fillRect(bx, by, barW * hpFill, barH);
+  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1; ctx.strokeRect(bx, by, barW, barH);
+
+  ctx.fillStyle = '#ffffff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(`${Math.max(0,fb.hp)} / ${fb.maxHp} HP`, W/2, by + barH + 14);
+}
+
 let nukeSeq = {
   active: false,
   timer: 0,
@@ -815,7 +1101,416 @@ const sponsorPopup = {
   btnShakeY: 0
 };
 
-// ---------- Dynamic Weather & Horror Atmosphere System ----------
+// ---------- Airplane Level System ----------
+const airplane = {
+  active: false,
+  x: 80, y: 200, w: 80, h: 36,
+  vx: 0, vy: 0,
+  speed: 3.5, maxVy: 4,
+  animT: 0,
+  exhaust: [],
+  shields: 3, maxShields: 3,
+  invuln: 0,
+  engineTrail: []
+};
+
+let airEnemies = [];   // zombie aircraft
+let airBullets = [];   // player air bullets
+let airGroundTurrets = []; // ground turrets
+let airClouds = [];
+let airScrollX = 0;
+let airBossActive = false;
+let airBoss = { x:0, y:0, w:160, h:70, hp:300, maxHp:300, animT:0, vx:0, vy:0, shootTimer:0, enraged:false, dead:false };
+
+function initAirplaneLevel(){
+  airplane.active = true;
+  airplane.x = 80; airplane.y = 200;
+  airplane.vx = 0; airplane.vy = 0;
+  airplane.shields = 3; airplane.invuln = 0;
+  airplane.exhaust = []; airplane.engineTrail = [];
+  airEnemies = []; airBullets = []; airGroundTurrets = [];
+  airScrollX = 0; airBossActive = false;
+  airBoss.dead = false; airBoss.hp = 300;
+  // Generate ground turrets at fixed intervals
+  for(let i = 0; i < 14; i++){
+    airGroundTurrets.push({ x: 600 + i*550, y: H - 60, w:32, h:40, hp:3, cooldown:0, destroyed:false });
+  }
+  // Generate initial clouds
+  airClouds = [];
+  for(let i=0; i<18; i++){
+    airClouds.push({ x: Math.random()*9000, y: 40+Math.random()*280, r: 40+Math.random()*60, speed: 0.4+Math.random()*0.6 });
+  }
+  // Set player to airplane controls
+  player.x = 80; player.y = 200; player.vx = 0; player.vy = 0;
+}
+
+function updateAirplaneLevel(dt){
+  if(!level || !level.isAirplaneLevel || !airplane.active) return;
+  airplane.animT += dt;
+  if(airplane.invuln > 0) airplane.invuln--;
+
+  // Player controls airplane
+  const upHeld = keys['w'] || keys['arrowup'] || keys['W'];
+  const downHeld = keys['s'] || keys['arrowdown'] || keys['S'];
+  if(upHeld)   airplane.vy = Math.max(airplane.vy - 0.4, -airplane.maxVy);
+  if(downHeld) airplane.vy = Math.min(airplane.vy + 0.4,  airplane.maxVy);
+  airplane.vy *= 0.88; // Damping
+  airplane.x = Math.max(20, Math.min(W - airplane.w - 10, airplane.x + 1.8)); // auto-scroll right
+  airplane.y = Math.max(20, Math.min(H - 100, airplane.y + airplane.vy));
+  // Sync to player position for coins/bells/flag overlap
+  player.x = airplane.x; player.y = airplane.y;
+  player.w = airplane.w; player.h = airplane.h;
+  camX = Math.max(0, airplane.x - 160);
+
+  // Engine trail
+  airplane.engineTrail.unshift({x: airplane.x - 2, y: airplane.y + airplane.h/2, life: 18});
+  if(airplane.engineTrail.length > 30) airplane.engineTrail.pop();
+
+  // Spawn enemies every ~2 seconds
+  const spawnInterval = airBossActive ? 99999 : (600 - state.levelIndex * 8);
+  if(Math.floor(state.time / spawnInterval) > Math.floor((state.time - dt) / spawnInterval)){
+    const ey = 40 + Math.random() * (H - 160);
+    const isFast = Math.random() < 0.3;
+    airEnemies.push({
+      x: W + camX + 60, y: ey, w: isFast?48:60, h: isFast?20:28,
+      vx: -(3 + Math.random()*2) * (isFast?1.8:1),
+      vy: (Math.random()-0.5)*1.2,
+      hp: isFast?1:2, maxHp: isFast?1:2,
+      animT: Math.random()*100,
+      isFast, shootTimer: 60+Math.random()*120
+    });
+  }
+
+  // Spawn air boss at 70% level progress
+  const levelProgress = camX / ((level.width || 9000) - W);
+  if(levelProgress > 0.7 && !airBossActive && !airBoss.dead){
+    airBossActive = true;
+    airBoss.x = W + camX; airBoss.y = H/2 - 35;
+    airBoss.hp = 300; airBoss.maxHp = 300;
+    airBoss.vx = -1.5; airBoss.vy = 0;
+    airBoss.animT = 0; airBoss.enraged = false; airBoss.shootTimer = 0;
+    shake(25); sfxDemonic(); triggerFlash('255,100,0', 0.7);
+    toast('💀 ზომბი-ბომბდამშენი გამოჩნდა! 💀', 3500);
+  }
+
+  // Air boss update
+  if(airBossActive && !airBoss.dead){
+    airBoss.animT += dt;
+    if(airBoss.hp <= airBoss.maxHp * 0.35 && !airBoss.enraged){
+      airBoss.enraged = true; shake(20); sfxDemonic();
+      toast('💢 ბომბდამშენი განრისხდა!', 2000);
+    }
+    const spd = airBoss.enraged ? 2.2 : 1.5;
+    airBoss.vx = (airplane.x - airBoss.x > 0 ? 0.5 : -0.5) * spd;
+    airBoss.vy = (airplane.y - airBoss.y > 0 ? 1 : -1) * spd * 0.7;
+    airBoss.x += airBoss.vx; airBoss.y += airBoss.vy;
+    airBoss.y = Math.max(30, Math.min(H - 100, airBoss.y));
+    airBoss.x = Math.max(camX + W*0.4, Math.min(camX + W - 20, airBoss.x));
+
+    airBoss.shootTimer += dt;
+    const shotInterval = airBoss.enraged ? 800 : 1400;
+    if(airBoss.shootTimer > shotInterval){
+      airBoss.shootTimer = 0;
+      const ang = Math.atan2((airplane.y+18)-(airBoss.y+35), airplane.x - airBoss.x);
+      for(let si=-1; si<=1; si++){
+        airBullets.push({x:airBoss.x, y:airBoss.y+35, vx:Math.cos(ang+si*0.3)*10, vy:Math.sin(ang+si*0.3)*10, life:80, color:'#ef4444', size:9, isEnemy:true});
+      }
+      shake(8);
+    }
+    // Boss bullet hit by player
+    for(let bi = bullets.length-1; bi>=0; bi--){
+      const b = bullets[bi];
+      const bBox={x:b.x-b.size,y:b.y-b.size,w:b.size*2,h:b.size*2};
+      if(overlap(bBox,{x:airBoss.x,y:airBoss.y,w:airBoss.w,h:airBoss.h})){
+        airBoss.hp -= (b.damage||1) * (b.isRocket?3:1);
+        spawnParticles(b.x,b.y,'#ef4444',12,1.5);
+        sfxZombieHit();
+        addFloatingText(airBoss.x+airBoss.w/2, airBoss.y-12, '-'+(b.damage||1), '#ef4444');
+        bullets.splice(bi,1);
+        if(airBoss.hp<=0){ airBoss.dead=true; airBossActive=false; shake(40); sfxWin(); addScore(800); triggerFlash('255,210,63',0.9); toast('✈️ ბომბდამშენი განადგურდა! +800 ქულა!',4000); }
+      }
+    }
+  }
+
+  // Update air enemies
+  for(let i = airEnemies.length-1; i>=0; i--){
+    const e = airEnemies[i];
+    e.animT += dt;
+    e.x += e.vx; e.y += e.vy;
+    e.vy += (Math.sin(e.animT*0.008)*0.08);
+    e.y = Math.max(30, Math.min(H-80, e.y));
+    // Enemy shoots
+    e.shootTimer -= dt;
+    if(e.shootTimer <= 0){
+      e.shootTimer = 80 + Math.random()*100;
+      airBullets.push({x:e.x, y:e.y+e.h/2, vx:-8, vy:(Math.random()-0.5)*2, life:60, color:'#ef4444', size:7, isEnemy:true});
+    }
+    // Hit by player bullet
+    for(let bi=bullets.length-1; bi>=0; bi--){
+      const b = bullets[bi];
+      const bBox={x:b.x-b.size,y:b.y-b.size,w:b.size*2,h:b.size*2};
+      if(overlap(bBox,{x:e.x,y:e.y,w:e.w,h:e.h})){
+        e.hp -= (b.damage||1);
+        spawnParticles(b.x,b.y,'#ff6600',10,1.5);
+        sfxZombieHit();
+        bullets.splice(bi,1);
+        if(e.hp<=0){ spawnParticles(e.x+e.w/2,e.y+e.h/2,'#ff4400',30,2.5); sfxFall(); addScore(25); airEnemies.splice(i,1); break; }
+      }
+    }
+    if(airEnemies[i] && e.x < camX - 200) airEnemies.splice(i,1);
+  }
+
+  // Update ground turrets
+  for(const t of airGroundTurrets){
+    if(t.destroyed) continue;
+    t.cooldown -= dt;
+    if(t.cooldown <= 0){
+      t.cooldown = 1800;
+      airBullets.push({x:t.x+16, y:t.y, vx:(Math.random()-0.5)*2, vy:-9, life:60, color:'#f59e0b', size:7, isEnemy:true, isTurretShell:true});
+    }
+    // Hit by player bullet
+    for(let bi=bullets.length-1; bi>=0; bi--){
+      const b = bullets[bi];
+      const bBox={x:b.x-b.size,y:b.y-b.size,w:b.size*2,h:b.size*2};
+      if(overlap(bBox,{x:t.x,y:t.y,w:t.w,h:t.h})){
+        t.hp -= (b.damage||1);
+        bullets.splice(bi,1);
+        sfxZombieHit(); spawnParticles(t.x+16,t.y,'#f59e0b',10,1.5);
+        if(t.hp<=0){ t.destroyed=true; addScore(30); spawnParticles(t.x+16,t.y+20,'#ff4400',25,2.5); break; }
+      }
+    }
+  }
+
+  // Update air bullets (both player and enemy)
+  for(let i=airBullets.length-1; i>=0; i--){
+    const b = airBullets[i];
+    b.x+=b.vx; b.y+=b.vy; b.life--;
+    if(b.isTurretShell) b.vy += 0.15; // slight arc
+    if(b.isEnemy && airplane.invuln<=0){
+      const plBox={x:airplane.x,y:airplane.y,w:airplane.w,h:airplane.h};
+      const bBox={x:b.x-b.size,y:b.y-b.size,w:b.size*2,h:b.size*2};
+      if(overlap(bBox,plBox)){
+        airplane.shields--;
+        airplane.invuln=90; b.life=0;
+        shake(18); sfxHurt();
+        spawnParticles(airplane.x+airplane.w/2,airplane.y+airplane.h/2,'#ff3d6e',20,2);
+        triggerFlash('255,61,110',0.5);
+        if(airplane.shields<=0){ player.dead=true; state.mode='gameover'; }
+      }
+    }
+    if(b.life<=0) airBullets.splice(i,1);
+  }
+
+  // Enemy aircraft collision with player airplane
+  for(let i=airEnemies.length-1; i>=0; i--){
+    const e = airEnemies[i];
+    if(airplane.invuln<=0 && overlap({x:e.x,y:e.y,w:e.w,h:e.h},{x:airplane.x,y:airplane.y,w:airplane.w,h:airplane.h})){
+      airplane.shields--;
+      airplane.invuln=90;
+      e.hp=0; airEnemies.splice(i,1);
+      shake(22); sfxHurt(); spawnParticles(airplane.x+airplane.w/2,airplane.y,'#ff3d6e',25,2.5);
+      if(airplane.shields<=0){ player.dead=true; state.mode='gameover'; }
+    }
+  }
+}
+
+function drawAirplaneLevel(){
+  if(!level || !level.isAirplaneLevel) return;
+
+  // Sky background
+  const skyGrad = ctx.createLinearGradient(0,0,0,H);
+  skyGrad.addColorStop(0,'#0c1445'); skyGrad.addColorStop(0.5,'#1a3a6e'); skyGrad.addColorStop(1,'#2563a8');
+  ctx.fillStyle = skyGrad; ctx.fillRect(0,0,W,H);
+
+  // Distant ground strip
+  ctx.fillStyle = '#0a2010';
+  ctx.fillRect(0, H-55, W, 55);
+  ctx.fillStyle = '#0d2a14';
+  for(let gx=0; gx<W; gx+=80){
+    ctx.fillRect((gx - camX*0.05)%W, H-65, 40, 12);
+  }
+
+  // Clouds (parallax)
+  for(const cl of airClouds){
+    const cx = ((cl.x - camX * cl.speed * 0.3)) % (W + 200) - 20;
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.beginPath();
+    ctx.arc(cx, cl.y, cl.r, 0, Math.PI*2);
+    ctx.arc(cx+cl.r*0.6, cl.y-cl.r*0.3, cl.r*0.7, 0, Math.PI*2);
+    ctx.arc(cx-cl.r*0.5, cl.y+cl.r*0.1, cl.r*0.6, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Coins & bells in sky
+  if(level.coins) level.coins.forEach(drawCoin);
+  if(level.bells) level.bells.forEach(drawBell);
+  if(level.jumpboxes) level.jumpboxes.forEach(drawJumpBox);
+  if(level.signs) level.signs.forEach(drawSign);
+  drawFlag(level.flag);
+
+  // Ground turrets
+  for(const t of airGroundTurrets){
+    const tx = t.x - camX;
+    if(tx < -50 || tx > W+50) continue;
+    if(t.destroyed){
+      ctx.fillStyle='#333'; ctx.fillRect(tx,t.y+20,t.w,20);
+      spawnParticles(tx+16,t.y+10,'#ff4400',1,0.5);
+    } else {
+      ctx.fillStyle='#374151'; ctx.fillRect(tx,t.y+10,t.w,30);
+      ctx.fillStyle='#4b5563'; ctx.fillRect(tx+8,t.y,14,12);
+      ctx.strokeStyle='#9ca3af'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(tx+15,t.y); ctx.lineTo(tx+15,t.y-22); ctx.stroke();
+    }
+  }
+
+  // Air enemies (zombie biplanes)
+  for(const e of airEnemies){
+    const ex = e.x - camX;
+    if(ex<-80||ex>W+80) continue;
+    ctx.save();
+    ctx.translate(ex+e.w/2, e.y+e.h/2);
+    ctx.scale(-1,1); // facing left
+    const wobble = Math.sin(e.animT*0.025)*3;
+    // Fuselage
+    ctx.fillStyle='#4a2020';
+    ctx.beginPath(); ctx.ellipse(0,wobble,e.w*0.42,e.h*0.38,0,0,Math.PI*2); ctx.fill();
+    // Wings
+    ctx.fillStyle='#6b2020';
+    ctx.fillRect(-e.w*0.4, wobble-4, e.w*0.8, 7); // main wing
+    ctx.fillRect(-e.w*0.28, wobble+5, e.w*0.56, 5); // lower wing
+    ctx.fillStyle='#ef4444'; // red skull marking
+    ctx.beginPath(); ctx.arc(-e.w*0.1, wobble-1, 4, 0,Math.PI*2); ctx.fill();
+    // Nose & propeller
+    ctx.fillStyle='#1a0a0a';
+    ctx.beginPath(); ctx.ellipse(e.w*0.42,wobble,10,7,0,0,Math.PI*2); ctx.fill();
+    const propRot = e.animT*0.12;
+    ctx.strokeStyle='#6b7280'; ctx.lineWidth=3;
+    ctx.beginPath();
+    ctx.moveTo(e.w*0.48+Math.cos(propRot)*12, wobble+Math.sin(propRot)*12);
+    ctx.lineTo(e.w*0.48-Math.cos(propRot)*12, wobble-Math.sin(propRot)*12);
+    ctx.stroke();
+    // HP bar
+    ctx.fillStyle='#1a1a1a'; ctx.fillRect(-e.w/2,-e.h/2-8,e.w,5);
+    ctx.fillStyle='#ef4444'; ctx.fillRect(-e.w/2,-e.h/2-8,e.w*(e.hp/e.maxHp),5);
+    ctx.restore();
+  }
+
+  // Air boss (zombie bomber)
+  if(airBossActive && !airBoss.dead){
+    const bx = airBoss.x - camX;
+    ctx.save();
+    ctx.translate(bx+airBoss.w/2, airBoss.y+airBoss.h/2);
+    ctx.scale(-1,1);
+    const bwobble = Math.sin(airBoss.animT*0.006)*5;
+    // Large fuselage
+    ctx.fillStyle = airBoss.enraged ? '#7f1d1d' : '#3b1515';
+    ctx.beginPath(); ctx.ellipse(0,bwobble,airBoss.w*0.44,airBoss.h*0.42,0,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = airBoss.enraged ? '#ef4444' : '#7f1d1d'; ctx.lineWidth=3; ctx.stroke();
+    // Wings
+    ctx.fillStyle='#5c1a1a';
+    ctx.fillRect(-airBoss.w*0.46, bwobble-8, airBoss.w*0.92, 14);
+    ctx.fillRect(-airBoss.w*0.36, bwobble+8, airBoss.w*0.72, 10);
+    // Bomb bays
+    ctx.fillStyle='#111';
+    for(let bi2=-1;bi2<=1;bi2++) ctx.fillRect(bi2*24-8, bwobble+20, 16, 8);
+    // Nose
+    ctx.fillStyle='#1a0000';
+    ctx.beginPath(); ctx.ellipse(airBoss.w*0.44,bwobble,14,10,0,0,Math.PI*2); ctx.fill();
+    // Dual props
+    for(let pi=-1;pi<=1;pi+=2){
+      const pr = airBoss.animT*0.1+pi*Math.PI/2;
+      ctx.strokeStyle='#6b7280'; ctx.lineWidth=4;
+      ctx.beginPath();
+      ctx.moveTo(pi*36+Math.cos(pr)*18, bwobble+Math.sin(pr)*18);
+      ctx.lineTo(pi*36-Math.cos(pr)*18, bwobble-Math.sin(pr)*18);
+      ctx.stroke();
+    }
+    ctx.restore();
+    // Boss HP bar
+    const bbarW=380, bbarH=18, bbx=W/2-bbarW/2, bby=48;
+    ctx.fillStyle='rgba(0,0,0,0.85)'; ctx.fillRect(bbx-12,bby-26,bbarW+24,bbarH+38);
+    ctx.strokeStyle=airBoss.enraged?'#ef4444':'#ff6600'; ctx.lineWidth=2; ctx.strokeRect(bbx-12,bby-26,bbarW+24,bbarH+38);
+    ctx.fillStyle=airBoss.enraged?'#ef4444':'#f97316'; ctx.font='bold 14px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(`${airBoss.enraged?'💢 ENRAGED — ':''}ZOMBIE BOMBER BOSS`, W/2, bby-10);
+    ctx.fillStyle='#1a0000'; ctx.fillRect(bbx,bby,bbarW,bbarH);
+    const bfill=Math.max(0,airBoss.hp/airBoss.maxHp);
+    const bgrad=ctx.createLinearGradient(bbx,0,bbx+bbarW,0);
+    bgrad.addColorStop(0,'#ef4444'); bgrad.addColorStop(1,'#f97316');
+    ctx.fillStyle=bgrad; ctx.fillRect(bbx,bby,bbarW*bfill,bbarH);
+    ctx.strokeStyle='#fff'; ctx.lineWidth=1; ctx.strokeRect(bbx,bby,bbarW,bbarH);
+    ctx.fillStyle='#fff'; ctx.font='bold 12px sans-serif';
+    ctx.fillText(`${Math.max(0,airBoss.hp)} / ${airBoss.maxHp} HP`, W/2, bby+bbarH+14);
+  }
+
+  // Air bullets
+  for(const b of airBullets){
+    const bx2 = b.x - camX;
+    ctx.save();
+    ctx.fillStyle = b.isEnemy ? '#ef4444' : '#ffd23f';
+    ctx.shadowColor = b.color || '#ffd23f'; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(bx2, b.y, b.size*0.7, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  // Player biplane
+  const apx = airplane.x - camX;
+  const apy = airplane.y;
+  // Engine trail
+  for(const tr of airplane.engineTrail){
+    const trx = tr.x - camX;
+    const alpha = tr.life / 18;
+    ctx.save(); ctx.globalAlpha = alpha * 0.5;
+    ctx.fillStyle = '#f97316';
+    ctx.beginPath(); ctx.arc(trx, tr.y, 5*(tr.life/18), 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+    tr.life--;
+  }
+
+  ctx.save();
+  ctx.translate(apx + airplane.w/2, apy + airplane.h/2);
+  if(airplane.invuln>0 && Math.floor(airplane.invuln/5)%2===0) ctx.globalAlpha=0.4;
+  const wobble2 = Math.sin(airplane.animT*0.04)*2;
+  // Fuselage
+  ctx.fillStyle = '#1e3a5f';
+  ctx.beginPath(); ctx.ellipse(0,wobble2, airplane.w*0.45, airplane.h*0.42, 0, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#3b82f6'; ctx.lineWidth=2; ctx.stroke();
+  // Top & bottom wings
+  ctx.fillStyle = '#2563a8';
+  ctx.fillRect(-airplane.w*0.42, wobble2-5, airplane.w*0.84, 10);
+  ctx.fillStyle = '#1d4ed8';
+  ctx.fillRect(-airplane.w*0.3, wobble2+7, airplane.w*0.6, 8);
+  // Flag markings
+  ctx.fillStyle = '#ffd23f';
+  ctx.fillRect(-8, wobble2-3, 16, 5);
+  // Nose
+  ctx.fillStyle = '#0c1e3a';
+  ctx.beginPath(); ctx.ellipse(airplane.w*0.44, wobble2, 10, 7, 0, 0, Math.PI*2); ctx.fill();
+  // Spinning propeller
+  const propAng = airplane.animT * 0.15;
+  ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 3.5;
+  ctx.beginPath();
+  ctx.moveTo(airplane.w*0.5+Math.cos(propAng)*14, wobble2+Math.sin(propAng)*14);
+  ctx.lineTo(airplane.w*0.5-Math.cos(propAng)*14, wobble2-Math.sin(propAng)*14);
+  ctx.stroke();
+  // Tail fin
+  ctx.fillStyle = '#1e3a5f';
+  ctx.beginPath(); ctx.moveTo(-airplane.w*0.42, wobble2-6); ctx.lineTo(-airplane.w*0.55, wobble2-22); ctx.lineTo(-airplane.w*0.38, wobble2-6); ctx.closePath(); ctx.fill();
+  ctx.restore();
+
+  // Airplane shields HUD
+  const shX = 20, shY = H - 45;
+  ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(shX-6, shY-20, 160, 30);
+  ctx.strokeStyle = '#3b82f6'; ctx.lineWidth=1; ctx.strokeRect(shX-6, shY-20, 160, 30);
+  ctx.font = 'bold 13px sans-serif'; ctx.fillStyle='#3b82f6'; ctx.textAlign='left';
+  ctx.fillText('SHIELDS:', shX, shY-2);
+  for(let si=0; si<airplane.maxShields; si++){
+    ctx.fillStyle = si < airplane.shields ? '#3b82f6' : '#1f2937';
+    ctx.beginPath(); ctx.arc(shX+80+si*22, shY-8, 8, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#93c5fd'; ctx.lineWidth=1; ctx.stroke();
+  }
+}
 let weather = {
   type: 'clear', // 'clear', 'rain', 'fog', 'thunderstorm'
   timer: 0,
@@ -1153,20 +1848,34 @@ function addFloatingText(x, y, text, color='#ffd23f'){
 
 function spawnZombie(x, y, customType = null){
   const type = customType || Math.random();
-  let health = 2, speed = 1.6, color = '#4a8b4a', size = 1, isBoss = false;
+  let health = 2, speed = 1.6, color = '#3a7a3a', size = 1, isBoss = false;
 
+  // Level progression difficulty
+  const levelDifficulty = Math.min(state.levelIndex || 0, 30);
+  const difficultyScale = 1 + (levelDifficulty * 0.08); // 8% increase per level
+  
   const spdMult = (level && level.zombieSpeedMult) ? level.zombieSpeedMult : 1;
   const hpMult = (level && level.zombieHpMult) ? level.zombieHpMult : 1;
   
   if(type === 'boss' || (typeof type === 'number' && type > 0.85)){
-    // Big Giant Horror Boss Zombie
-    health = Math.round(8 * hpMult); speed = 0.9 * spdMult; color = '#8b2020'; size = 1.6; isBoss = true;
+    // Boss Zombie - gets stronger with levels
+    health = Math.round((5 + levelDifficulty * 0.5) * hpMult * difficultyScale);
+    speed = 1.1 * spdMult * (1 + levelDifficulty * 0.04);
+    color = '#6b2020';
+    size = 1.4;
+    isBoss = true;
   } else if(typeof type === 'number' && type < 0.35){
-    // Fast runner zombie
-    health = Math.round(1 * hpMult); speed = 2.8 * spdMult; color = '#3a8b6a'; size = 0.85;
+    // Fast runner zombie - gets faster with levels
+    health = Math.round((1 + levelDifficulty * 0.15) * hpMult);
+    speed = (2.2 + levelDifficulty * 0.15) * spdMult;
+    color = '#2a6a4a';
+    size = 0.8;
   } else {
-    // Standard zombie
-    health = Math.round(3 * hpMult); speed = 1.6 * spdMult; color = '#4a8b4a'; size = 1;
+    // Standard zombie - gets tougher with levels
+    health = Math.round((2 + levelDifficulty * 0.3) * hpMult * difficultyScale);
+    speed = (1.3 + levelDifficulty * 0.08) * spdMult;
+    color = '#3a7a3a';
+    size = 1;
   }
   
   zombies.push({
@@ -1297,6 +2006,65 @@ function shoot(){
     spawnParticles(gunX, gunY, '#ffaa00', 25, 2);
     spawnParticles(gunX, gunY, '#555555', 15, 1.2);
     for(let i=0; i<4; i++) spawnShellCasing(gunX, gunY, player.facing);
+  } else if(mode === 'rocket'){
+    // Rocket Launcher: slow heavy projectile, massive AOE explosion on impact
+    player.gunRecoil = 26;
+    bullets.push({
+      x: gunX, y: gunY - 4,
+      vx: player.facing * 11, vy: 0,
+      life: 90, color: '#ff6600', size: 10, damage: 10,
+      isRocket: true, hasExploded: false
+    });
+    sfxDemonic();
+    shake(18);
+    spawnParticles(gunX - player.facing * 14, gunY, '#888888', 20, 1.8);
+    spawnParticles(gunX - player.facing * 14, gunY, '#ff6600', 10, 1.2);
+  } else if(mode === 'laser'){
+    // Laser Rifle: instant hitscan beam, pierces multiple enemies
+    player.gunRecoil = 14;
+    // Cast a ray from gun forward; deal damage to every zombie on the line
+    const beamEndX = gunX + player.facing * 900;
+    let pierced = 0;
+    for(const z of zombies){
+      if(pierced >= 5) break;
+      const zCx = z.x + z.w/2;
+      const zCy = z.y + z.h/2;
+      const minX = Math.min(gunX, beamEndX), maxX = Math.max(gunX, beamEndX);
+      if(zCx >= minX && zCx <= maxX && Math.abs(zCy - gunY) < z.h * 0.6){
+        z.health -= 4;
+        spawnParticles(zCx, zCy, '#ff00ff', 12, 1.5);
+        sfxZombieHit();
+        pierced++;
+      }
+    }
+    if(godzillaBoss.active){
+      const gCx = godzillaBoss.x + godzillaBoss.w/2;
+      const gCy = godzillaBoss.y + godzillaBoss.h/2;
+      const minX = Math.min(gunX, beamEndX), maxX = Math.max(gunX, beamEndX);
+      if(gCx >= minX && gCx <= maxX && Math.abs(gCy - gunY) < godzillaBoss.h * 0.5){
+        godzillaBoss.hp -= 6;
+        addFloatingText(godzillaBoss.x + 60, godzillaBoss.y - 20, '-6 LASER', '#ff00ff');
+      }
+    }
+    // Visual: spawn a laser beam particle trail
+    for(let lx = gunX; Math.abs(lx - gunX) < 900; lx += player.facing * 18){
+      particles.push({ x: lx, y: gunY + (Math.random()-0.5)*4, vx:0, vy:0, life:6, maxLife:6, color:'#ff00ff', size:4 });
+    }
+    sfxShoot();
+    shake(8);
+  } else if(mode === 'grenade'){
+    // Grenade Launcher: arcing projectile that bounces and explodes after a delay
+    player.gunRecoil = 20;
+    bullets.push({
+      x: gunX, y: gunY - 4,
+      vx: player.facing * 13, vy: -6,
+      life: 120, color: '#22c55e', size: 8, damage: 0,
+      isGrenade: true, bounces: 0, fuseTimer: 90
+    });
+    sfxShoot();
+    shake(10);
+    spawnParticles(gunX, gunY, '#22c55e', 8, 1);
+    spawnShellCasing(gunX, gunY, player.facing);
   }
 }
 
@@ -1317,6 +2085,70 @@ function updateBullets(){
     if(b.isTankShell && Math.random() < 0.8){
       spawnParticles(b.x, b.y, '#ff6600', 3, 0.6);
       spawnParticles(b.x, b.y, '#333333', 2, 0.4);
+    }
+    // Rocket smoke trail
+    if(b.isRocket && Math.random() < 0.9){
+      spawnParticles(b.x - (b.vx > 0 ? 14 : -14), b.y, '#888888', 3, 0.7);
+      spawnParticles(b.x, b.y, '#ff6600', 2, 0.5);
+    }
+    // Grenade physics: affected by gravity, bounces off platforms
+    if(b.isGrenade){
+      b.vy += GRAVITY * 0.7;
+      if(b.vy > 12) b.vy = 12;
+      b.fuseTimer--;
+      // Bounce off platforms
+      if(level && level.plats){
+        for(const p of level.plats){
+          const bBox = {x: b.x - b.size, y: b.y - b.size, w: b.size*2, h: b.size*2};
+          if(overlap(bBox, p) && b.vy > 0 && b.bounces < 3){
+            b.vy = -b.vy * 0.5;
+            b.vx *= 0.7;
+            b.bounces++;
+          }
+        }
+      }
+      // Explode when fuse runs out
+      if(b.fuseTimer <= 0 && !b.hasExploded){
+        b.hasExploded = true;
+        b.life = 0;
+        shake(22); sfxDemonic();
+        spawnParticles(b.x, b.y, '#ff6600', 40, 3.5);
+        spawnParticles(b.x, b.y, '#ffff00', 20, 2.5);
+        spawnParticles(b.x, b.y, '#888888', 25, 2);
+        addFloatingText(b.x, b.y - 20, 'BOOM!', '#ff6600');
+        // AOE damage
+        for(const z of zombies){
+          const dx = (z.x+z.w/2) - b.x, dy = (z.y+z.h/2) - b.y;
+          if(Math.sqrt(dx*dx+dy*dy) < 140){ z.health -= 7; z.vx += dx*0.12; z.vy -= 6; }
+        }
+        if(godzillaBoss.active){
+          const dx = (godzillaBoss.x+godzillaBoss.w/2)-b.x, dy=(godzillaBoss.y+godzillaBoss.h/2)-b.y;
+          if(Math.sqrt(dx*dx+dy*dy) < 180){ godzillaBoss.hp -= 12; }
+        }
+      }
+    }
+    // Rocket explodes on hitting anything solid
+    if(b.isRocket && !b.hasExploded && level && level.plats){
+      for(const p of level.plats){
+        const bBox = {x: b.x - b.size, y: b.y - b.size, w: b.size*2, h: b.size*2};
+        if(overlap(bBox, p)){
+          b.hasExploded = true; b.life = 0;
+          shake(30); sfxDemonic();
+          spawnParticles(b.x, b.y, '#ff4400', 50, 4);
+          spawnParticles(b.x, b.y, '#ffff00', 30, 3);
+          spawnParticles(b.x, b.y, '#888888', 30, 2.5);
+          addFloatingText(b.x, b.y - 20, 'BOOM!', '#ff4400');
+          for(const z of zombies){
+            const dx=(z.x+z.w/2)-b.x, dy=(z.y+z.h/2)-b.y;
+            if(Math.sqrt(dx*dx+dy*dy) < 180){ z.health -= 10; z.vx += dx*0.15; z.vy -= 8; }
+          }
+          if(godzillaBoss.active){
+            const dx=(godzillaBoss.x+godzillaBoss.w/2)-b.x, dy=(godzillaBoss.y+godzillaBoss.h/2)-b.y;
+            if(Math.sqrt(dx*dx+dy*dy) < 200){ godzillaBoss.hp -= 18; }
+          }
+          break;
+        }
+      }
     }
 
     let hit = false;
@@ -1349,14 +2181,21 @@ function updateBullets(){
           sfxZombieHit();
           
           if(b.isPlasma || b.isTankShell){
-            shake(14);
-            sfxFall();
-            // Area explosion damage to nearby zombies
+            shake(14); sfxFall();
             for(const otherZ of zombies){
               const dx = otherZ.x - b.x, dy = otherZ.y - b.y;
-              if(Math.sqrt(dx*dx + dy*dy) < 160){
-                otherZ.health -= 4;
-              }
+              if(Math.sqrt(dx*dx + dy*dy) < 160) otherZ.health -= 4;
+            }
+          }
+          if(b.isRocket && !b.hasExploded){
+            b.hasExploded = true;
+            shake(30); sfxDemonic();
+            spawnParticles(b.x, b.y, '#ff4400', 50, 4);
+            spawnParticles(b.x, b.y, '#ffff00', 30, 3);
+            addFloatingText(b.x, b.y - 20, 'BOOM!', '#ff4400');
+            for(const otherZ of zombies){
+              const dx=(otherZ.x+otherZ.w/2)-b.x, dy=(otherZ.y+otherZ.h/2)-b.y;
+              if(Math.sqrt(dx*dx+dy*dy) < 180){ otherZ.health -= 10; otherZ.vx += dx*0.15; otherZ.vy -= 8; }
             }
           }
           hit = true;
@@ -1391,7 +2230,15 @@ function updateZombies(dt){
     
     let onPlatform = false;
     let platformBelow = null;
+    let platformsNearby = [];
     
+    // Find all platforms near zombie for smart pathfinding
+    for(const p of level.plats){
+      const dist = Math.hypot((z.x + z.w/2) - (p.x + p.w/2), (z.y + z.h/2) - (p.y + p.h/2));
+      if(dist < 400) platformsNearby.push({...p, dist});
+    }
+    
+    // Check for platform below
     for(const p of level.plats){
       if(overlap(z, p)){
         const prevBottom = z.y - (z.vy || 0) + z.h;
@@ -1408,23 +2255,44 @@ function updateZombies(dt){
     const dy = player.y - z.y;
     const dist = Math.sqrt(dx*dx + dy*dy);
     
-    if(onPlatform && dist < 650 && dist > 20){
+    if(dist < 650 && dist > 20){
       const moveDir = dx > 0 ? 1 : -1;
-      const nextX = z.x + moveDir * 24;
-      let wouldFall = true;
-      
-      if(platformBelow){
-        if(nextX >= platformBelow.x - 10 && nextX + z.w <= platformBelow.x + platformBelow.w + 10){
-          wouldFall = false;
+      if(onPlatform){
+        const nextX = z.x + moveDir * 24;
+        let canMove = true;
+        
+        // Smart pathfinding: look for safe ground ahead
+        if(platformBelow){
+          if(nextX < platformBelow.x - 15 || nextX + z.w > platformBelow.x + platformBelow.w + 15){
+            canMove = false; // Would fall off edge
+          }
         }
-      }
-      
-      if(!wouldFall || z.isBoss){
-        z.vx = (dx / dist) * z.speed;
-        z.facing = dx > 0 ? 1 : -1;
+        
+        // Boss zombies can jump to nearby platforms
+        if(z.isBoss && !canMove){
+          const nearbyLower = platformsNearby.filter(p => p.y > z.y && p.y < z.y + 200).sort((a,b)=>a.dist-b.dist);
+          if(nearbyLower.length > 0){
+            canMove = true; // Boss will attempt jump
+            z.vy = -10; // Jump
+          }
+        }
+        
+        if(canMove){
+          z.vx = (dx / dist) * z.speed;
+          z.facing = dx > 0 ? 1 : -1;
+        } else {
+          z.vx *= 0.5; // Move very slowly if blocked
+          // Try jumping if stuck
+          if(Math.random() < 0.015){
+            z.vy = -8; // Small jump attempt
+          }
+        }
       } else {
-        z.vx *= 0.8;
+        z.vx = (dx / dist) * z.speed * 0.6; // Slower in air
+        z.facing = dx > 0 ? 1 : -1;
       }
+    } else if(onPlatform){
+      z.vx *= 0.85;
     } else {
       z.vx *= 0.88;
     }
@@ -1791,7 +2659,7 @@ function buildLevels(){
     bushes: [ rect(1600, GROUND_Y-50,50,50,{triggered:false}), rect(2800, GROUND_Y-50,50,50,{triggered:false}) ],
     signs: [ 
       {x:300,text:"CODEZERO.GE - ისწავლე პროგრამირება!"}, 
-      {x:2550,text:"საუკეთესო წიგნები = გადარჩენა"} 
+      {x:2550,text:"საუკეთესო ��ი���ნები = გადარჩენა"} 
     ],
     flag: rect(4650, GROUND_Y-140,30,140),
     zombies: [ 
@@ -1959,7 +2827,7 @@ function buildLevels(){
   levels.push({
     name:'ეპ.7 — შავ-ბნელი ზომბოკალიფსი 🧟‍♂️',
     diffRating: 'VERY HARD', diffStars: '⭐⭐⭐⭐', diffColor: '#ef4444',
-    gimmickTitle: '⛈️ შტორმის ღამე & ყინულის საფარი', diffDesc: 'მცურავი ყინულის ზედაპირი, სიბნელე და აგრესიული ზომბების არმია (1.5x).',
+    gimmickTitle: '⛈️ შტორმის ღამე & ყინულ��ს საფარი', diffDesc: 'მცურავი ყინულის ზედაპირი, სიბნელე და აგრესიული ზომბების არმია (1.5x).',
     zombieSpeedMult: 1.5, zombieHpMult: 1.4, gravityMult: 1.0, hazardType: 'ice_storm',
     width: 5400,
     spawn:{x:60,y:GROUND_Y-60},
@@ -1985,7 +2853,7 @@ function buildLevels(){
     bells: [ rect(1250, GROUND_Y-200,26,30), rect(4100, GROUND_Y-230,26,30) ],
     bushes: [ rect(1800, GROUND_Y-50,50,50,{triggered:false}), rect(3200, GROUND_Y-50,50,50,{triggered:false}) ],
     signs: [ 
-      {x:450,text:"ღამის ჰორორი დაიწყო! 🔥"}, 
+      {x:450,text:"ღამის ჰორორი ���აიწყო! 🔥"}, 
       {x:2900,text:"მინიგანი შენი ერთადერთი ხსნაა!"} 
     ],
     flag: rect(5200, GROUND_Y-140,30,140),
@@ -2109,7 +2977,7 @@ function buildLevels(){
   levels.push({
     name:'ეპ.10 — კოსმიური ხულიგანობის ფინალური აპოკალიფსი 🌌',
     diffRating: 'EXTREME', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#a855f7',
-    gimmickTitle: '⚡ არეული კონტროლის იმპულსები', diffDesc: 'გლიჩ იმპულსები პერიოდულად აბრუნებენ კონტროლებს. ზომბების სიჩქარე 1.65x!',
+    gimmickTitle: '⚡ არეული კონტროლის იმპულსე���ი', diffDesc: 'გლიჩ იმპულსები პერიოდულად აბრუნებენ კონტროლებს. ზომბების სიჩქარე 1.65x!',
     zombieSpeedMult: 1.65, zombieHpMult: 1.6, gravityMult: 1.0, hazardType: 'glitch_pulses',
     width: 5800,
     spawn:{x:60,y:GROUND_Y-60},
@@ -2135,7 +3003,7 @@ function buildLevels(){
     bells: [ rect(1330, GROUND_Y-200,26,30), rect(4600, GROUND_Y-230,26,30) ],
     bushes: [ rect(1850, GROUND_Y-50,50,50,{triggered:false}), rect(3600, GROUND_Y-50,50,50,{triggered:false}) ],
     signs: [ 
-      {x:500,text:"🏆 ფინალური ლეველი! გამოიყენე FASTENER!"}, 
+      {x:500,text:"🏆 ფინალური ლეველი! გა���ოიყენე FASTENER!"}, 
       {x:3300,text:"გეოდინოს არხის მაყურებლები ამარცხებენ ყველა ზომბს!"},
       {x:5000,text:"გილოცავ! CODEZERO.GE შენთანაა!"}
     ],
@@ -2187,7 +3055,7 @@ function buildLevels(){
     bells: [ rect(1350, GROUND_Y-210,26,30), rect(4500, GROUND_Y-240,26,30) ],
     bushes: [ rect(1900, GROUND_Y-50,50,50,{triggered:false}), rect(3500, GROUND_Y-50,50,50,{triggered:false}) ],
     signs: [ 
-      {x:500,text:"აიღე FLAMETHROWER და დასწვი ზომბები! 🔥"}, 
+      {x:500,text:"ფლამეინგი გამოიყენე ზომბებზე! 🔥"}, 
       {x:3200,text:"ყვირილის ბანანები აფეთქებენ ზომბებს!"} 
     ],
     flag: rect(5800, GROUND_Y-140,30,140),
@@ -2257,7 +3125,7 @@ function buildLevels(){
 
   // LEVEL 13: Giant Mutant Dinosaurs
   levels.push({
-    name:'ეპ.13 — გიგანტური მუტანტი დინოზავრები 🦖💀',
+    name:'��პ.13 — გიგანტური მუტანტი დინოზავრები 🦖💀',
     diffRating: 'EXTREME', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#a855f7',
     gimmickTitle: '☄️ მუტანტები & ცეცხლოვანი მეტეორები', diffDesc: 'მძიმე გრავიტაცია (1.35x), ცის მეტეორული წვიმა და 2.5x HP მუტანტი ბოსები.',
     zombieSpeedMult: 1.5, zombieHpMult: 2.5, gravityMult: 1.35, hazardType: 'meteor_rain',
@@ -2358,7 +3226,7 @@ function buildLevels(){
   levels.push({
     name:'ეპ.15 — გლიჩ-ინფერნო და ცეკვის ქაოსი 💃🌀',
     diffRating: 'INSANE', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#ec4899',
-    gimmickTitle: '💃 დისკო-ხულიგნური ქაოსი', diffDesc: 'სტრობო განათება, იძულებითი ცეკვის პრანკები და მოულოდნელი მახეები.',
+    gimmickTitle: '💃 დისკო-ხულიგნური ქაოსი', diffDesc: 'სტრობო განათება, იძულებითი ცეკვის პრ��ნკები და მოულოდნელი მახეები.',
     zombieSpeedMult: 1.7, zombieHpMult: 1.6, gravityMult: 1.0, hazardType: 'disco_strobe',
     width: 6400,
     spawn:{x:60,y:GROUND_Y-60},
@@ -2537,7 +3405,7 @@ function buildLevels(){
     ],
     signs: [ 
       {x:500,text:"ყველა ბუჩქში დემონი იმალება! 👻"}, 
-      {x:3500,text:"არ შეგეშინდეს! გეოდინო შენთანაა!"} 
+      {x:3500,text:"��რ შეგეშინდეს! გეოდინო შენთანაა!"} 
     ],
     flag: rect(6500, GROUND_Y-140,30,140),
     zombies: [ 
@@ -2685,8 +3553,8 @@ function buildLevels(){
     bells: [ rect(1900, GROUND_Y-210,26,30), rect(7100, GROUND_Y-230,26,30) ],
     bushes: [ rect(2400, GROUND_Y-50,50,50,{triggered:false}), rect(5300, GROUND_Y-50,50,50,{triggered:false}) ],
     signs: [ 
-      {x:400,text:"🦖 🚨 გოდზილა ანგრევს ქალაქს! აიღე ომის ტანკი!"}, 
-      {x:2200,text:"გამოიყენე ტანკის მძიმე ზარბაზანი (K/F)"},
+      {x:400,text:"🦖 🚨 გიგანტი ანგრევს ქალაქს! ომის ტანკი გამოიყენე!"}, 
+      {x:2200,text:"გამოიყენე ��ანკის მძიმე ზარბაზანი (K/F)"},
       {x:5100,text:"დაარტყი ატომური ლაზერის გამოტყორცნამდე!"},
       {x:7600,text:"🏆 ფინალური გამარჯვება! CODEZERO.GE"}
     ],
@@ -2705,6 +3573,154 @@ function buildLevels(){
       rect(7100, GROUND_Y-230, 42, 42, {hit:false, type:'sponsor'})
     ],
     bgHue:'pink'
+  });
+
+  // LEVEL 22: Parkour Challenge - Wall Jumping & Platform Chains
+  levels.push({
+    name:'ეპ.22 — პარკური გამოწვევა 🏃',
+    diffRating: 'HARD', diffStars: '⭐⭐⭐⭐', diffColor: '#ef4444',
+    gimmickTitle: '🧗 პარკური ჯაჭვი', diffDesc: 'მჭიდრო პლატფორმები, სიჩქარის გამოცდა და ზომბების დაშლა (1.6x).',
+    zombieSpeedMult: 1.6, zombieHpMult: 1.3, gravityMult: 1.0, hazardType: 'parkour',
+    width: 6000,
+    spawn:{x:60,y:GROUND_Y-60},
+    plats: [
+      rect(0, GROUND_Y, 600, 90),
+      // Wall jump section
+      rect(700, GROUND_Y-80, 30, 24),
+      rect(750, GROUND_Y-160, 30, 24),
+      rect(800, GROUND_Y-240, 30, 24),
+      rect(900, GROUND_Y-200, 200, 24),
+      rect(1200, GROUND_Y-120, 30, 24),
+      rect(1250, GROUND_Y-200, 30, 24),
+      rect(1350, GROUND_Y, 300, 90),
+      // Tight platform chain
+      rect(1750, GROUND_Y-100, 80, 24),
+      rect(1900, GROUND_Y-150, 80, 24),
+      rect(2050, GROUND_Y-100, 80, 24),
+      rect(2200, GROUND_Y-180, 80, 24),
+      rect(2350, GROUND_Y-80, 200, 24),
+      // Rising platforms
+      rect(2700, GROUND_Y-50, 120, 24),
+      rect(2900, GROUND_Y-120, 120, 24),
+      rect(3100, GROUND_Y-180, 120, 24),
+      rect(3300, GROUND_Y-240, 120, 24),
+      rect(3500, GROUND_Y-200, 300, 24),
+      // Speed section
+      rect(4000, GROUND_Y, 400, 90),
+      rect(4550, GROUND_Y-140, 100, 24, {vx: 2.5, minX: 4550, maxX: 5000}),
+      rect(5150, GROUND_Y, 800, 90),
+    ],
+    spikes: [ rect(650, GROUND_Y, 50, 24), rect(850, GROUND_Y-264, 40, 24), rect(1150, GROUND_Y-224, 40, 24), rect(2600, GROUND_Y-74, 50, 24), rect(3400, GROUND_Y-264, 50, 24) ],
+    waters: [ rect(1300, GROUND_Y, 50, 90) ],
+    coins: [
+      ...Array.from({length:12}, (_,i)=>rect(1750+i*80, GROUND_Y-50,22,22)),
+      ...Array.from({length:10}, (_,i)=>rect(2700+i*120, GROUND_Y-100,22,22))
+    ],
+    bells: [ rect(900, GROUND_Y-240,26,30), rect(3500, GROUND_Y-260,26,30) ],
+    bushes: [ rect(2400, GROUND_Y-50,50,50,{triggered:false}) ],
+    signs: [ 
+      {x:100,text:"პარკური სკილ ტესტი!"}, 
+      {x:2700,text:"დაჯოჯეთ აღმოსავლეთისკენ!"}, 
+      {x:4500,text:"ბოლო სტრეჩი მოგორებული!"}
+    ],
+    flag: rect(5850, GROUND_Y-140,30,140),
+    zombies: [ 
+      {x:1600,y:GROUND_Y-80, type:'boss'}, 
+      {x:2300,y:GROUND_Y-54},
+      {x:3200,y:GROUND_Y-200},
+      {x:4300,y:GROUND_Y-54},
+      {x:4800,y:GROUND_Y-164}
+    ],
+    jumpboxes: [ 
+      rect(900, GROUND_Y-270, 42, 42, {hit:false, type:'fastener'}),
+      rect(2350, GROUND_Y-120, 42, 42, {hit:false, type:'plasma'}),
+      rect(3500, GROUND_Y-280, 42, 42, {hit:false, type:'minigun'}),
+      rect(4550, GROUND_Y-180, 42, 42, {hit:false, type:'sponsor'})
+    ],
+    bgHue:'blue'
+  });
+
+  // LEVEL 23: Ultimate Challenge - Mixed Gimmicks & Hordes
+  levels.push({
+    name:'ეპ.23 — სხეულის აჩქარება 🔥',
+    diffRating: 'INSANE', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#dc2626',
+    gimmickTitle: '💥 ზომბოების არმია & გადარტყმული სირთულე', diffDesc: 'ყველა გიმიკი ერთად: მოძრავი პლატფორმები, მცირე სირთულე და ღირებული პრიზები! (1.8x)',
+    zombieSpeedMult: 1.8, zombieHpMult: 1.5, gravityMult: 0.9, hazardType: 'ultimate',
+    width: 7000,
+    spawn:{x:60,y:GROUND_Y-60},
+    plats: [
+      rect(0, GROUND_Y, 700, 90),
+      rect(900, GROUND_Y-80, 120, 24, {vy: 2, minY: GROUND_Y-200, maxY: GROUND_Y-40}),
+      rect(1200, GROUND_Y, 400, 90),
+      rect(1800, GROUND_Y-140, 150, 24),
+      rect(2150, GROUND_Y-80, 150, 24, {vx: 3, minX: 2150, maxX: 2600}),
+      rect(2850, GROUND_Y, 500, 90),
+      rect(3550, GROUND_Y-120, 120, 24),
+      rect(3750, GROUND_Y-200, 120, 24),
+      rect(3950, GROUND_Y-140, 200, 24),
+      rect(4350, GROUND_Y, 500, 90),
+      rect(5050, GROUND_Y-160, 150, 24, {vy: 1.8, minY: GROUND_Y-240, maxY: GROUND_Y-80}),
+      rect(5400, GROUND_Y-80, 150, 24),
+      rect(5700, GROUND_Y, 1200, 90),
+    ],
+    spikes: [ rect(800, GROUND_Y, 100, 24), rect(1700, GROUND_Y-164, 60, 24), rect(2750, GROUND_Y-24, 100, 24), rect(3450, GROUND_Y-24, 100, 24), rect(4250, GROUND_Y-24, 100, 24), rect(5000, GROUND_Y-24, 50, 24) ],
+    lavas: [ rect(800, GROUND_Y, 100, 90), rect(2750, GROUND_Y, 100, 90) ],
+    bananas: [ rect(2100, GROUND_Y-14, 40, 14), rect(4700, GROUND_Y-14, 40, 14) ],
+    coins: [
+      ...Array.from({length:16}, (_,i)=>rect(1800+i*50, GROUND_Y-80,22,22)),
+      ...Array.from({length:14}, (_,i)=>rect(3950+i*60, GROUND_Y-80,22,22))
+    ],
+    bells: [ rect(1800, GROUND_Y-170,26,30), rect(5400, GROUND_Y-110,26,30) ],
+    bushes: [ rect(2900, GROUND_Y-50,50,50,{triggered:false}), rect(5200, GROUND_Y-50,50,50,{triggered:false}) ],
+    signs: [ 
+      {x:200,text:"ეს არის კიდე? თქვენ ახალი ლიგა ხართ!"}, 
+      {x:3000,text:"მოაგჯე ყველა! ეს უკიდურესია!"}, 
+      {x:5500,text:"🏆 უკიდურესი გამოწვევა დასრულებული!"}
+    ],
+    flag: rect(6850, GROUND_Y-140,30,140),
+    zombies: [ 
+      {x:1400,y:GROUND_Y-54}, {x:1600,y:GROUND_Y-54},
+      {x:2300,y:GROUND_Y-80, type:'boss'}, 
+      {x:2500,y:GROUND_Y-54}, {x:2700,y:GROUND_Y-54},
+      {x:3800,y:GROUND_Y-160, type:'boss'}, 
+      {x:4500,y:GROUND_Y-54}, {x:4700,y:GROUND_Y-54},
+      {x:5400,y:GROUND_Y-110}, {x:5600,y:GROUND_Y-54}
+    ],
+    jumpboxes: [ 
+      rect(900, GROUND_Y-120, 42, 42, {hit:false, type:'shotgun'}),
+      rect(2150, GROUND_Y-120, 42, 42, {hit:false, type:'flamethrower'}),
+      rect(3950, GROUND_Y-170, 42, 42, {hit:false, type:'minigun'}),
+      rect(5400, GROUND_Y-110, 42, 42, {hit:false, type:'sponsor'})
+    ],
+    bgHue:'red'
+  });
+
+  // LEVEL 24: Airplane Dogfight — sky scrolling shmup mode
+  levels.push({
+    name:'ეპ.24 — ცაში ომი ✈️',
+    diffRating:'EXTREME', diffStars:'⭐⭐⭐⭐⭐', diffColor:'#f97316',
+    gimmickTitle:'✈️ ბიპლანი & ზომბი ვერტმფრენები', diffDesc:'ცაში ბრძოლა! ვერტიკალური მოძრაობა, ზომბი-თვითმფრინავები და ბოსი!',
+    isAirplaneLevel: true,
+    zombieSpeedMult:1, zombieHpMult:1, gravityMult:0,
+    width: 9000,
+    spawn:{x:80,y:180},
+    plats:[], spikes:[], waters:[], lavas:[], bananas:[],
+    coins: Array.from({length:20},(_,i)=>rect(300+i*380, 80+Math.sin(i)*120,22,22)),
+    bells:[ rect(1800,100,26,30), rect(4200,200,26,30), rect(7000,150,26,30) ],
+    bushes:[], fakespikes:[],
+    signs:[
+      {x:200,text:'ცაში ბრძოლა! W/S — სიმაღლე!'},
+      {x:3000,text:'ზომბი-ვერტმფრენები მარჯვნიდან!'},
+      {x:6000,text:'ბოსი — ზომბი-ბომბდამშენი!'}
+    ],
+    flag: rect(8700, 200, 30, 300),
+    zombies:[],
+    jumpboxes:[
+      rect(600, 160, 42, 42, {hit:false, type:'minigun'}),
+      rect(2400, 100, 42, 42, {hit:false, type:'rocket'}),
+      rect(5000, 200, 42, 42, {hit:false, type:'laser'}),
+    ],
+    bgHue:'airplane_sky'
   });
 
   const levelThemes = [
@@ -2728,7 +3744,10 @@ function buildLevels(){
     'industrial_foundry', // Ep 18: Molten Steel Foundry
     'sky_temple',         // Ep 19: Floating Sky Temple above clouds
     'godzilla_ruins',     // Ep 20: Godzilla Destroyed City Ruins
-    'ultimate_cosmos'     // Ep 21: Ultimate Cosmic Omega Void
+    'ultimate_cosmos',    // Ep 21: Ultimate Cosmic Omega Void
+    'parkour_rooftops',   // Ep 22: Urban Parkour Rooftops
+    'final_challenge',    // Ep 23: Ultimate Final Challenge
+    'airplane_sky'        // Ep 24: Airplane Dogfight Sky
   ];
 
   levels.forEach((lvl, idx) => {
@@ -3090,10 +4109,10 @@ function updatePlayer(dt){
       state.subs = Math.min(100, state.subs+15);
       sfxBell();
       spawnParticles(b.x+b.w/2, b.y+b.h/2, '#ff3d6e', 10);
-      toast("+15% გამოწერები 🔔", 1200);
+      toast("+15% Subscribe 🔔", 1200);
     }
   }
-  
+
 function activateJumpbox(jb){
   if(jb.hit) return;
   jb.hit = true;
@@ -3123,7 +4142,7 @@ function activateJumpbox(jb){
   } else if(jb.type === 'shotgun'){
     player.weaponMode = 'shotgun';
     sfxWin();
-    toast("💥 5-იანი შოტგანი აიღე! 💥", 2000);
+    toast("💥 5-ლი შოტგანი მიღებულია! 💥", 2000);
   } else if(jb.type === 'minigun'){
     player.weaponMode = 'minigun';
     sfxWin();
@@ -3135,16 +4154,16 @@ function activateJumpbox(jb){
   } else if(jb.type === 'flamethrower'){
     player.weaponMode = 'flamethrower';
     sfxWin();
-    toast("🔥 ალმოდებული ფლამეინგი აიღე! 🔥", 2000);
+    toast("🔥 ფლამეინგი მიღებულია! 🔥", 2000);
   } else if(jb.type === 'tank'){
     player.weaponMode = 'tank';
     sfxDemonic();
     shake(18);
-    toast("💥 ომის გიგანტური ტანკი ჩაირთო! 💥", 2500);
+    toast("💥 მძლავრი ომის ტანკი აჩართა! 💥", 2500);
   } else if(jb.type === 'fastener'){
     player.fastenerTimer = 8000;
     sfxWin();
-    toast("⚡ FASTENER - სუპერ სიჩქარე & ხტომა! ⚡", 2200);
+    toast("⚡ FASTENER - სუპე����� სიჩქარე & ხტომა! ⚡", 2200);
   } else if(jb.type === 'prank_zombie'){
     sfxScare();
     shake(14);
@@ -3370,6 +4389,16 @@ function loadLevel(idx){
     }
   } else {
     godzillaBoss.active = false;
+  }
+
+  // Final Boss every 4 levels (levels 4, 8, 12, 16, 20)
+  initFinalBoss(idx);
+
+  // Airplane level special init
+  if(level.isAirplaneLevel){
+    initAirplaneLevel();
+  } else {
+    airplane.active = false;
   }
 
   initWeather();
@@ -4147,22 +5176,21 @@ function drawJumpBox(jb){
     ctx.lineWidth = 2;
     ctx.strokeRect(sx, y, jb.w, jb.h);
   } else {
-    // Pulsing Lucky Box
-    const glow = Math.sin(state.time*0.008)*0.2 + 0.8;
-    let bgColor = '#ffd23f';
+    // Lucky Box - solid colors
+    let bgColor = '#d4a83f';
     let icon = '?';
 
-    if(jb.type === 'sponsor') { bgColor = '#ff3d6e'; icon = '📢'; }
+    if(jb.type === 'sponsor') { bgColor = '#b8355a'; icon = '📢'; }
     else if(jb.type === 'tank') { bgColor = '#2d4536'; icon = '🚀'; }
-    else if(jb.type === 'fastener') { bgColor = '#38c6ff'; icon = '⚡'; }
-    else if(jb.type === 'plasma') { bgColor = '#00ffcc'; icon = '⚛'; }
-    else if(jb.type === 'flamethrower') { bgColor = '#ff5500'; icon = '🔥'; }
-    else if(jb.type === 'shotgun') { bgColor = '#ff7700'; icon = '💥'; }
-    else if(jb.type === 'minigun') { bgColor = '#aa33ff'; icon = '⚡'; }
-    else if(jb.type === 'prank_bomb') { bgColor = '#cc0022'; icon = '💣'; }
-    else if(jb.type === 'prank_reverse') { bgColor = '#9900ff'; icon = '🌀'; }
-    else if(jb.type === 'prank_zombie') { bgColor = '#22aa44'; icon = '🧟'; }
-    else if(jb.type === 'prank_dance') { bgColor = '#ff00aa'; icon = '🕺'; }
+    else if(jb.type === 'fastener') { bgColor = '#2a6b94'; icon = '⚡'; }
+    else if(jb.type === 'plasma') { bgColor = '#008080'; icon = '⚛'; }
+    else if(jb.type === 'flamethrower') { bgColor = '#b84500'; icon = '🔥'; }
+    else if(jb.type === 'shotgun') { bgColor = '#c4660f'; icon = '💥'; }
+    else if(jb.type === 'minigun') { bgColor = '#6b2a8f'; icon = '⚡'; }
+    else if(jb.type === 'prank_bomb') { bgColor = '#a80000'; icon = '💣'; }
+    else if(jb.type === 'prank_reverse') { bgColor = '#6b0080'; icon = '🌀'; }
+    else if(jb.type === 'prank_zombie') { bgColor = '#1a6a2f'; icon = '🧟'; }
+    else if(jb.type === 'prank_dance') { bgColor = '#a80055'; icon = '🕺'; }
     else if(jb.type === 'prank_jumpscare_giant') { bgColor = '#330000'; icon = '👻'; }
 
     ctx.fillStyle = bgColor;
@@ -4173,8 +5201,8 @@ function drawJumpBox(jb){
     ctx.textAlign = 'center';
     ctx.fillText(icon, sx+jb.w/2, y+jb.h*0.74);
 
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 2 * glow;
+    ctx.strokeStyle = '#555555';
+    ctx.lineWidth = 2;
     ctx.strokeRect(sx, y, jb.w, jb.h);
   }
 }
@@ -4977,12 +6005,146 @@ function drawDetailedGun(ctx, mode = 'pistol', opts = {}) {
     ctx.restore();
 
     if (isFiring) {
+    if(level && level.isAirplaneLevel){
+      // Airplane level has its own full draw routine
+      drawAirplaneLevel();
+      drawParticles();
+    } else {
       ctx.save();
-      for (let i = 0; i < 4; i++) {
-        ctx.fillStyle = i % 2 === 0 ? '#ef4444' : '#eab308';
-        ctx.shadowColor = '#f97316'; ctx.shadowBlur = 16;
-        ctx.beginPath(); ctx.arc(46 + i * 12, (Math.random() - 0.5) * 8, 7 + i * 3.5, 0, Math.PI * 2); ctx.fill();
+      if(camX!==0 || camY!==0){
+        ctx.translate(-camX, 0);
+        if(camY!==0){ ctx.translate(0, -camY); }
       }
+      drawCityBuildings();
+      drawGround(level.theme || level.bgHue);
+      if(level.lavas) level.lavas.forEach(drawLava);
+      if(level.waters) level.waters.forEach(drawWater);
+      level.signs.forEach(drawSign);
+      level.fakespikes.forEach(drawFakespike);
+      level.spikes.forEach(drawSpike);
+      level.bananas.forEach(drawBanana);
+      level.coins.forEach(drawCoin);
+      level.bells.forEach(drawBell);
+      level.bushes.forEach(drawBush);
+      if(level.jumpboxes) level.jumpboxes.forEach(drawJumpBox);
+      drawFlag(level.flag);
+      drawGodzilla();
+      drawFinalBoss();
+      drawGodzillaProjectiles();
+      zombies.forEach(drawZombie);
+      bullets.forEach(drawBullet);
+      drawPlayer();
+      drawParticles();
+      ctx.restore();
+    }
+    }
+
+  } else if (mode === 'rocket') {
+    // Rocket Launcher — thick tube with exhaust nozzle
+    // Main tube body
+    ctx.fillStyle = '#374151';
+    ctx.fillRect(-14, -8, 50, 16);
+    ctx.strokeStyle = '#6b7280'; ctx.lineWidth = 1; ctx.strokeRect(-14, -8, 50, 16);
+    // Ventilation ribs
+    ctx.fillStyle = '#1f2937';
+    for(let rx = -8; rx <= 28; rx += 7){ ctx.fillRect(rx, -8, 3, 16); }
+    // Shoulder grip crossbar
+    ctx.fillStyle = '#111827'; ctx.fillRect(-6, 8, 18, 8);
+    ctx.strokeStyle = '#374151'; ctx.lineWidth = 1; ctx.strokeRect(-6, 8, 18, 8);
+    // Exhaust bell (back)
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath(); ctx.moveTo(-14, -10); ctx.lineTo(-22, -14); ctx.lineTo(-22, 14); ctx.lineTo(-14, 10); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1; ctx.stroke();
+    // Front warhead cone (red tip)
+    ctx.fillStyle = '#dc2626';
+    ctx.beginPath(); ctx.moveTo(36, -8); ctx.lineTo(48, 0); ctx.lineTo(36, 8); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#f87171'; ctx.fillRect(34, -2, 4, 4);
+    // Iron sight
+    ctx.fillStyle = '#d1d5db'; ctx.fillRect(4, -10, 3, 4); ctx.fillRect(18, -10, 3, 4);
+    // Laser dot
+    if(showLaser){
+      ctx.strokeStyle = 'rgba(239,68,68,0.7)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(48, 0); ctx.lineTo(200, 0); ctx.stroke();
+    }
+    if(isFiring){
+      ctx.save();
+      ctx.fillStyle = '#ff4400'; ctx.shadowColor = '#ffaa00'; ctx.shadowBlur = 24;
+      ctx.beginPath(); ctx.arc(-22, 0, 14, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+
+  } else if (mode === 'laser') {
+    // Laser Rifle — sleek angular chassis with glowing emitter cell
+    // Receiver chassis
+    const lGrad = ctx.createLinearGradient(0,-9,0,9);
+    lGrad.addColorStop(0,'#2e1065'); lGrad.addColorStop(0.5,'#4c1d95'); lGrad.addColorStop(1,'#1e1b4b');
+    ctx.fillStyle = lGrad;
+    ctx.fillRect(-10, -9, 44, 18);
+    ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 1; ctx.strokeRect(-10, -9, 44, 18);
+    // Energy cell magazine
+    ctx.fillStyle = '#1e1b4b'; ctx.fillRect(-4, 9, 12, 10);
+    const cellGlow = Math.sin(time * 0.012) * 0.3 + 0.7;
+    ctx.fillStyle = `rgba(168,85,247,${cellGlow})`; ctx.fillRect(-2, 11, 8, 6);
+    // Scope rail + scope body
+    ctx.fillStyle = '#0f0a1e'; ctx.fillRect(4, -14, 18, 5);
+    ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 1; ctx.strokeRect(4,-14,18,5);
+    ctx.fillStyle = 'rgba(168,85,247,0.8)'; ctx.fillRect(8,-13,10,3);
+    // Angular barrel shroud
+    ctx.fillStyle = '#3730a3'; ctx.fillRect(34, -7, 18, 14);
+    ctx.fillStyle = '#a855f7'; ctx.fillRect(34,-8,18,2); ctx.fillRect(34,6,18,2);
+    // Glowing crystal emitter tip
+    ctx.save();
+    ctx.fillStyle = '#e879f9'; ctx.shadowColor = '#ff00ff'; ctx.shadowBlur = 12;
+    ctx.beginPath(); ctx.arc(53, 0, 5, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+    if(showLaser){
+      ctx.save();
+      ctx.strokeStyle = 'rgba(232,121,249,0.8)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(56,0); ctx.lineTo(200,0); ctx.stroke();
+      ctx.restore();
+    }
+    if(isFiring){
+      ctx.save();
+      ctx.fillStyle = '#ff00ff'; ctx.shadowColor = '#ff00ff'; ctx.shadowBlur = 28;
+      ctx.beginPath(); ctx.arc(56, 0, 12, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+
+  } else if (mode === 'grenade') {
+    // Grenade Launcher — stubby break-action with drum cylinder
+    // Stock
+    ctx.fillStyle = '#292524';
+    ctx.beginPath(); ctx.moveTo(-12,2); ctx.lineTo(-24,8); ctx.lineTo(-24,18); ctx.lineTo(-14,18); ctx.lineTo(-8,10); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#7c2d12'; ctx.fillRect(-24,8,3,10);
+    // Main receiver
+    ctx.fillStyle = '#44403c'; ctx.fillRect(-8,-8,30,16);
+    ctx.strokeStyle = '#78716c'; ctx.lineWidth = 1; ctx.strokeRect(-8,-8,30,16);
+    // Rotating cylinder drum
+    ctx.fillStyle = '#1c1917';
+    ctx.beginPath(); ctx.arc(6,0,10,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#57534e'; ctx.lineWidth = 1; ctx.stroke();
+    // Cylinder chambers
+    const cylRot = (time * 0.004) % (Math.PI * 2 / 6);
+    for(let ci = 0; ci < 6; ci++){
+      const ang = cylRot + ci * (Math.PI*2/6);
+      ctx.fillStyle = ci === 0 ? '#22c55e' : '#292524';
+      ctx.beginPath(); ctx.arc(6 + Math.cos(ang)*5, Math.sin(ang)*5, 2.5, 0, Math.PI*2); ctx.fill();
+    }
+    // Barrel
+    ctx.fillStyle = '#57534e'; ctx.fillRect(22,-5,22,10);
+    ctx.fillStyle = '#18181b'; ctx.fillRect(22,-6,22,2); ctx.fillRect(22,4,22,2);
+    // Green grenade tip
+    ctx.fillStyle = '#15803d';
+    ctx.beginPath(); ctx.arc(46,0,6,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#166534'; ctx.fillRect(42,-1,8,2);
+    if(showLaser){
+      ctx.strokeStyle = 'rgba(34,197,94,0.65)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(52,0); ctx.lineTo(180,6); ctx.stroke();
+    }
+    if(isFiring){
+      ctx.save();
+      ctx.fillStyle = '#22c55e'; ctx.shadowColor = '#86efac'; ctx.shadowBlur = 18;
+      ctx.beginPath(); ctx.arc(52,0,9,0,Math.PI*2); ctx.fill();
       ctx.restore();
     }
   }
@@ -5169,6 +6331,30 @@ function drawPlayer(){
     headColor = '#334155';
     maskColor = '#020617';
     eyeColor  = '#00f0ff';
+  } else if(skin === 'ninja'){
+    legsColor = '#111111';
+    bodyColor = '#1a1a1a';
+    headColor = '#222222';
+    maskColor = '#000000';
+    eyeColor  = '#ff3d6e';
+  } else if(skin === 'robot'){
+    legsColor = '#374151';
+    bodyColor = '#4b5563';
+    headColor = '#6b7280';
+    maskColor = '#1f2937';
+    eyeColor  = '#00ff88';
+  } else if(skin === 'ghost'){
+    legsColor = 'rgba(200,220,255,0.5)';
+    bodyColor = 'rgba(210,230,255,0.45)';
+    headColor = 'rgba(220,235,255,0.55)';
+    maskColor = 'rgba(30,40,80,0.3)';
+    eyeColor  = '#000000';
+  } else if(skin === 'viking'){
+    legsColor = '#44403c';
+    bodyColor = '#78350f';
+    headColor = '#d97706';
+    maskColor = '#1c1917';
+    eyeColor  = '#fef08a';
   }
 
   // Special Back Spines for Godzilla skin
@@ -5181,6 +6367,32 @@ function drawPlayer(){
     ctx.moveTo(-16, -10); ctx.lineTo(-26, -16); ctx.lineTo(-14, -2);
     ctx.moveTo(-14, 4); ctx.lineTo(-24, 0); ctx.lineTo(-12, 12);
     ctx.fill();
+    ctx.restore();
+  }
+
+  // Ghost: translucent ethereal aura
+  if(skin === 'ghost'){
+    ctx.save();
+    ctx.globalAlpha = 0.22 + Math.sin(state.time * 0.005) * 0.1;
+    ctx.fillStyle = '#a5b4fc';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 22, 32, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha = 1.0;
+    ctx.restore();
+  }
+
+  // Viking: furry cape on back
+  if(skin === 'viking'){
+    ctx.save();
+    ctx.fillStyle = '#57534e';
+    ctx.beginPath();
+    ctx.moveTo(-15, -8); ctx.lineTo(-28, -4); ctx.lineTo(-30, 20); ctx.lineTo(-18, 20); ctx.lineTo(-14, 10);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#78716c';
+    for(let fy = -4; fy <= 18; fy += 5){
+      ctx.beginPath(); ctx.arc(-22, fy, 3, 0, Math.PI*2); ctx.fill();
+    }
     ctx.restore();
   }
 
@@ -5315,10 +6527,78 @@ function drawPlayer(){
       ctx.fillStyle = '#ffd23f';
       ctx.beginPath();
       ctx.moveTo(-10, -32); ctx.lineTo(-5, -42); ctx.lineTo(0, -34); ctx.lineTo(5, -42); ctx.lineTo(10, -32);
-      ctx.closePath();
-      ctx.fill();
+      ctx.closePath(); ctx.fill();
       ctx.fillStyle = '#ff0055';
       ctx.beginPath(); ctx.arc(0, -36, 2.5, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+
+    // Ninja: head wrap + single slit eye gap
+    if(skin === 'ninja'){
+      ctx.save();
+      // Forehead wrap layers
+      ctx.fillStyle = '#111111';
+      ctx.fillRect(-14, -32, 28, 6);
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(-14, -26, 28, 4);
+      // Mouth cover wrap
+      ctx.fillStyle = '#1a1a1a'; ctx.fillRect(-14, -17, 28, 6);
+      // Throwing star on body (rotates)
+      const starAngle = (state.time * 0.006) % (Math.PI * 2);
+      ctx.translate(10, 2); ctx.rotate(starAngle);
+      ctx.fillStyle = '#94a3b8';
+      for(let si=0; si<4; si++){
+        ctx.save(); ctx.rotate(si * Math.PI/2);
+        ctx.beginPath(); ctx.moveTo(0,-6); ctx.lineTo(2,0); ctx.lineTo(0,6); ctx.lineTo(-2,0); ctx.closePath(); ctx.fill();
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+
+    // Robot: metallic square head with LED grid + antenna
+    if(skin === 'robot'){
+      ctx.save();
+      // Antenna
+      ctx.fillStyle = '#9ca3af'; ctx.fillRect(-1, -42, 3, 10);
+      ctx.fillStyle = '#00ff88'; ctx.beginPath(); ctx.arc(0, -44, 3, 0, Math.PI*2); ctx.fill();
+      // Rivet bolts on head
+      ctx.fillStyle = '#d1d5db';
+      ctx.beginPath(); ctx.arc(-10, -32, 2, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(10, -32, 2, 0, Math.PI*2); ctx.fill();
+      // Scan line across visor
+      const scanY = -28 + ((state.time * 0.04) % 12);
+      ctx.fillStyle = 'rgba(0,255,136,0.4)'; ctx.fillRect(-14, scanY, 28, 2);
+      ctx.restore();
+    }
+
+    // Ghost: no eyes, just hollow dark sockets
+    if(skin === 'ghost'){
+      ctx.save();
+      ctx.globalAlpha = 0.7;
+      ctx.fillStyle = '#000000';
+      ctx.beginPath(); ctx.ellipse(-5,-22,5,4,0,0,2*Math.PI); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(5,-22,5,4,0,0,2*Math.PI); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+
+    // Viking: horned helmet
+    if(skin === 'viking'){
+      ctx.save();
+      ctx.fillStyle = '#78350f';
+      // Helmet cap
+      ctx.fillRect(-14, -34, 28, 7);
+      // Left horn
+      ctx.fillStyle = '#d97706';
+      ctx.beginPath(); ctx.moveTo(-12,-34); ctx.lineTo(-22,-50); ctx.lineTo(-6,-34); ctx.closePath(); ctx.fill();
+      // Right horn
+      ctx.beginPath(); ctx.moveTo(12,-34); ctx.lineTo(22,-50); ctx.lineTo(6,-34); ctx.closePath(); ctx.fill();
+      // Nose guard
+      ctx.fillStyle = '#92400e'; ctx.fillRect(-2,-25,4,8);
+      // Battle scars
+      ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(-8,-20); ctx.lineTo(-3,-14); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(8,-22); ctx.lineTo(5,-16); ctx.stroke();
       ctx.restore();
     }
 
@@ -6311,7 +7591,11 @@ const shopSkins = [
   { id: 'cyber', title: '🌆 კიბერპანკ 2077 დინო', desc: 'ნეონის ნათებითა და კიბერ-ვიზორით!', cost: 150, icon: '🌆' },
   { id: 'zombie', title: '🧟 ტოქსიკური ზომბი დინო', desc: 'ტოქსიკური მწვანე კანი და წითელი თვალები!', cost: 120, icon: '🧟' },
   { id: 'dragon', title: '🐉 ცეცხლოვანი დრაკონი', desc: 'ცეცხლოვანი რქები და ალმოდებული კვალი!', cost: 200, icon: '🐉' },
-  { id: 'godzilla', title: '🦖 გოდზილას მონადირე', desc: 'ობსიდიანის ჯავშანი და ატომური ეკლები!', cost: 250, icon: '🦖' }
+  { id: 'godzilla', title: '🦖 გოდზილას მონადირე', desc: 'ობსიდიანის ჯავშანი და ატომური ეკლები!', cost: 250, icon: '🦖' },
+  { id: 'ninja', title: '🥷 ჩრდილის ნინძა', desc: 'სრულ შავ კოსტიუმში, ნიღბით და ვარსკვლავ ირიკენით!', cost: 180, icon: '🥷' },
+  { id: 'robot', title: '🤖 ლითონის რობოტი', desc: 'სტალის ჯავშანი, LED თვალები და ჩარჩოს ანტენა!', cost: 210, icon: '🤖' },
+  { id: 'ghost', title: '👻 ანდეზიტის მოჩვენება', desc: 'ნახევრად გამჭვირვალე, ცარიელი თვალები და ეთერული ნამქერი!', cost: 190, icon: '👻' },
+  { id: 'viking', title: '⚔️ ველური ვიკინგი', desc: 'ბეწვის ქსოვილი, რქებიანი ჩაფხუტი და სახის ნაომარი ნაკერები!', cost: 220, icon: '⚔️' }
 ];
 
 const shopWeapons = [
@@ -6320,7 +7604,10 @@ const shopWeapons = [
   { id: 'triple', title: '🔥 სამმაგი ლაზერი', desc: 'ისვრის 3 სწრაფ პარალელურ სხივს!', cost: 100, icon: '🔥' },
   { id: 'plasma', title: '⚛ პლაზმური ქვემეხი', desc: 'ულტრა-სწრაფი პლაზმური ბურთულები!', cost: 130, icon: '⚛' },
   { id: 'minigun', title: '⚡ სუპერ მინიგანი', desc: 'ტყვიების უწყვეტი ცეცხლოვანი ქარიშხალი!', cost: 160, icon: '⚡' },
-  { id: 'flamethrower', title: '🔥 ცეცხლსაფრქვევი', desc: 'ალმოდებული ცეცხლის ნაკადი ზომბებზე!', cost: 200, icon: '🔥' }
+  { id: 'flamethrower', title: '🔥 ცეცხლსაფრქვევი', desc: 'ალმოდებული ცეცხლის ნაკადი ზომბებზე!', cost: 200, icon: '🔥' },
+  { id: 'rocket', title: '🚀 რაკეტის გამშვები', desc: 'ნელი, მძიმე რაკეტა — მოხვედრისას AOE აფეთქება!', cost: 240, icon: '🚀' },
+  { id: 'laser', title: '🔮 ლაზერული შაშხანა', desc: 'მყისიერი სხივი, 5 ზომბს ერთდროულად განგმირავს!', cost: 260, icon: '🔮' },
+  { id: 'grenade', title: '💣 გრენადის გამშვები', desc: 'მოხვედვიდან 90 ფრეიმში — ძლიერი აფეთქება!', cost: 220, icon: '💣' }
 ];
 
 // ---------- Product Preview Modal & Shop Functions ----------
@@ -7381,7 +8668,18 @@ function submitPromoCode(){
     saveData();
     sfxWin();
     triggerFlash('255,210,63', 0.8);
-    toast('🎉 პრომოკოდი წარმატებით გააქტიურდა! მიიღე 999,999 მონეტა!', 3500);
+    toast('🎉 კოდი გააქტიურდა! მიიღე 999,999 მონეტა!', 3500);
+    closePromoModal();
+  } else if(code === 'CODEZERO'){
+    // Unlock every level
+    const totalLevels = typeof getLevels === 'function' ? getLevels().length : 23;
+    state.unlockedLevels = Math.max(state.unlockedLevels || 1, totalLevels);
+    state.coinsCollected = Math.max((state.coinsCollected || 0) + 500, 500);
+    saveData();
+    sfxWin();
+    shake(25);
+    triggerFlash('56,198,255', 0.9);
+    toast('🔓 CODEZERO — ყველა დონე განბლოკილია! +500 მონეტა!', 4000);
     closePromoModal();
   } else if(code === ''){
     toast('⚠️ შეიყვანეთ პრომოკოდი!', 1500);
@@ -7403,10 +8701,14 @@ function enterPromoCodePrompt(){
     const code = res.trim().toUpperCase();
     if(code === 'DINOMAGARIA'){
       state.coinsCollected = Math.max((state.coinsCollected || 0) + 999999, 999999);
-      saveData();
-      sfxWin();
-      triggerFlash('255,210,63', 0.8);
-      toast('🎉 პრომოკოდი წარმატებით გააქტიურდა! მიიღე 999,999 მონეტა!', 3500);
+      saveData(); sfxWin(); triggerFlash('255,210,63', 0.8);
+      toast('🎉 კოდი გააქტიურდა! მიიღე 999,999 მონეტა!', 3500);
+    } else if(code === 'CODEZERO'){
+      const totalLevels = typeof getLevels === 'function' ? getLevels().length : 23;
+      state.unlockedLevels = Math.max(state.unlockedLevels || 1, totalLevels);
+      state.coinsCollected = Math.max((state.coinsCollected || 0) + 500, 500);
+      saveData(); sfxWin(); triggerFlash('56,198,255', 0.9);
+      toast('🔓 CODEZERO — ყველა დონე განბლოკილია! +500 მონეტა!', 4000);
     } else if(code.length > 0) {
       sfxHurt();
       toast('❌ არასწორი პრომოკოდი!', 2000);
@@ -7510,7 +8812,7 @@ function drawWin(){
   ctx.textAlign='center';
   ctx.fillStyle='#38c6ff';
   ctx.font='bold 48px sans-serif';
-  ctx.fillText('ყველა დონე დაძლეულია! 🏆', W/2, H/2-60);
+  ctx.fillText('ყველა დონე დაძლეულია! ����', W/2, H/2-60);
   ctx.fillStyle='#fff';
   ctx.font='22px sans-serif';
   ctx.fillText('საბოლოო ქულა: '+state.score, W/2, H/2-15);
@@ -7689,6 +8991,7 @@ function loop(now){
     if(level.jumpboxes) level.jumpboxes.forEach(drawJumpBox);
     drawFlag(level.flag);
     drawGodzilla();
+    drawFinalBoss();
     drawGodzillaProjectiles();
     zombies.forEach(drawZombie);
     bullets.forEach(drawBullet);
@@ -7719,9 +9022,16 @@ function loop(now){
           }
         }
       } else {
-        updatePlayer(dt);
-        updateGodzilla(dt);
-        updateNukeSequence(dt);
+        if(level && level.isAirplaneLevel){
+          updateAirplaneLevel(dt);
+          updateBullets();
+          updateParticles(1);
+        } else {
+          updatePlayer(dt);
+          updateGodzilla(dt);
+          updateFinalBoss(dt);
+          updateNukeSequence(dt);
+        }
         updateWeather(dt);
       }
     } else if(state.mode==='paused'){
