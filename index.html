@@ -190,26 +190,12 @@
     <button class="btn-ui" onclick="openLevelSelect()" title="დონეების არჩევა">🗺️ Levels</button>
     <button class="btn-ui" onclick="openShop()" title="მაღაზია">🛍️ Shop</button>
     <button class="btn-ui" onclick="openSettings()" title="პარამეტრები" style="border-color:var(--blue); color:var(--blue);">⚙️ Settings</button>
-    <button class="btn-ui" onclick="openPromoModal()" title="პრომოკოდის შეყვანა" style="border-color:var(--yellow); color:var(--yellow);">🎟️ Promo</button>
     <button class="btn-ui" id="btnMuteBgm" onclick="toggleBgmMute()" title="მუსიკის ჩართვა/გამორთვა">🎵 Music: ON</button>
     <button class="btn-ui" onclick="togglePause()" title="პაუზა (P)">⏸️ Pause (P)</button>
   </div>
 
   <canvas id="game" width="960" height="540"></canvas>
 
-  <div id="promoModal">
-    <div style="font-size: 32px; margin-bottom: -4px;">🎟️</div>
-    <h2>პრომოკოდის შეყვანა</h2>
-    <p style="margin: 0; font-size: 13px; color: #a0aec0; line-height: 1.4;">
-      შეიყვანეთ საიდუმლო პრომოკოდი მონეტების მისაღებად!
-    </p>
-    <input id="promoInput" type="text" placeholder="შეიყვანეთ კოდი..." autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter') submitPromoCode()" />
-    <div class="promo-btn-group">
-      <button class="btn-promo-submit" onclick="submitPromoCode()">🚀 გააქტიურება</button>
-      <button class="btn-promo-close" onclick="closePromoModal()">✖ დახურვა</button>
-    </div>
-  </div>
-  
   <div id="mobileControls">
     <div class="left">
       <button id="btnLeft" class="ctrl-btn" aria-label="გადაადგილება მარცხნივ"><span class="btn-icon">◀</span></button>
@@ -680,6 +666,8 @@ function handleCanvasPointer(e){
     handleShopClick(mx, my);
   } else if(state.mode === 'levelselect'){
     handleLevelSelectClick(mx, my);
+  } else if(state.mode === 'settings'){
+    handleSettingsClick(mx, my);
   } else if(state.mode === 'menu'){
     handleMenuClick(mx, my);
   } else if(state.mode === 'gameover'){
@@ -746,12 +734,9 @@ const defaultSettings = {
   difficulty: 'normal',   // 'easy' | 'normal' | 'hardcore'
   gameSpeed: 'normal',    // 'relaxed' | 'normal' | 'turbo'
   screenShake: 'full',    // 'full' | 'reduced' | 'off'
-  autoFire: false,        // false | true
-  godMode: false,         // false | true
   bgmVolume: 1.0,         // 0.0 .. 1.0
   sfxVolume: 1.0,         // 0.0 .. 1.0
   highJumpAssist: false,  // false | true
-  doubleCoins: false,     // false | true
   showFPS: false          // false | true
 };
 
@@ -2386,8 +2371,9 @@ function spawnZombie(x, y, customType = null){
       speed *= 0.82;
       health = Math.max(1, Math.floor(health * 0.75));
     } else if(state.settings.difficulty === 'hardcore'){
-      speed *= 1.25;
-      health = Math.ceil(health * 1.35);
+      speed *= 1.4; // Faster zombies
+      health = Math.ceil(health * 1.5); // More health
+      if(isBoss) health *= 1.25; 
     }
   }
 
@@ -2745,17 +2731,15 @@ function updateZombies(dt){
     let platformBelow = null;
     let platformsNearby = [];
     
-    // Find all platforms near zombie for smart pathfinding
     for(const p of (level.plats || [])){
-      const dist = Math.hypot((z.x + z.w/2) - (p.x + p.w/2), (z.y + z.h/2) - (p.y + p.h/2));
-      if(dist < 400) platformsNearby.push({...p, dist});
+      const distToP = Math.hypot((z.x + z.w/2) - (p.x + p.w/2), (z.y + z.h/2) - (p.y + p.h/2));
+      if(distToP < 400) platformsNearby.push({...p, dist: distToP});
     }
     
-    // Check for platform below
     for(const p of (level.plats || [])){
       if(overlap(z, p)){
         const prevBottom = z.y - (z.vy || 0) + z.h;
-        if((z.vy || 0) >= 0 && prevBottom <= p.y + 4){
+        if((z.vy || 0) >= 0 && prevBottom <= p.y + 12){
           z.y = p.y - z.h;
           z.vy = 0;
           onPlatform = true;
@@ -2768,49 +2752,48 @@ function updateZombies(dt){
     const dy = player.y - z.y;
     const dist = Math.sqrt(dx*dx + dy*dy);
     
-    if(dist < 650 && dist > 20){
+    if(dist < 800 && dist > 15){
       const moveDir = dx > 0 ? 1 : -1;
+      const playerHigher = dy < -40;
+      
       if(onPlatform){
-        const nextX = z.x + moveDir * 24;
         let canMove = true;
-        
-        // Smart pathfinding: look for safe ground ahead
         if(platformBelow){
-          if(nextX < platformBelow.x - 15 || nextX + z.w > platformBelow.x + platformBelow.w + 15){
-            canMove = false; // Would fall off edge
+          const atEdge = (moveDir > 0 && z.x + z.w > platformBelow.x + platformBelow.w - 15) || 
+                         (moveDir < 0 && z.x < platformBelow.x + 15);
+          
+          if(atEdge){
+            canMove = false;
+            z.vx = 0;
           }
         }
-        
-        // Boss zombies can jump to nearby platforms
-        if(z.isBoss && !canMove){
-          const nearbyLower = platformsNearby.filter(p => p.y > z.y && p.y < z.y + 200).sort((a,b)=>a.dist-b.dist);
-          if(nearbyLower.length > 0){
-            canMove = true; // Boss will attempt jump
-            z.vy = -10; // Jump
-          }
-        }
-        
+
         if(canMove){
           z.vx = (dx / dist) * z.speed;
           z.facing = dx > 0 ? 1 : -1;
-        } else {
-          z.vx *= 0.5; // Move very slowly if blocked
-          // Try jumping if stuck
-          if(Math.random() < 0.015){
-            z.vy = -8; // Small jump attempt
-          }
         }
       } else {
-        z.vx = (dx / dist) * z.speed * 0.6; // Slower in air
-        z.facing = dx > 0 ? 1 : -1;
+        z.vx *= 0.98; // Less air control to avoid drifting into pits
       }
     } else if(onPlatform){
       z.vx *= 0.85;
     } else {
-      z.vx *= 0.88;
+      z.vx *= 0.94;
     }
     
+    const lastX = z.x;
     z.x += z.vx;
+    for(const p of (level.plats || [])){
+      if(overlap(z, p)){
+        const prevBottom = z.y - (z.vy || 0) + z.h;
+        if(prevBottom > p.y + 8){ 
+           z.x = lastX;
+           z.vx = 0;
+           break;
+        }
+      }
+    }
+
     z.vy = (z.vy || 0) + GRAVITY;
     if(z.vy > 18) z.vy = 18;
     z.y += z.vy;
@@ -4515,15 +4498,7 @@ function updatePlayer(dt){
   const jumpPower = isFastener ? -17.5 : baseJumpPower;
 
   // Auto-fire gameplay setting
-  if(state.settings && state.settings.autoFire && state.mode === 'playing' && !player.dead && !player.isBitten){
-    if(!player.autoFireCooldown) player.autoFireCooldown = 0;
-    player.autoFireCooldown += dt;
-    if(player.autoFireCooldown >= 150){
-      player.autoFireCooldown = 0;
-      shoot();
-    }
-  }
-
+  
   let leftKey = keys['ArrowLeft']||keys['KeyA'];
   let rightKey = keys['ArrowRight']||keys['KeyD'];
 
@@ -4717,7 +4692,7 @@ function updatePlayer(dt){
   for(const c of (level.coins || [])){
     if(!c.taken && overlap(player,c)){
       c.taken = true;
-      const coinAdd = (state.settings && (state.settings.doubleCoins || state.settings.difficulty === 'hardcore')) ? 2 : 1;
+      const coinAdd = (state.settings && (state.settings.difficulty === 'hardcore')) ? 2 : 1;
       addScore(10 * coinAdd);
       state.coinsCollected = (state.coinsCollected || 0) + coinAdd;
       sfxCoin();
@@ -4787,14 +4762,6 @@ function hurtPlayer(msg, cause='zombie'){
   const isPit = cause === 'pit';
   if((player.invuln > 0 && !isPit) || player.dead) return;
 
-  if(state.settings && state.settings.godMode && !isPit){
-    sfxBell();
-    triggerFlash('255,210,63', 0.4);
-    toast("🛡️ GOD MODE: უვნებელი ხარ!", 1200);
-    spawnParticles(player.x+player.w/2, player.y+player.h/2, '#ffd23f', 15, 2);
-    return;
-  }
-
   if(player.hasShield && !isPit){
     player.hasShield = false;
     player.invuln = 60;
@@ -4806,12 +4773,15 @@ function hurtPlayer(msg, cause='zombie'){
     return;
   }
 
+  const isHardcore = state.settings && state.settings.difficulty === 'hardcore';
+  player.invuln = isHardcore ? 30 : 60; // Reduced invuln frames in hardcore
+
   if(isPit){
     player.hasShield = false;
     player.isFalling = false;
   }
 
-  const dmg = (state.settings && state.settings.difficulty === 'hardcore' && !isPit) ? 2 : 1;
+  const dmg = (isHardcore && !isPit) ? 2 : 1;
   state.lives = Math.max(0, state.lives - dmg);
   player.crying = 60;
   if(cause === 'godzilla') state.lastKilledByGodzilla = true;
@@ -4960,7 +4930,10 @@ function loadLevel(idx){
 
 function restartLevel(){
   if(state.mode==='playing'||state.mode==='paused'||state.mode==='gameover'){
-    state.lives = state.upgrades.maxHp ? 10 : 8; state.score=0; state.subs=0; state.levelIndex=0;
+    const baseLives = state.upgrades.maxHp ? 10 : 8;
+  const isHardcore = state.settings && state.settings.difficulty === 'hardcore';
+  state.lives = isHardcore ? Math.floor(baseLives * 0.6) : baseLives;
+  state.score=0; state.subs=0; state.levelIndex=0;
     loadLevel(0);
     state.mode='playing';
   }
@@ -4975,7 +4948,9 @@ function startGame(){
   ac();
   state.levelIndex = 0;
   state.score = 0;
-  state.lives = state.upgrades.maxHp ? 10 : 8;
+  const baseLives = state.upgrades.maxHp ? 10 : 8;
+  const isHardcore = state.settings && state.settings.difficulty === 'hardcore';
+  state.lives = isHardcore ? Math.floor(baseLives * 0.6) : baseLives;
   state.subs = 0;
   loadLevel(0);
   state.mode = 'playing';
@@ -6875,6 +6850,12 @@ function drawPlayer(){
     headColor = '#d97706';
     maskColor = '#1c1917';
     eyeColor  = '#fef08a';
+  } else if(skin === 'qunem_davita'){
+    legsColor = '#111111'; // Black jeans
+    bodyColor = '#dc2626'; // Red shirt
+    headColor = '#fcd34d'; // Skin tone
+    maskColor = '#000000'; // Dark beard/eyes
+    eyeColor  = '#ffffff';
   }
 
   // Special Back Spines for Godzilla skin
@@ -6916,6 +6897,22 @@ function drawPlayer(){
     ctx.restore();
   }
 
+  // Qunem Davita: Panther patterns & Beer can
+  if(skin === 'qunem_davita'){
+    // Red shirt with black dots (panthers)
+    ctx.save();
+    ctx.fillStyle = '#000000';
+    // Draw tiny "panther heads" as dots on the shirt
+    for(let i=0; i<8; i++){
+      const px = -12 + (i % 3) * 10;
+      const py = -10 + Math.floor(i / 3) * 8;
+      ctx.fillRect(px, py, 2, 2);
+    }
+    // Black tank top stripe in middle
+    ctx.fillRect(-3, -15, 6, 25);
+    ctx.restore();
+  }
+
   // Legs with dynamic running leg-swing
   ctx.fillStyle = legsColor;
   ctx.save();
@@ -6951,11 +6948,22 @@ function drawPlayer(){
   ctx.fillStyle = bodyColor;
   ctx.fillRect(-3, 0, 7, 14); // Upper sleeve
   // Forearm & Hand Fist
-  ctx.fillStyle = (skin === 'gold' || skin === 'cyber' || skin === 'zombie') ? headColor : '#fcd34d';
-  ctx.fillRect(-2.5, 12, 6, 6);
-  ctx.beginPath();
-  ctx.arc(0.5, 18, 3.5, 0, Math.PI * 2);
-  ctx.fill();
+  if(skin === 'qunem_davita'){
+    // Holding a gold can
+    ctx.fillStyle = '#fcd34d'; // hand
+    ctx.fillRect(-2.5, 12, 6, 4);
+    ctx.fillStyle = '#ffd23f'; // gold can
+    ctx.fillRect(-3, 16, 7, 10);
+    ctx.strokeStyle = '#b45309';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(-3, 16, 7, 10);
+  } else {
+    ctx.fillStyle = (skin === 'gold' || skin === 'cyber' || skin === 'zombie') ? headColor : '#fcd34d';
+    ctx.fillRect(-2.5, 12, 6, 6);
+    ctx.beginPath();
+    ctx.arc(0.5, 18, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.restore();
 
   // Right arm holding Detailed Weapon
@@ -6970,7 +6978,42 @@ function drawPlayer(){
   ctx.restore();
 
   // Head
-  if(skin === 'lasha'){
+  if(skin === 'qunem_davita'){
+    ctx.save();
+    // Biker Helmet (Matte Dark Blue-Grey)
+    ctx.fillStyle = '#2c3e50'; 
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(-13, -40, 28, 28, 10);
+    else ctx.fillRect(-13, -40, 28, 28);
+    ctx.fill();
+    
+    // Helmet Side Decal (Yellow Stripe)
+    ctx.fillStyle = '#ffd23f';
+    ctx.fillRect(-13, -28, 6, 3);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(-13, -24, 4, 2);
+
+    // Large Reflective Visor
+    const vGrd = ctx.createLinearGradient(0, -35, 0, -20);
+    vGrd.addColorStop(0, '#94a3b8'); // Top of visor
+    vGrd.addColorStop(0.5, '#f1f5f9'); // Reflection middle
+    vGrd.addColorStop(1, '#475569'); // Bottom of visor
+    ctx.fillStyle = vGrd;
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(-10, -35, 24, 14, 4);
+    else ctx.fillRect(-10, -35, 24, 14);
+    ctx.fill();
+    
+    // Visor Shine
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+    ctx.fillRect(2, -33, 8, 2);
+    
+    // Chin Guard Detail
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(-6, -21, 14, 8);
+    
+    ctx.restore();
+  } else if(skin === 'lasha'){
     ctx.save();
     // Wild Black Hair/Scribbles on sides
     ctx.strokeStyle = '#000000';
@@ -7620,6 +7663,54 @@ function drawBiteStruggleUI(){
 function drawHUD(){
   ctx.textAlign='left';
 
+  // Level Progress Bar (Center Top)
+  const barW = 300;
+  const barH = 10;
+  const barX = (W - barW) / 2;
+  const barY = 15;
+  const levelWidth = (level && level.width) ? level.width : 10000;
+  const progress = Math.min(1, Math.max(0, player.x / levelWidth));
+
+  ctx.save();
+  // Bar Background
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+  if(ctx.roundRect) {
+    ctx.beginPath(); ctx.roundRect(barX, barY, barW, barH, 5); ctx.fill();
+  } else {
+    ctx.fillRect(barX, barY, barW, barH);
+  }
+
+  // Bar Fill
+  if(progress > 0){
+    const grad = ctx.createLinearGradient(barX, 0, barX + barW, 0);
+    grad.addColorStop(0, '#4ade80');
+    grad.addColorStop(1, '#22c55e');
+    ctx.fillStyle = grad;
+    if(ctx.roundRect) {
+      ctx.beginPath(); ctx.roundRect(barX, barY, barW * progress, barH, 5); ctx.fill();
+    } else {
+      ctx.fillRect(barX, barY, barW * progress, barH);
+    }
+  }
+
+  // Border
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+  ctx.lineWidth = 1;
+  if(ctx.roundRect) {
+    ctx.beginPath(); ctx.roundRect(barX, barY, barW, barH, 5); ctx.stroke();
+  } else {
+    ctx.strokeRect(barX, barY, barW, barH);
+  }
+
+  // Text Label
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 10px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(`LEVEL PROGRESS: ${Math.floor(progress * 100)}%`, W/2, barY + barH + 12);
+  ctx.restore();
+
+  ctx.textAlign='left';
+
   // Mini Blue Character Face Coin for HUD Score
   const coinX = 28, coinY = 27, coinR = 10;
   ctx.save();
@@ -7669,6 +7760,17 @@ function drawHUD(){
 
   // Active Upgrades & Abilities Badges
   let hudY = 110;
+  const isHardcore = state.settings && state.settings.difficulty === 'hardcore';
+  if(isHardcore){
+    ctx.fillStyle='#ff3d6e';
+    ctx.font='bold 16px sans-serif';
+    ctx.shadowColor = '#ff0000';
+    ctx.shadowBlur = 8;
+    ctx.fillText('💀 HARDCORE MODE ACTIVE', 18, hudY);
+    ctx.shadowBlur = 0;
+    hudY += 24;
+    ctx.font='bold 14px sans-serif';
+  }
   if(player.hasShield){
     ctx.fillStyle='#38c6ff';
     ctx.fillText('🛡️ NANOTECH SHIELD: ACTIVE', 18, hudY);
@@ -8045,54 +8147,40 @@ function drawMenu(){
   ctx.fillText('▶  თამაშის დაწყება  ◀', W/2, by + 32);
   ctx.restore();
 
-  // Sub buttons: Shop & Levels
+  // Sub buttons: Shop, Settings, Levels
   ctx.save();
-  const subW = 220, subH = 42;
-  // Shop Button
-  const sbx1 = W/2 - subW - 10, sby = H/2 + 108;
-  ctx.fillStyle = 'rgba(20, 28, 48, 0.9)';
-  ctx.beginPath();
-  if(ctx.roundRect) ctx.roundRect(sbx1, sby, subW, subH, 8);
-  else ctx.fillRect(sbx1, sby, subW, subH);
-  ctx.fill();
-  ctx.strokeStyle = '#ffd23f';
-  ctx.lineWidth = 2;
-  ctx.stroke();
+  const subW = 148, subH = 42;
+  const spacing = 10;
+  const totalW = 3 * subW + 2 * spacing;
+  const startX = W/2 - totalW/2;
+  const sby = H/2 + 108;
 
-  ctx.font = 'bold 16px sans-serif';
-  ctx.fillStyle = '#ffd23f';
-  ctx.fillText('🛍️ მაღაზია (SHOP)', sbx1 + subW/2, sby + 26);
+  const menuBtns = [
+    { id: 'shop', label: '🛍️ SHOP', color: '#ffd23f' },
+    { id: 'settings', label: '⚙️ SETTINGS', color: '#ffffff' },
+    { id: 'levels', label: '🗺️ LEVELS', color: '#38c6ff' }
+  ];
 
-  // Level Select Button
-  const sbx2 = W/2 + 10;
-  ctx.fillStyle = 'rgba(20, 28, 48, 0.9)';
-  ctx.beginPath();
-  if(ctx.roundRect) ctx.roundRect(sbx2, sby, subW, subH, 8);
-  else ctx.fillRect(sbx2, sby, subW, subH);
-  ctx.fill();
-  ctx.strokeStyle = '#38c6ff';
-  ctx.lineWidth = 2;
-  ctx.stroke();
+  menuBtns.forEach((btn, idx) => {
+    const bx = startX + idx * (subW + spacing);
+    ctx.fillStyle = 'rgba(20, 28, 48, 0.9)';
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(bx, sby, subW, subH, 8);
+    else ctx.fillRect(bx, sby, subW, subH);
+    ctx.fill();
 
-  ctx.fillStyle = '#38c6ff';
-  ctx.fillText('🗺️ დონეები (LEVELS)', sbx2 + subW/2, sby + 26);
+    ctx.strokeStyle = btn.color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
 
-  // Promo Code Button
-  const promoW = 340, promoH = 38;
-  const pbx = W/2 - promoW/2, pby = H/2 + 160;
-  ctx.fillStyle = 'rgba(255, 210, 63, 0.15)';
-  ctx.beginPath();
-  if(ctx.roundRect) ctx.roundRect(pbx, pby, promoW, promoH, 8);
-  else ctx.fillRect(pbx, pby, promoW, promoH);
-  ctx.fill();
-  ctx.strokeStyle = '#ffd23f';
-  ctx.lineWidth = 2;
-  ctx.stroke();
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillStyle = btn.color;
+    ctx.textAlign = 'center';
+    ctx.fillText(btn.label, bx + subW/2, sby + 26);
+  });
+  ctx.restore();
 
-  ctx.font = 'bold 15px sans-serif';
-  ctx.fillStyle = '#ffd23f';
-  ctx.textAlign = 'center';
-  ctx.fillText('🎟️ პრომოკოდის შეყვანა', W/2, pby + 24);
+  // No version or credits text needed here per user request
   ctx.restore();
 }
 
@@ -8116,7 +8204,8 @@ const shopSkins = [
   { id: 'ninja', title: '🥷 ჩრდილის ნინძა', desc: 'სრულ შავ კოსტიუმში, ნიღბით და ვარსკვლავ ირიკენით!', cost: 180, icon: '🥷' },
   { id: 'robot', title: '🤖 ლითონის რობოტი', desc: 'სტალის ჯავშანი, LED თვალები და ჩარჩოს ანტენა!', cost: 210, icon: '🤖' },
   { id: 'ghost', title: '👻 ანდეზიტის მოჩვენება', desc: 'ნახევრად გამჭვირვალე, ცარიელი თვალები და ეთერული ნამქერი!', cost: 190, icon: '👻' },
-  { id: 'viking', title: '⚔️ ველური ვიკინგი', desc: 'ბეწვის ქსოვილი, რქებიანი ჩაფხუტი და სახის ნაომარი ნაკერები!', cost: 220, icon: '⚔️' }
+  { id: 'viking', title: '⚔️ ველური ვიკინგი', desc: 'ბეწვის ქსოვილი, რქებიანი ჩაფხუტი და სახის ნაომარი ნაკერები!', cost: 220, icon: '⚔️' },
+  { id: 'qunem_davita', title: '🕶️ QUNEM DAVITA', desc: 'წითელი პანტერის პერანგი, ლუდი და ხულიგნური ვიზუალი!', cost: 300, icon: '🕶️' }
 ];
 
 const shopWeapons = [
@@ -8662,6 +8751,78 @@ function drawPreviewModal() {
 }
 
 
+function drawSettings(){
+  drawBackground('pink');
+  ctx.fillStyle = 'rgba(6, 12, 26, 0.92)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.textAlign = 'center';
+  ctx.save();
+  ctx.font = 'bold 32px sans-serif';
+  ctx.shadowColor = '#38c6ff';
+  ctx.shadowBlur = 12;
+  ctx.fillStyle = '#38c6ff';
+  ctx.fillText('⚙️ პარამეტრები (SETTINGS)', W/2, 45);
+  ctx.restore();
+
+  const settingsList = [
+    { key: 'difficulty', label: '🎮 სირთულე', options: ['easy', 'normal', 'hardcore'], labels: ['მარტივი', 'ნორმალური', 'ჰარდქორი'] },
+    { key: 'gameSpeed', label: '⏩ თამაშის სიჩქარე', options: ['relaxed', 'normal', 'turbo'], labels: ['ნელი', 'ჩვეულებრივი', 'ტურბო'] },
+    { key: 'screenShake', label: '📳 ეკრანის ვიბრაცია', options: ['full', 'reduced', 'off'], labels: ['სრული', 'შემცირებული', 'გამორთული'] },
+    { key: 'bgmVolume', label: '🎵 მუსიკის ხმა', options: [0, 0.25, 0.5, 0.75, 1], labels: ['0%', '25%', '50%', '75%', '100%'] },
+    { key: 'sfxVolume', label: '🔊 ეფექტების ხმა', options: [0, 0.25, 0.5, 0.75, 1], labels: ['0%', '25%', '50%', '75%', '100%'] },
+    { key: 'highJumpAssist', label: '🚀 მაღალი ხტომა', options: [false, true], labels: ['გამორთული', 'ჩართული'] },
+    { key: 'showFPS', label: '📊 FPS-ის ჩვენება', options: [false, true], labels: ['გამორთული', 'ჩართული'] }
+  ];
+
+  const startY = 85;
+  const rowH = 40;
+  const col1X = W/2 - 240;
+  const col2X = W/2 + 20;
+  const btnW = 200, btnH = 32;
+
+  settingsList.forEach((item, idx) => {
+    const ry = startY + idx * rowH;
+    
+    // Label
+    ctx.textAlign = 'right';
+    ctx.font = '16px sans-serif';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(item.label + ':', col2X - 40, ry + 22);
+
+    // Button
+    const curVal = state.settings[item.key];
+    const curIdx = item.options.indexOf(curVal);
+    const curLabel = item.labels[curIdx !== -1 ? curIdx : 0];
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(56, 198, 255, 0.15)';
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(col2X, ry, btnW, btnH, 6);
+    else ctx.fillRect(col2X, ry, btnW, btnH);
+    ctx.fill();
+    ctx.strokeStyle = '#38c6ff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffd23f';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.fillText(curLabel, col2X + btnW/2, ry + 21);
+  });
+
+  // Back Button
+  const backW = 320, backH = 46;
+  const backX = W/2 - backW/2, backY = H - 65;
+  ctx.fillStyle = '#ff3d6e';
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(backX, backY, backW, backH, 8);
+  else ctx.fillRect(backX, backY, backW, backH);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 18px sans-serif';
+  ctx.fillText('🔙 უკან დაბრუნება', backX + backW/2, backY + 29);
+}
+
 function drawShop(){
   drawBackground('pink');
   ctx.fillStyle = 'rgba(6, 10, 22, 0.88)';
@@ -9178,17 +9339,21 @@ function handleMenuClick(mx, my){
     return;
   }
 
-  // Sub buttons: Shop & Levels
-  const subW = 220, subH = 42;
-  const sbx1 = W/2 - subW - 10, sby = H/2 + 108;
-  const sbx2 = W/2 + 10;
+  // Sub buttons: Shop, Settings, Levels
+  const subW = 148, subH = 42;
+  const spacing = 10;
+  const totalW = 3 * subW + 2 * spacing;
+  const startX = W/2 - totalW/2;
+  const sby = H/2 + 108;
 
-  if(mx >= sbx1 && mx <= sbx1 + subW && my >= sby && my <= sby + subH){
-    openShop();
-    return;
-  } else if(mx >= sbx2 && mx <= sbx2 + subW && my >= sby && my <= sby + subH){
-    openLevelSelect();
-    return;
+  if(my >= sby && my <= sby + subH){
+    if(mx >= startX && mx <= startX + subW){
+      openShop(); return;
+    } else if(mx >= startX + subW + spacing && mx <= startX + 2*subW + spacing){
+      openSettings(); return;
+    } else if(mx >= startX + 2*subW + 2*spacing && mx <= startX + 3*subW + 2*spacing){
+      openLevelSelect(); return;
+    }
   }
 
   // Promo Code Button
@@ -9199,6 +9364,57 @@ function handleMenuClick(mx, my){
     openPromoModal();
     return;
   }
+}
+
+function handleSettingsClick(mx, my){
+  const startY = 85;
+  const rowH = 40;
+  const col2X = W/2 + 20;
+  const btnW = 200, btnH = 32;
+
+  const settingsList = [
+    { key: 'difficulty', options: ['easy', 'normal', 'hardcore'] },
+    { key: 'gameSpeed', options: ['relaxed', 'normal', 'turbo'] },
+    { key: 'screenShake', options: ['full', 'reduced', 'off'] },
+    { key: 'bgmVolume', options: [0, 0.25, 0.5, 0.75, 1] },
+    { key: 'sfxVolume', options: [0, 0.25, 0.5, 0.75, 1] },
+    { key: 'highJumpAssist', options: [false, true] },
+    { key: 'showFPS', options: [false, true] }
+  ];
+
+  settingsList.forEach((item, idx) => {
+    const ry = startY + idx * rowH;
+    if(mx >= col2X && mx <= col2X + btnW && my >= ry && my <= ry + btnH){
+      const curVal = state.settings[item.key];
+      const curIdx = item.options.indexOf(curVal);
+      const nextIdx = (curIdx + 1) % item.options.length;
+      state.settings[item.key] = item.options[nextIdx];
+      
+      if(item.key === 'bgmVolume'){
+         const g = getBgmMasterGain();
+         const bgmVol = state.settings.bgmVolume;
+         g.gain.setValueAtTime(bgmMuted ? 0 : (0.22 * bgmVol), ac().currentTime);
+      }
+
+      sfxCoin();
+      saveData();
+    }
+  });
+
+  // Back Button
+  const backW = 320, backH = 46;
+  const backX = W/2 - backW/2, backY = H - 65;
+  if(mx >= backX && mx <= backX + backW && my >= backY && my <= backY + backH){
+    state.mode = state.returnMode || 'menu';
+    sfxBell();
+  }
+}
+
+function openSettings(){
+  if(state.mode !== 'shop' && state.mode !== 'levelselect' && state.mode !== 'settings'){
+    state.returnMode = state.mode;
+  }
+  state.mode = 'settings';
 }
 
 function openShop(){
@@ -9214,83 +9430,6 @@ function openLevelSelect(){
     state.returnMode = state.mode;
   }
   state.mode = 'levelselect';
-}
-
-function openPromoModal(){
-  const modal = document.getElementById('promoModal');
-  if(modal){
-    modal.style.display = 'flex';
-    const input = document.getElementById('promoInput');
-    if(input){
-      input.value = '';
-      setTimeout(() => input.focus(), 100);
-    }
-  } else {
-    enterPromoCodePrompt();
-  }
-}
-
-function closePromoModal(){
-  const modal = document.getElementById('promoModal');
-  if(modal) modal.style.display = 'none';
-}
-
-function submitPromoCode(){
-  const input = document.getElementById('promoInput');
-  const raw = input ? input.value : '';
-  const code = raw.trim().toUpperCase();
-
-  if(code === 'DINOMAGARIA'){
-    state.coinsCollected = Math.max((state.coinsCollected || 0) + 999999, 999999);
-    saveData();
-    sfxWin();
-    triggerFlash('255,210,63', 0.8);
-    toast('🎉 კოდი გააქტიურდა! მიიღე 999,999 მონეტა!', 3500);
-    closePromoModal();
-  } else if(code === 'CODEZERO'){
-    // Unlock every level
-    const totalLevels = typeof getLevels === 'function' ? getLevels().length : 23;
-    state.unlockedLevels = Math.max(state.unlockedLevels || 1, totalLevels);
-    state.coinsCollected = Math.max((state.coinsCollected || 0) + 500, 500);
-    saveData();
-    sfxWin();
-    shake(25);
-    triggerFlash('56,198,255', 0.9);
-    toast('🔓 CODEZERO — ყველა დონე განბლოკილია! +500 მონეტა!', 4000);
-    closePromoModal();
-  } else if(code === ''){
-    toast('⚠️ შეიყვანეთ პრომოკოდი!', 1500);
-  } else {
-    sfxHurt();
-    toast('❌ არასწორი პრომოკოდი!', 2000);
-  }
-}
-
-function fillQuickPromoCode(code){
-  const input = document.getElementById('promoInput');
-  if(input) input.value = code;
-  submitPromoCode();
-}
-
-function enterPromoCodePrompt(){
-  const res = prompt("შეიყვანეთ პრომოკოდი (ENTER PROMO CODE):");
-  if(res !== null){
-    const code = res.trim().toUpperCase();
-    if(code === 'DINOMAGARIA'){
-      state.coinsCollected = Math.max((state.coinsCollected || 0) + 999999, 999999);
-      saveData(); sfxWin(); triggerFlash('255,210,63', 0.8);
-      toast('🎉 კოდი გააქტიურდა! მიიღე 999,999 მონეტა!', 3500);
-    } else if(code === 'CODEZERO'){
-      const totalLevels = typeof getLevels === 'function' ? getLevels().length : 23;
-      state.unlockedLevels = Math.max(state.unlockedLevels || 1, totalLevels);
-      state.coinsCollected = Math.max((state.coinsCollected || 0) + 500, 500);
-      saveData(); sfxWin(); triggerFlash('56,198,255', 0.9);
-      toast('🔓 CODEZERO — ყველა დონე განბლოკილია! +500 მონეტა!', 4000);
-    } else if(code.length > 0) {
-      sfxHurt();
-      toast('❌ არასწორი პრომოკოდი!', 2000);
-    }
-  }
 }
 
 function drawPauseOverlay(){
@@ -9572,8 +9711,14 @@ function drawDeathCamOverlay(){
 // ---------- Main Game Loop ----------
 let lastTime = performance.now();
 function loop(now){
-  const dt = Math.min(33, now-lastTime);
+  let dt = Math.min(33, now-lastTime);
   lastTime = now;
+
+  if(state.settings){
+    if(state.settings.gameSpeed === 'relaxed') dt *= 0.75;
+    else if(state.settings.gameSpeed === 'turbo') dt *= 1.35;
+  }
+
   state.time += dt;
 
   updateBgmTrack();
@@ -9601,6 +9746,8 @@ function loop(now){
     drawShop();
   } else if(state.mode==='levelselect'){
     drawLevelSelect();
+  } else if(state.mode==='settings'){
+    drawSettings();
   } else {
     if(level && level.isAirplaneLevel){
       drawAirplaneLevel();
@@ -9663,6 +9810,15 @@ function loop(now){
       drawDeathCamOverlay();
     }
     drawHUD();
+
+    if(state && state.settings && state.settings.showFPS){
+      ctx.save();
+      ctx.fillStyle = '#38c6ff';
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(`FPS: ${Math.round(1000/dt)}`, 10, H - 12);
+      ctx.restore();
+    }
 
     if(state.mode==='playing'){
       if(state.deathCam && state.deathCam.active){
