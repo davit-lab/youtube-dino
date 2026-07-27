@@ -278,6 +278,31 @@ function sfxShoot(){
   beep(320,0.05,'square',0.09,0,80); 
   beep(120,0.1,'sawtooth',0.08,0.02,30); 
 }
+// Pre-load the audio to ensure it plays immediately when called
+const deathAudio = new Audio('death.mp3');
+deathAudio.volume = 1.0;
+deathAudio.load();
+
+function sfxDeathCustom(){
+  try {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      const msg = new SpeechSynthesisUtterance('ადიოს მუჩაჩოოს');
+      msg.lang = 'ka-GE';
+      msg.volume = 1.0;
+      msg.rate = 0.9;
+      msg.pitch = 0.8;
+      window.speechSynthesis.speak(msg);
+    }
+    
+    // Play the pre-loaded mp3 file
+    deathAudio.currentTime = 0;
+    deathAudio.play().catch(e => {
+      console.warn("Audio play blocked or failed, retrying on next frame...", e);
+    });
+  } catch(e) {}
+}
+
 function sfxZombieHit(){ beep(240,0.12,'sawtooth',0.08,0,80); }
 function sfxFall(){ beep(600, 1.2, 'sawtooth', 0.08, 0, 40); }
 function sfxBoxHit(){ beep(300,0.1,'square',0.08,0,600); }
@@ -688,6 +713,8 @@ function handleCanvasPointer(e){
     handleSettingsClick(mx, my);
   } else if(state.mode === 'menu'){
     handleMenuClick(mx, my);
+  } else if(state.mode === 'luckywheel'){
+    handleLuckyWheelClick(mx, my);
   } else if(state.mode === 'gameover'){
     const bw = 190, bh = 46, gap = 18;
     const startX = W/2 - (3 * bw + 2 * gap) / 2;
@@ -5170,9 +5197,9 @@ function buildLevels(){
         addedCp1 = true;
         lvl.checkpoints.push(rect(currX + 80, GROUND_Y - 70, 36, 70, { active: false, label: 'ჩექფოინთი 1 🚩' }));
       }
-      if(!addedCp2 && currX >= targetW * 0.58){
+      if(!addedCp2 && currX >= targetW * 0.65){
         addedCp2 = true;
-        lvl.checkpoints.push(rect(currX + 80, GROUND_Y - 70, 36, 70, { active: false, label: 'ჩექფოინთი 2 🚩' }));
+        lvl.checkpoints.push(rect(currX + 150, GROUND_Y - 70, 36, 70, { active: false, label: 'ჩექფოინთი 2 🚩' }));
       }
       if(!addedCp3 && currX >= targetW * 0.82){
         addedCp3 = true;
@@ -5187,6 +5214,18 @@ function buildLevels(){
       if(segType === 0){
         const platW = 700 + Math.random() * 300;
         lvl.plats.push(rect(currX, GROUND_Y, platW, 90));
+        
+        // Theme-specific logic
+        if(lvl.theme === 'volcanic_inferno' || lvl.theme === 'infernal_volcano'){
+          lvl.firejets.push({x: currX + 200, y: GROUND_Y - 12, w: 32, h: 12, period: 2000, offset: 0});
+          lvl.firejets.push({x: currX + 450, y: GROUND_Y - 12, w: 32, h: 12, period: 2000, offset: 1000});
+        } else if(lvl.theme === 'toxic_sewers' || lvl.theme === 'pro_toxic_wasteland'){
+          lvl.acidGeysers.push({x: currX + 300, y: GROUND_Y - 12, period: 2200, offset: 0});
+        } else if(lvl.theme.includes('cyber') || lvl.theme === 'neon_synthwave'){
+          lvl.boosters.push(rect(currX + 150, GROUND_Y - 10, 80, 10));
+          lvl.boosters.push(rect(currX + 500, GROUND_Y - 10, 80, 10));
+        }
+
         lvl.spikes.push(rect(currX + 150, GROUND_Y - 24, 70, 24));
         lvl.trampolines.push(rect(currX + 100, GROUND_Y - 18, 52, 18));
         lvl.boosters.push(rect(currX + 280, GROUND_Y - 10, 80, 10));
@@ -5517,6 +5556,7 @@ function updatePlayer(dt){
     }
 
     if(player.fallTimer > 750 || player.y > GROUND_Y + 180){
+      sfxDeathCustom();
       hurtPlayer("ადიოს მუჩაჩოოსსსს! 💀", "pit");
     }
     return;
@@ -6045,6 +6085,7 @@ function updatePlayer(dt){
     player.fallRotation = 0;
     player.vy = 4;
     sfxFall();
+    sfxDeathCustom();
     shake(20);
     toast("ადიოს მუჩაჩოოსსსს! 💀", 2200);
     addFloatingText(player.x, player.y - 30, "ადიოს მუჩაჩოოსსსს! 🗣️", '#ff3d6e');
@@ -6258,11 +6299,12 @@ function hurtPlayer(msg, cause='zombie'){
   sfxHurt();
   shake(18);
   triggerFlash('255,0,50', 0.65);
-  toast(`${msg} (დარჩა ${state.lives} ❤️)`, 2200);
+  toast(`ადიოს მუჩაჩოოოსსსს! 🗣️ ${msg} (დარჩა ${state.lives} ❤️)`, 2500);
 
   if(state.lives<=0){
     player.dead = true;
     player.isFalling = false;
+    sfxDeathCustom();
     sfxDemonic();
     sfxScare();
     const spawnY = Math.min(H - 60, Math.max(80, player.y + player.h/2));
@@ -7636,6 +7678,7 @@ function drawJumpBox(jb){
     else if(jb.type === 'prank_zombie') { bgColor = '#1a6a2f'; icon = '🧟'; }
     else if(jb.type === 'prank_dance') { bgColor = '#a80055'; icon = '🕺'; }
     else if(jb.type === 'prank_jumpscare_giant') { bgColor = '#330000'; icon = '👻'; }
+    else if(jb.type === 'lucky_mystery') { bgColor = '#f59e0b'; icon = '🎲'; }
 
     ctx.fillStyle = bgColor;
     ctx.fillRect(sx, y, jb.w, jb.h);
@@ -8082,6 +8125,114 @@ function drawSpike(s){
     ctx.lineTo(sx+(i+1)*(s.w/n), s.y+s.h);
     ctx.fill();
   }
+}
+
+function drawTrampoline(tp){
+  const sx = tp.x - camX;
+  if(sx+tp.w<-20 || sx>W+20) return;
+  ctx.save();
+  ctx.translate(sx, tp.y);
+  ctx.fillStyle = '#f59e0b';
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(0, 4, tp.w, tp.h - 4, 4);
+  else ctx.fillRect(0, 4, tp.w, tp.h - 4);
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.strokeStyle = '#fbbf24';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(8, 8); ctx.lineTo(tp.w - 8, 8);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawBooster(bs){
+  const sx = bs.x - camX;
+  if(sx+bs.w<-20 || sx>W+20) return;
+  ctx.save();
+  ctx.translate(sx, bs.y);
+  ctx.fillStyle = 'rgba(34, 197, 94, 0.4)';
+  ctx.fillRect(0, 0, bs.w, bs.h);
+  ctx.strokeStyle = '#22c55e';
+  ctx.lineWidth = 2;
+  const off = (state.time / 100) % 20;
+  for(let i = -20; i < bs.w; i += 20){
+    const x = i + off;
+    if(x >= 0 && x < bs.w - 10){
+      ctx.beginPath();
+      ctx.moveTo(x, 2); ctx.lineTo(x + 10, bs.h/2); ctx.lineTo(x, bs.h - 2);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function drawPortal(pt){
+  const drawP = (x, y, color) => {
+    const sx = x - camX;
+    if(sx+pt.w<-50 || sx>W+50) return;
+    ctx.save();
+    ctx.translate(sx, y);
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 15;
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath();
+    ctx.ellipse(pt.w/2, pt.h/2, pt.w/2, pt.h/2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.setLineDash([5, 5]);
+    ctx.lineDashOffset = -state.time / 20;
+    ctx.stroke();
+    ctx.restore();
+  };
+  drawP(pt.inX, pt.inY, '#00f0ff');
+  drawP(pt.outX, pt.outY, '#ec4899');
+}
+
+function drawGravityRune(gr){
+  if(gr.taken) return;
+  const sx = gr.x - camX;
+  if(sx+gr.w<-50 || sx>W+50) return;
+  ctx.save();
+  const bob = Math.sin(state.time / 300) * 8;
+  ctx.translate(sx, gr.y + bob);
+  ctx.shadowColor = '#a855f7';
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = '#a855f7';
+  ctx.beginPath();
+  ctx.moveTo(gr.w/2, 0);
+  ctx.lineTo(gr.w, gr.h/2);
+  ctx.lineTo(gr.w/2, gr.h);
+  ctx.lineTo(0, gr.h/2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawBoulder(bd){
+  const sx = bd.x - camX;
+  if(sx+bd.r< -50 || sx-bd.r > W+50) return;
+  ctx.save();
+  ctx.translate(sx, bd.y);
+  ctx.rotate(bd.angle);
+  ctx.fillStyle = '#4b5563';
+  ctx.beginPath();
+  ctx.arc(0, 0, bd.r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#1f2937';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-bd.r * 0.5, -bd.r * 0.2);
+  ctx.lineTo(bd.r * 0.3, bd.r * 0.4);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawLava(l){
@@ -10955,12 +11106,12 @@ function drawMenu(){
   ctx.shadowBlur = 30;
   ctx.fillStyle = '#38c6ff';
   ctx.fillText('DINO', W/2, H/2 - 102);
+  
+  ctx.font = 'bold 28px sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.shadowBlur = 10;
+  ctx.fillText('ADIOS MUCHACHOS!', W/2, H/2 - 40);
   ctx.restore();
-
-  // Subtitle
-  ctx.fillStyle = '#ff3d6e';
-  ctx.font = 'bold 24px sans-serif';
-  ctx.fillText('ხულიგნური პარკური & ჰორორ თავგადასავალი', W/2, H/2 - 65);
 
   // High Score Pill Badge
   ctx.save();
@@ -11028,7 +11179,7 @@ function drawMenu(){
   ctx.font = 'bold 22px sans-serif';
   ctx.fillStyle = '#000000';
   ctx.textAlign = 'center';
-  ctx.fillText('▶  თამაშის დაწყება  ◀', W/2, by + 32);
+  ctx.fillText('▶  ადიოს მუჩაჩოოს! (START)  ◀', W/2, by + 32);
   ctx.restore();
 
   // Sub buttons: Shop, Quests, Wheel, Settings, Levels
@@ -12051,7 +12202,7 @@ function handleShopClick(mx, my){
   const pbx = W/2 - bw - btnGap/2, pby = H - 52;
   if(mx >= pbx && mx <= pbx + bw && my >= pby && my <= pby + bh){
     sfxBell();
-    openPromoModal();
+    openPromoCodePrompt();
     return;
   }
 
@@ -12682,7 +12833,7 @@ function handleMenuClick(mx, my){
   const pbx = W/2 - promoW/2, pby = H/2 + 160;
   if(mx >= pbx && mx <= pbx + promoW && my >= pby && my <= pby + promoH){
     sfxBell();
-    openPromoModal();
+    openPromoCodePrompt();
     return;
   }
 
@@ -12809,7 +12960,7 @@ function drawGameOver(){
 
     ctx.fillStyle = '#ff3d6e';
     ctx.font = 'bold 24px sans-serif';
-    ctx.fillText('გადაქცეული ხარ ხულიგნად! 💀', W/2, H/2 - 15);
+    ctx.fillText('ადიოს მუჩაჩოოსსსს! 💀', W/2, H/2 - 15);
 
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 19px sans-serif';
@@ -12817,7 +12968,7 @@ function drawGameOver(){
   } else {
     ctx.fillStyle='#ff3d6e';
     ctx.font='bold 38px sans-serif';
-    ctx.fillText('💀 8-ვე სიცოცხლე ამოიწურა! 💀', W/2, H/2 - 60);
+    ctx.fillText('💀 ადიოს მუჩაჩოოოსსსს! 💀', W/2, H/2 - 60);
     ctx.fillStyle='#fff';
     ctx.font='bold 22px sans-serif';
     ctx.fillText('საბოლოო ქულა: ' + state.score, W/2, H/2 - 10);
@@ -12887,7 +13038,7 @@ const LUCKY_ITEMS = [
   { label: '⚡ ლაზერი', color: '#00f0ff', type: 'laser' },
   { label: '🌟 ოქროს აურა', color: '#eab308', type: 'aura' },
   { label: '❤️ +3 გული', color: '#ef4444', type: 'lives' },
-  { label: '🎟️ პრომო-კოდი', color: '#a855f7', type: 'promo' },
+  { label: '🗣️ ადიოს!', color: '#ff3d6e', type: 'adios' },
   { label: '100 🪙', color: '#38c6ff', type: 'coins_100' },
   { label: '🚀 TURBO SPEED', color: '#22c55e', type: 'turbo' },
   { label: '250 🪙', color: '#f97316', type: 'coins_250' }
@@ -12932,9 +13083,12 @@ function drawLuckyWheel(){
       lw.spinning = false;
       lw.spinSpeed = 0;
 
-      const normalizedAngle = (2.5 * Math.PI - lw.angle) % (Math.PI * 2);
-      const posAngle = (normalizedAngle + Math.PI * 2) % (Math.PI * 2);
-      const winIndex = Math.floor(posAngle / sliceAngle) % slices;
+      // Fix: The arrow is at the top (1.5 * Math.PI). Slice 0 starts at lw.angle.
+      // The relative angle on the wheel that points to the arrow is (ArrowAngle - lw.angle).
+      const arrowPos = 1.5 * Math.PI; 
+      const wheelTheta = (arrowPos - lw.angle) % (Math.PI * 2);
+      const normalizedTheta = (wheelTheta + Math.PI * 2) % (Math.PI * 2);
+      const winIndex = Math.floor(normalizedTheta / sliceAngle) % slices;
       const winner = LUCKY_ITEMS[winIndex];
       lw.winner = winner;
 
@@ -12957,9 +13111,10 @@ function drawLuckyWheel(){
       } else if(winner.type === 'lives'){
         state.lives = Math.min(10, state.lives + 3);
         lw.prizeMsg = "❤️ +3 დამატებითი სიცოცხლე მიღებულია!";
-      } else if(winner.type === 'promo'){
-        state.coinsCollected = (state.coinsCollected || 0) + 250;
-        lw.prizeMsg = "🎟️ პრომო კოდი: CODEZERO2026 (+250 🪙)";
+      } else if(winner.type === 'adios'){
+        state.coinsCollected = (state.coinsCollected || 0) + 5000;
+        lw.prizeMsg = "🗣️ ადიოს მუჩაჩოოოსსსს! +5000 🪙";
+        sfxDeathCustom();
       } else if(winner.type === 'coins_100'){
         state.coinsCollected = (state.coinsCollected || 0) + 100;
         lw.prizeMsg = "💰 +100 ოქროს მონეტა!";
@@ -13011,8 +13166,19 @@ function drawLuckyWheel(){
     ctx.save();
     ctx.rotate(startA + sliceAngle / 2);
     ctx.textAlign = 'right';
-    ctx.fillStyle = '#111827';
-    ctx.font = 'bold 12px sans-serif';
+    
+    // Highlight the winning slice
+    const isWinner = !lw.spinning && lw.winner && LUCKY_ITEMS[i].type === lw.winner.type;
+    if(isWinner){
+      ctx.shadowColor = '#ffffff';
+      ctx.shadowBlur = 15;
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 14px sans-serif';
+    } else {
+      ctx.fillStyle = '#111827';
+      ctx.font = 'bold 12px sans-serif';
+    }
+    
     ctx.fillText(item.label, radius - 12, 4);
     ctx.restore();
   }
@@ -13137,7 +13303,7 @@ function drawLevelClear(){
   
   ctx.fillStyle='#ffd23f';
   ctx.font='bold 44px sans-serif';
-  ctx.fillText('დონე გავლილია! 🎉', W/2, H/2-60);
+  ctx.fillText('ადიოს მუჩაჩოოსსსს! 🏆', W/2, H/2-60);
   
   // Display Stars Earned
   const stars = state.levelStars[state.levelIndex] || 0;
@@ -13356,6 +13522,8 @@ function loop(now){
     drawLevelSelect();
   } else if(state.mode==='settings'){
     drawSettings();
+  } else if(state.mode==='luckywheel'){
+    drawLuckyWheel();
   } else {
     if(level && level.isAirplaneLevel){
       drawAirplaneLevel();
@@ -13397,6 +13565,11 @@ function loop(now){
       if(level.fakespikes) level.fakespikes.forEach(drawFakespike);
       if(level.spikes) level.spikes.forEach(drawSpike);
       if(level.popspikes) level.popspikes.forEach(drawPopSpike);
+      if(level.trampolines) level.trampolines.forEach(drawTrampoline);
+      if(level.boosters) level.boosters.forEach(drawBooster);
+      if(level.portals) level.portals.forEach(drawPortal);
+      if(level.gravityRunes) level.gravityRunes.forEach(drawGravityRune);
+      if(level.boulders) level.boulders.forEach(drawBoulder);
       if(level.spinners) level.spinners.forEach(drawSpinner);
       if(level.acidGeysers) level.acidGeysers.forEach(drawAcidGeyser);
       if(level.firejets) level.firejets.forEach(drawFirejet);
