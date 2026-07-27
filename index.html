@@ -3415,40 +3415,46 @@ function rect(x,y,w,h, extra={}){ return {x,y,w,h, ...extra}; }
 function buildLevels(){
   const levels = [];
 
-  // LEVEL 1: Tutorial & Basic Movement
+  // LEVEL 1: Tutorial & Jumpboxes
   levels.push({
     name:'ეპ.1 — საწყისი ქუჩა',
-    diffRating: 'ძალიან მარტივი', diffStars: '⭐', diffColor: '#22c55e',
-    gimmickTitle: '🔰 სწავლება', diffDesc: 'პირველი ნაბიჯები: გაეცანი სამყაროს და ისწავლე მოძრაობა.',
-    zombieSpeedMult: 0.6, zombieHpMult: 0.8, gravityMult: 1.0, hazardType: 'none',
-    width: 4000,
+    diffRating: 'მარტივი', diffStars: '⭐', diffColor: '#22c55e',
+    gimmickTitle: '🔰 სწავლება', diffDesc: 'პირველი ნაბიჯები: გაეცანი სამყაროს და მოერიდე ზომბებს.',
+    zombieSpeedMult: 0.8, zombieHpMult: 1.0, gravityMult: 1.0, hazardType: 'none',
+    width: 4400,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
-      rect(0, GROUND_Y, 1200, 90),
-      rect(1300, GROUND_Y, 800, 90),
-      rect(2200, GROUND_Y-60, 300, 24),
-      rect(2600, GROUND_Y, 1400, 90),
+      rect(0, GROUND_Y, 900, 90),
+      rect(1000, GROUND_Y, 500, 90),
+      rect(1620, GROUND_Y, 280, 90),
+      rect(1990, GROUND_Y-80, 220, 24),
+      rect(2320, GROUND_Y, 900, 90),
+      rect(3320, GROUND_Y-140, 260, 24),
+      rect(3680, GROUND_Y, 700, 90),
     ],
-    conveyors: [],
-    fakespikes: [],
-    spikes: [ rect(1800, GROUND_Y-24, 60, 24), rect(3200, GROUND_Y-24, 60, 24) ],
-    waters: [ rect(1200, GROUND_Y, 100, 90), rect(2100, GROUND_Y, 100, 90) ],
-    bananas: [ rect(1500,GROUND_Y-14,40,14) ],
+    conveyors: [ rect(1000, GROUND_Y, 500, 10, {speed: 1.5}) ],
+    fakespikes: [ rect(430,GROUND_Y-24,90,24) ],
+    spikes: [ rect(400, GROUND_Y-24, 50, 24), rect(920,GROUND_Y-24,80,24), rect(1990, GROUND_Y-104, 50, 24), rect(2870,GROUND_Y-24,70,24) ],
+    waters: [ rect(900, GROUND_Y, 100, 90), rect(1500, GROUND_Y, 120, 90) ],
+    bananas: [ rect(1220,GROUND_Y-14,40,14) ],
     coins: [
-      ...Array.from({length:8}, (_,i)=>rect(1400+i*60, GROUND_Y-100, 22,22)),
+      ...Array.from({length:6}, (_,i)=>rect(1040+i*60, GROUND_Y-140, 22,22)),
+      ...Array.from({length:5}, (_,i)=>rect(2400+i*70, GROUND_Y-120, 22,22))
     ],
-    bells: [ rect(2300, GROUND_Y-120, 26,30) ],
-    bushes: [],
+    bells: [ rect(2050, GROUND_Y-150, 26,30), rect(3380, GROUND_Y-190,26,30) ],
+    bushes: [ rect(1750, GROUND_Y-50, 50,50, {triggered:false}) ],
     signs: [ 
-      {x:300, text:"გამოიყენე A/D ან ისრები მოძრაობისთვის"}, 
-      {x:800, text:"W ან Space ასახტომად"}, 
-      {x:2600,text:"codezero.ge - საუკეთესო წიგნები"} 
+      {x:380, text:"უსაფრთხო გზა >"}, 
+      {x:1180,text:"კონვეიერი გიბიძგებს წინ!"}, 
+      {x:2800,text:"codezero.ge-საუკეთესო წიგნები"} 
     ],
-    flag: rect(3860, GROUND_Y-140, 30,140),
-    zombies: [ {x:1500,y:GROUND_Y-54}, {x:3000,y:GROUND_Y-54} ],
+    flag: rect(4260, GROUND_Y-140, 30,140),
+    zombies: [ {x:1200,y:GROUND_Y-54}, {x:2500,y:GROUND_Y-54}, {x:3800,y:GROUND_Y-54} ],
     jumpboxes: [ 
-      rect(600, GROUND_Y-140, 42, 42, {hit:false, type:'coin'}),
-      rect(2400, GROUND_Y-160, 42, 42, {hit:false, type:'bell'})
+      rect(480, GROUND_Y-140, 42, 42, {hit:false, type:'coin'}),
+      rect(1480, GROUND_Y-140, 42, 42, {hit:false, type:'bell'}),
+      rect(2100, GROUND_Y-180, 42, 42, {hit:false, type:'triple'}),
+      rect(3000, GROUND_Y-140, 42, 42, {hit:false, type:'sponsor'}) 
     ],
     bgHue:'blue'
   });
@@ -3456,36 +3462,42 @@ function buildLevels(){
   // LEVEL 2: Cyber Alley & Moving Platforms
   levels.push({
     name:'ეპ.2 — კიბერ უბანი',
-    diffRating: 'მარტივი+', diffStars: '⭐⭐', diffColor: '#38c6ff',
-    gimmickTitle: '⛓️ მოძრავი პლატფორმები', diffDesc: 'ისწავლე მოძრავ პლატფორმებზე ხტომა!',
-    zombieSpeedMult: 0.8, zombieHpMult: 1.0, gravityMult: 1.0, hazardType: 'moving_platforms',
+    diffRating: 'საშუალო', diffStars: '⭐⭐', diffColor: '#38c6ff',
+    gimmickTitle: '⛓️ მბრუნავი ნაჯახები', diffDesc: 'მოერიდე მბრუნავ ნაჯახებს და მოძრავ პლატფორმებს!',
+    zombieSpeedMult: 1.1, zombieHpMult: 1.1, gravityMult: 1.0, hazardType: 'moving_platforms',
     theme: 'cyberpunk_alley',
-    width: 4400,
+    width: 4600,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
-      rect(0, GROUND_Y, 700, 90),
-      rect(800, GROUND_Y-60, 200, 24, {vx: 1.2, minX:800, maxX:1100}),
-      rect(1200, GROUND_Y, 800, 90),
-      rect(2100, GROUND_Y-80, 200, 24),
-      rect(2400, GROUND_Y, 2000, 90),
+      rect(0, GROUND_Y, 500, 90),
+      rect(620, GROUND_Y-40, 180, 24, {vx: 1.5, minX:620, maxX:880}),
+      rect(1100, GROUND_Y, 300, 90),
+      rect(1550, GROUND_Y-70, 180, 24),
+      rect(1850, GROUND_Y-160, 180, 24, {vy: 1.2, minY:GROUND_Y-220, maxY:GROUND_Y-100}),
+      rect(2150, GROUND_Y, 700, 90),
+      rect(2980, GROUND_Y-50, 200, 24),
+      rect(3300, GROUND_Y-140, 200, 24),
+      rect(3620, GROUND_Y, 900, 90),
     ],
-    swingingAxes: [],
-    fakespikes: [ rect(1500,GROUND_Y-24,90,24) ],
-    spikes: [ rect(2600,GROUND_Y-24,70,24), rect(3200,GROUND_Y-24,70,24) ],
-    waters: [ rect(700, GROUND_Y, 100, 90), rect(2000, GROUND_Y, 100, 90) ],
-    lavas: [],
-    bananas: [ rect(1300,GROUND_Y-14,40,14) ],
+    swingingAxes: [ {cx: 2300, cy: GROUND_Y-220, len: 140, speed: 0.003, range: 1.0} ],
+    fakespikes: [ rect(2200,GROUND_Y-24,90,24), rect(3900,GROUND_Y-24,90,24) ],
+    spikes: [ rect(540,GROUND_Y-24,70,24), rect(1550, GROUND_Y-94, 60, 24), rect(2500,GROUND_Y-24,80,24), rect(3300, GROUND_Y-164, 60, 24), rect(4200,GROUND_Y-24,80,24) ],
+    waters: [ rect(500, GROUND_Y, 120, 90), rect(800, GROUND_Y, 300, 90) ],
+    lavas: [ rect(1400, GROUND_Y, 150, 90), rect(2850, GROUND_Y, 130, 90) ],
+    bananas: [ rect(1180,GROUND_Y-14,40,14), rect(3660,GROUND_Y-14,40,14) ],
     coins: [
-      ...Array.from({length:5}, (_,i)=>rect(1300+i*70, GROUND_Y-100,22,22)),
+      ...Array.from({length:5}, (_,i)=>rect(2200+i*70, GROUND_Y-120,22,22)),
+      ...Array.from({length:4}, (_,i)=>rect(3320+i*50, GROUND_Y-190,22,22))
     ],
-    bells: [ rect(2150, GROUND_Y-130,26,30) ],
-    bushes: [ rect(2800, GROUND_Y-50,50,50,{triggered:false}) ],
-    signs: [ {x:600,text:"დაელოდე პლატფორმას!"}, {x:3000,text:"ზომბები უფრო აქტიურდებიან"} ],
-    flag: rect(4250, GROUND_Y-140,30,140),
-    zombies: [ {x:1400,y:GROUND_Y-54}, {x:2800,y:GROUND_Y-54} ],
+    bells: [ rect(1870, GROUND_Y-210,26,30), rect(3000, GROUND_Y-100,26,30) ],
+    bushes: [ rect(1250, GROUND_Y-50,50,50,{triggered:false}), rect(3450, GROUND_Y-50,50,50,{triggered:false}) ],
+    signs: [ {x:600,text:"მოძრავი პლატფორმა!"}, {x:2160,text:"0% შანსი გადარჩენის"}, {x:3920,text:"ბოსი წინ არის!"} ],
+    flag: rect(4450, GROUND_Y-140,30,140),
+    zombies: [ {x:1150,y:GROUND_Y-54}, {x:2200,y:GROUND_Y-54}, {x:3700,y:GROUND_Y-80, type:'boss'} ],
     jumpboxes: [ 
-      rect(1000, GROUND_Y-140, 42, 42, {hit:false, type:'heart'}),
-      rect(2500, GROUND_Y-140, 42, 42, {hit:false, type:'coin'})
+      rect(1200, GROUND_Y-140, 42, 42, {hit:false, type:'heart'}),
+      rect(2300, GROUND_Y-140, 42, 42, {hit:false, type:'sponsor'}),
+      rect(3100, GROUND_Y-140, 42, 42, {hit:false, type:'jumpscare'})
     ],
     bgHue:'pink'
   });
@@ -3493,9 +3505,9 @@ function buildLevels(){
   // LEVEL 3: CodeZero Horror Library
   levels.push({
     name:'ეპ.3 — დაწყევლილი ბიბლიოთეკა 📚💀',
-    diffRating: 'მარტივი++', diffStars: '⭐⭐', diffColor: '#eab308',
+    diffRating: 'საშუალო+', diffStars: '⭐⭐⭐', diffColor: '#eab308',
     gimmickTitle: '🌫️ ბნელი ნისლი', diffDesc: 'ნისლი ხილვადობას ზღუდავს. იყავი ფხიზლად!',
-    zombieSpeedMult: 0.95, zombieHpMult: 1.1, gravityMult: 1.0, hazardType: 'dense_fog',
+    zombieSpeedMult: 1.2, zombieHpMult: 1.3, gravityMult: 1.0, hazardType: 'dense_fog',
     width: 4800,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -3542,9 +3554,9 @@ function buildLevels(){
   // LEVEL 4: Extreme Parkour & Horror Jumpscares
   levels.push({
     name:'ეპ.4 — პარკურის მოედანი 💥',
-    diffRating: 'საშუალო', diffStars: '⭐⭐⭐', diffColor: '#f97316',
-    gimmickTitle: '🦘 მძიმე გრავიტაცია', diffDesc: 'აქ ხტომა ცოტა უფრო რთულია. გამოიჩინე პარკურის უნარები!',
-    zombieSpeedMult: 1.1, zombieHpMult: 1.2, gravityMult: 1.15, hazardType: 'heavy_gravity',
+    diffRating: 'რთული', diffStars: '⭐⭐⭐', diffColor: '#f97316',
+    gimmickTitle: '🦘 მძიმე გრავიტაცია', diffDesc: 'აქ ხტომა უფრო რთულია. გამოიჩინე პარკურის უნარები!',
+    zombieSpeedMult: 1.35, zombieHpMult: 1.2, gravityMult: 1.25, hazardType: 'heavy_gravity',
     theme: 'parkour_rooftops',
     width: 5000,
     spawn:{x:60,y:GROUND_Y-60},
@@ -3589,12 +3601,12 @@ function buildLevels(){
     bgHue:'blue'
   });
 
-  // LEVEL 5: Giant Zombies Introduction
+  // LEVEL 5: Ultimate Boss Arena
   levels.push({
     name:'ეპ.5 — გიგანტების ბუდე 🏆',
-    diffRating: 'საშუალო+', diffStars: '⭐⭐⭐', diffColor: '#eab308',
-    gimmickTitle: '👹 გიგანტური ზომბები', diffDesc: 'პირველი შეხვედრა დიდ ზომბებთან. მოემზადე!',
-    zombieSpeedMult: 1.15, zombieHpMult: 1.4, gravityMult: 1.0, hazardType: 'boss_intro',
+    diffRating: 'ძალიან რთული', diffStars: '⭐⭐⭐⭐', diffColor: '#ef4444',
+    gimmickTitle: '👹 ორმაგი ბოსი', diffDesc: 'ორი გიგანტური მტერი ერთად. შეძლებ მათ დამარცხებას?',
+    zombieSpeedMult: 1.4, zombieHpMult: 2.0, gravityMult: 1.0, hazardType: 'boss_duo',
     theme: 'lava_fortress',
     width: 5200,
     spawn:{x:60,y:GROUND_Y-60},
@@ -3603,14 +3615,14 @@ function buildLevels(){
       rect(900, GROUND_Y-50, 220, 24),
       rect(1200, GROUND_Y-130, 220, 24),
       rect(1500, GROUND_Y, 500, 90),
-      rect(2100, GROUND_Y-70, 200, 24, {vx: 2.0, minX:2100, maxX:2450}),
+      rect(2100, GROUND_Y-70, 200, 24, {vx: 2.5, minX:2100, maxX:2450}),
       rect(2700, GROUND_Y, 700, 90),
       rect(3500, GROUND_Y-80, 250, 24),
       rect(3850, GROUND_Y-160, 250, 24),
       rect(4200, GROUND_Y, 950, 90),
     ],
-    firejets: [ {x: 3000, y: GROUND_Y, flameH: 120, period: 2500, offset: 0} ],
-    swingingAxes: [ {cx: 4000, cy: GROUND_Y-250, len: 180, speed: 0.004, range: 1.2} ],
+    firejets: [ {x: 3000, y: GROUND_Y, flameH: 150, period: 2500, offset: 0} ],
+    swingingAxes: [ {cx: 4000, cy: GROUND_Y-250, len: 180, speed: 0.005, range: 1.5} ],
     spikes: [ rect(840,GROUND_Y-24,50,24), rect(1200, GROUND_Y-154, 60, 24), rect(1900,GROUND_Y-24,80,24), rect(3300,GROUND_Y-24,80,24), rect(3850, GROUND_Y-184, 60, 24) ],
     lavas: [ rect(800, GROUND_Y, 100, 90), rect(2000, GROUND_Y, 100, 90), rect(3400, GROUND_Y, 100, 90) ],
     bananas: [ rect(1550,GROUND_Y-14,40,14), rect(2800,GROUND_Y-14,40,14) ],
@@ -3620,10 +3632,10 @@ function buildLevels(){
     ],
     bells: [ rect(1260, GROUND_Y-180,26,30), rect(3920, GROUND_Y-210,26,30) ],
     bushes: [ rect(1700, GROUND_Y-50, 50, 50, {triggered:false}) ],
-    signs: [ {x:400, text:"გიგანტები წინ არიან!"}, {x:2400, text:"მოერიდე ნაჯახებს!"} ],
+    signs: [ {x:400, text:"ბოლო ბრძოლა!"}, {x:2400, text:"ორმაგი საფრთხე!"} ],
     flag: rect(5050, GROUND_Y-140, 30, 140),
     zombies: [ 
-      {x:1800,y:GROUND_Y-54}, 
+      {x:1800,y:GROUND_Y-80, type:'boss'}, 
       {x:4500,y:GROUND_Y-80, type:'boss'} 
     ],
     jumpboxes: [ 
@@ -5147,8 +5159,8 @@ function buildLevels(){
         lvl.checkpoints.push(rect(currX + 80, GROUND_Y - 70, 36, 70, { active: false, label: 'ჩექფოინთი 3 🚩' }));
       }
 
-      // Add Lucky Mystery Box - reduced frequency for early levels
-      if(segmentIndex % (idx < 10 ? 4 : 2) === 0){
+      // Add Lucky Mystery Box to every segment
+      if(segmentIndex % 2 === 0){
         lvl.jumpboxes.push(rect(currX + 220, GROUND_Y - 150, 42, 42, {hit: false, type: 'lucky_mystery'}));
       }
 
@@ -5158,117 +5170,112 @@ function buildLevels(){
         
         // Theme-specific logic
         if(lvl.theme === 'volcanic_inferno' || lvl.theme === 'infernal_volcano'){
-          if(idx > 10) lvl.firejets.push({x: currX + 200, y: GROUND_Y - 12, w: 32, h: 12, period: 2000, offset: 0});
-          if(idx > 20) lvl.firejets.push({x: currX + 450, y: GROUND_Y - 12, w: 32, h: 12, period: 2000, offset: 1000});
+          lvl.firejets.push({x: currX + 200, y: GROUND_Y - 12, w: 32, h: 12, period: 2000, offset: 0});
+          lvl.firejets.push({x: currX + 450, y: GROUND_Y - 12, w: 32, h: 12, period: 2000, offset: 1000});
         } else if(lvl.theme === 'toxic_sewers' || lvl.theme === 'pro_toxic_wasteland'){
-          if(idx > 12) lvl.acidGeysers.push({x: currX + 300, y: GROUND_Y - 12, period: 2200, offset: 0});
-        } else if(lvl.theme && (lvl.theme.includes('cyber') || lvl.theme === 'neon_synthwave')){
+          lvl.acidGeysers.push({x: currX + 300, y: GROUND_Y - 12, period: 2200, offset: 0});
+        } else if(lvl.theme.includes('cyber') || lvl.theme === 'neon_synthwave'){
           lvl.boosters.push(rect(currX + 150, GROUND_Y - 10, 80, 10));
-          if(idx > 8) lvl.boosters.push(rect(currX + 500, GROUND_Y - 10, 80, 10));
+          lvl.boosters.push(rect(currX + 500, GROUND_Y - 10, 80, 10));
         }
 
-        if(idx > 5) lvl.spikes.push(rect(currX + 150, GROUND_Y - 24, 70, 24));
-        if(idx > 10) lvl.trampolines.push(rect(currX + 100, GROUND_Y - 18, 52, 18));
-        if(idx > 15) lvl.boosters.push(rect(currX + 280, GROUND_Y - 10, 80, 10));
-        if(idx > 12) lvl.fakespikes.push(rect(currX + 450, GROUND_Y - 24, 80, 24));
+        lvl.spikes.push(rect(currX + 150, GROUND_Y - 24, 70, 24));
+        lvl.trampolines.push(rect(currX + 100, GROUND_Y - 18, 52, 18));
+        lvl.boosters.push(rect(currX + 280, GROUND_Y - 10, 80, 10));
+        lvl.fakespikes.push(rect(currX + 450, GROUND_Y - 24, 80, 24));
         lvl.bananas.push(rect(currX + 280, GROUND_Y - 14, 40, 14));
-        if(idx > 14) lvl.bushes.push(rect(currX + 550, GROUND_Y - 50, 50, 50, {triggered: false}));
-        if(idx > 8) lvl.pushboxes.push(rect(currX + 180, GROUND_Y - 44, 44, 44, {origX: currX + 180, origY: GROUND_Y - 44, vx: 0, vy: 0}));
+        lvl.bushes.push(rect(currX + 550, GROUND_Y - 50, 50, 50, {triggered: false}));
+        lvl.pushboxes.push(rect(currX + 180, GROUND_Y - 44, 44, 44, {origX: currX + 180, origY: GROUND_Y - 44, vx: 0, vy: 0}));
         lvl.clouds.push(rect(currX + 320, GROUND_Y - 220, 120, 26, {origY: GROUND_Y - 220, bobSpeed: 0.003, bobAmp: 6}));
-        if(idx > 16) lvl.traps.push(rect(currX + 480, GROUND_Y - 80, 26, 26, {taken: false, type: 'poison_skull'}));
+        lvl.traps.push(rect(currX + 480, GROUND_Y - 80, 26, 26, {taken: false, type: 'poison_skull'}));
         if(idx >= 24){
           lvl.lasers.push({x: currX + 250, y: GROUND_Y - 100, w: 180, h: 40, period: 1800, offset: 0, color: '#00f0ff'});
           lvl.crumblingPlats.push(rect(currX + 480, GROUND_Y - 120, 120, 24));
         }
-        lvl.zombies.push({x: currX + 350, y: GROUND_Y - 54, type: (idx > 20) ? 0.1 : 0});
+        lvl.zombies.push({x: currX + 350, y: GROUND_Y - 54, type: 0.1});
         lvl.energyCrystals.push(rect(currX + 330, GROUND_Y - 260, 24, 28));
+
 
         currX += platW;
       } else if(segType === 1){
         const pitW = 280 + Math.random() * 120;
         lvl.lavas.push(rect(currX, GROUND_Y, pitW, 90));
-        if(idx > 8){
-          lvl.plats.push(rect(currX + 20, GROUND_Y - 60, 180, 24, {vx: 2.5 + (idx*0.05), minX: currX, maxX: currX + pitW - 20}));
-        } else {
-          lvl.plats.push(rect(currX + 20, GROUND_Y - 60, 180, 24));
-        }
+        lvl.plats.push(rect(currX + 20, GROUND_Y - 60, 180, 24, {vx: 2.5 + (idx*0.1), minX: currX, maxX: currX + pitW - 20}));
         
-        if(idx > 10) lvl.popspikes.push(rect(currX + 60, GROUND_Y - 24, 70, 24, {period: 2000, offset: 0}));
-        if(idx > 12) lvl.spinners.push({cx: currX + pitW/2, cy: GROUND_Y - 150, r: 38, angle: 0, speed: 0.04});
+        lvl.popspikes.push(rect(currX + 60, GROUND_Y - 24, 70, 24, {period: 2000, offset: 0}));
+        lvl.spinners.push({cx: currX + pitW/2, cy: GROUND_Y - 150, r: 38, angle: 0, speed: 0.04});
         if(idx >= 24){
           lvl.crushers.push({x: currX + 30, topY: GROUND_Y - 200, w: 120, h: 44, dropSpeed: 9, riseSpeed: 2.5, maxDrop: 140});
           lvl.firejets.push({x: currX + pitW - 50, y: GROUND_Y - 12, w: 32, h: 12, period: 2200, offset: 0});
         }
-        lvl.jumpboxes.push(rect(currX + pitW/2, GROUND_Y - 180, 42, 42, {hit: false, type: (idx < 10 ? 'coin' : (segmentIndex%2===0)?'shotgun':'flamethrower')}));
-        if(idx > 14) lvl.electroOrbs.push(rect(currX + pitW/2, GROUND_Y - 230, 26, 26));
+        lvl.jumpboxes.push(rect(currX + pitW/2, GROUND_Y - 180, 42, 42, {hit: false, type: (segmentIndex%2===0)?'shotgun':'flamethrower'}));
+        lvl.electroOrbs.push(rect(currX + pitW/2, GROUND_Y - 230, 26, 26));
         currX += pitW + 40;
       } else if(segType === 2){
         const platW = 550;
         lvl.plats.push(rect(currX, GROUND_Y, platW, 90));
         lvl.plats.push(rect(currX + 100, GROUND_Y - 80, 160, 24));
-        if(idx > 6) lvl.plats.push(rect(currX + 300, GROUND_Y - 160, 160, 24));
-        if(idx > 12) lvl.spikes.push(rect(currX + 100, GROUND_Y - 104, 50, 24));
-        if(idx > 18) lvl.gravityRunes.push(rect(currX + 320, GROUND_Y - 210, 32, 32));
-        if(idx > 10) lvl.pushboxes.push(rect(currX + 50, GROUND_Y - 44, 44, 44, {origX: currX + 50, origY: GROUND_Y - 44, vx: 0, vy: 0}));
+        lvl.plats.push(rect(currX + 300, GROUND_Y - 160, 160, 24));
+        lvl.spikes.push(rect(currX + 100, GROUND_Y - 104, 50, 24));
+        lvl.gravityRunes.push(rect(currX + 320, GROUND_Y - 210, 32, 32));
+        lvl.pushboxes.push(rect(currX + 50, GROUND_Y - 44, 44, 44, {origX: currX + 50, origY: GROUND_Y - 44, vx: 0, vy: 0}));
         lvl.clouds.push(rect(currX + 220, GROUND_Y - 250, 110, 26, {origY: GROUND_Y - 250, bobSpeed: 0.003, bobAmp: 8}));
-        if(idx > 14) lvl.popspikes.push(rect(currX + 380, GROUND_Y - 24, 80, 24, {period: 1800, offset: 900}));
+        lvl.popspikes.push(rect(currX + 380, GROUND_Y - 24, 80, 24, {period: 1800, offset: 900}));
         if(idx >= 24){
           lvl.acidGeysers.push({x: currX + 200, y: GROUND_Y - 12, period: 2000, offset: 500});
         }
         lvl.bells.push(rect(currX + 350, GROUND_Y - 200, 26, 30));
-        if(idx > 22) lvl.goldTrophies.push(rect(currX + 310, GROUND_Y - 200, 28, 32));
-        lvl.zombies.push({x: currX + 200, y: GROUND_Y - 54, type: (idx > 15 && segmentIndex % 3 === 0) ? 'boss' : 0});
+        lvl.goldTrophies.push(rect(currX + 310, GROUND_Y - 200, 28, 32));
+        lvl.zombies.push({x: currX + 200, y: GROUND_Y - 54, type: (idx > 3 && segmentIndex % 3 === 0) ? 'boss' : 0.1});
         
+
         currX += platW;
       } else if(segType === 3){
         const gapW = 240 + Math.random() * 100;
         lvl.waters.push(rect(currX, GROUND_Y, gapW, 90));
-        if(idx > 10){
-          lvl.plats.push(rect(currX + 30, GROUND_Y - 90, 180, 24, {vy: 2.2, minY: GROUND_Y - 220, maxY: GROUND_Y - 40}));
-        } else {
-          lvl.plats.push(rect(currX + 30, GROUND_Y - 90, 180, 24));
-        }
+        lvl.plats.push(rect(currX + 30, GROUND_Y - 90, 180, 24, {vy: 2.2, minY: GROUND_Y - 220, maxY: GROUND_Y - 40}));
         lvl.clouds.push(rect(currX + 40, GROUND_Y - 200, 110, 26, {origY: GROUND_Y - 200, bobSpeed: 0.003, bobAmp: 6}));
-        if(idx > 16) lvl.boulders.push({ x: currX + gapW + 300, y: GROUND_Y - 24, r: 24, vx: -3.8, angle: 0 });
-        if(idx > 20) lvl.traps.push(rect(currX + gapW/2, GROUND_Y - 190, 26, 26, {taken: false, type: 'poison_skull'}));
+        lvl.boulders.push({ x: currX + gapW + 300, y: GROUND_Y - 24, r: 24, vx: -3.8, angle: 0 });
+        lvl.traps.push(rect(currX + gapW/2, GROUND_Y - 190, 26, 26, {taken: false, type: 'poison_skull'}));
         if(idx >= 24){
           lvl.lasers.push({x: currX + 20, y: GROUND_Y - 160, w: gapW - 40, h: 40, period: 2000, offset: 1000, color: '#ff0055'});
         }
-        lvl.jumpboxes.push(rect(currX + gapW/2, GROUND_Y - 140, 42, 42, {hit: false, type: (idx < 10 ? 'bell' : 'prank_zombie')}));
+        lvl.jumpboxes.push(rect(currX + gapW/2, GROUND_Y - 140, 42, 42, {hit: false, type: 'prank_zombie'}));
         lvl.energyCrystals.push(rect(currX + gapW/2 - 30, GROUND_Y - 220, 24, 28));
+
 
         currX += gapW + 30;
       } else if(segType === 4){
         const platW = 600;
         lvl.plats.push(rect(currX, GROUND_Y, platW, 90));
-        if(idx > 12) lvl.spikes.push(rect(currX + 80, GROUND_Y - 24, 90, 24));
-        if(idx > 8) lvl.trampolines.push(rect(currX + 350, GROUND_Y - 18, 52, 18));
-        if(idx > 14) lvl.fakespikes.push(rect(currX + 320, GROUND_Y - 24, 100, 24));
+        lvl.spikes.push(rect(currX + 80, GROUND_Y - 24, 90, 24));
+        lvl.trampolines.push(rect(currX + 350, GROUND_Y - 18, 52, 18));
+        lvl.fakespikes.push(rect(currX + 320, GROUND_Y - 24, 100, 24));
         lvl.bananas.push(rect(currX + 220, GROUND_Y - 14, 40, 14));
-        if(idx > 11) lvl.pushboxes.push(rect(currX + 140, GROUND_Y - 44, 44, 44, {origX: currX + 140, origY: GROUND_Y - 44, vx: 0, vy: 0}));
-        if(idx > 16) lvl.spinners.push({cx: currX + 380, cy: GROUND_Y - 140, r: 40, angle: 0, speed: 0.05});
+        lvl.pushboxes.push(rect(currX + 140, GROUND_Y - 44, 44, 44, {origX: currX + 140, origY: GROUND_Y - 44, vx: 0, vy: 0}));
+        lvl.spinners.push({cx: currX + 380, cy: GROUND_Y - 140, r: 40, angle: 0, speed: 0.05});
         if(idx >= 24){
           lvl.firejets.push({x: currX + 260, y: GROUND_Y - 12, w: 32, h: 12, period: 2000, offset: 0});
           lvl.crumblingPlats.push(rect(currX + 440, GROUND_Y - 100, 130, 24));
         }
-        if(idx > 22) lvl.traps.push(rect(currX + 280, GROUND_Y - 80, 26, 26, {taken: false, type: 'poison_skull'}));
-        lvl.jumpboxes.push(rect(currX + 250, GROUND_Y - 120, 42, 42, {hit: false, type: (idx < 12 ? 'heart' : 'prank_jumpscare_giant')}));
-        if(idx > 15) lvl.electroOrbs.push(rect(currX + 220, GROUND_Y - 180, 26, 26));
-        if(idx > 20) lvl.zombies.push({x: currX + 450, y: GROUND_Y - 80, type: 'boss'});
-        else lvl.zombies.push({x: currX + 450, y: GROUND_Y - 54});
+        lvl.traps.push(rect(currX + 280, GROUND_Y - 80, 26, 26, {taken: false, type: 'poison_skull'}));
+        lvl.jumpboxes.push(rect(currX + 250, GROUND_Y - 120, 42, 42, {hit: false, type: 'prank_jumpscare_giant'}));
+        lvl.electroOrbs.push(rect(currX + 220, GROUND_Y - 180, 26, 26));
+        lvl.zombies.push({x: currX + 450, y: GROUND_Y - 80, type: 'boss'});
+
 
         currX += platW;
       } else {
         const pitW = 220;
         lvl.lavas.push(rect(currX, GROUND_Y, pitW, 90));
         lvl.clouds.push(rect(currX + 100, GROUND_Y - 230, 120, 26, {origY: GROUND_Y - 230, bobSpeed: 0.004, bobAmp: 8}));
-        lvl.jumpboxes.push(rect(currX - 100, GROUND_Y - 110, 42, 42, {hit: false, type: (idx < 5 ? 'heart' : 'fastener')}));
+        lvl.jumpboxes.push(rect(currX - 100, GROUND_Y - 110, 42, 42, {hit: false, type: 'fastener'}));
         const landW = 500;
         lvl.plats.push(rect(currX + pitW, GROUND_Y, landW, 90));
-        if(idx > 10) lvl.popspikes.push(rect(currX + pitW + 80, GROUND_Y - 24, 80, 24, {period: 2000, offset: 0}));
+        lvl.popspikes.push(rect(currX + pitW + 80, GROUND_Y - 24, 80, 24, {period: 2000, offset: 0}));
         lvl.goldTrophies.push(rect(currX + pitW + 200, GROUND_Y - 120, 28, 32));
-        lvl.zombies.push({x: currX + pitW + 150, y: GROUND_Y - 54, type: (idx > 22 ? 0.1 : 0)});
-        if(idx > 14) lvl.zombies.push({x: currX + pitW + 350, y: GROUND_Y - 54});
+        lvl.zombies.push({x: currX + pitW + 150, y: GROUND_Y - 54, type: 0.1});
+        lvl.zombies.push({x: currX + pitW + 350, y: GROUND_Y - 54});
         currX += pitW + landW;
       }
     }
