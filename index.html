@@ -873,12 +873,12 @@ const state = {
 };
 
 const DAILY_QUESTS_LIST = [
-  { id: 'coins_25', title: '🪙 მონეტების შემგროვებელი', desc: 'შეაგროვე 25 მონეტა', target: 25, reward: 150, type: 'coins' },
-  { id: 'zombies_15', title: '🧟 ზომბების მონადირე', desc: 'დაამარცხე 15 ზომბი', target: 15, reward: 200, type: 'zombies' },
-  { id: 'crystals_3', title: '💎 ენერგო კრისტალი', desc: 'შეაგროვე 3 ლურჯი კრისტალი', target: 3, reward: 250, type: 'crystals' },
-  { id: 'checkpoints_2', title: '🚩 ჩექფოინთისოსტატი', desc: 'გააქტიურე 2 ჩექფოინთი', target: 2, reward: 180, type: 'checkpoints' },
-  { id: 'trophies_2', title: '🏆 ოქროს თასები', desc: 'იპოვე 2 ოქროს თასი', target: 2, reward: 300, type: 'trophies' },
-  { id: 'level_win_1', title: '🚀 ლეველის დაპყრობა', desc: 'გაიარე ნებისმიერი ლეველი', target: 1, reward: 250, type: 'level_win' }
+  { id: 'coins_25', title: '🪙 მონეტებზე ნადირობა', desc: 'შეაგროვე 25 მონეტა', target: 25, reward: 150, type: 'coins' },
+  { id: 'zombies_15', title: '🧟 ზომბების რისხვა', desc: 'მოკალი 15 ზომბი', target: 15, reward: 200, type: 'zombies' },
+  { id: 'crystals_3', title: '💎 კრისტალების ძიება', desc: 'იპოვე 3 ენერგო კრისტალი', target: 3, reward: 250, type: 'crystals' },
+  { id: 'checkpoints_2', title: '🚩 ჩექფოინთების ოსტატი', desc: 'მონიშნე 2 ჩექფოინთი', target: 2, reward: 180, type: 'checkpoints' },
+  { id: 'trophies_2', title: '🏆 ოქროს კოლექციონერი', desc: 'მოიპოვე 2 ოქროს თასი', target: 2, reward: 300, type: 'trophies' },
+  { id: 'level_win_1', title: '🚀 გამარჯვება', desc: 'გაიარე ნებისმიერი დონე', target: 1, reward: 250, type: 'level_win' }
 ];
 
 function getTodayDateString(){
@@ -3418,9 +3418,9 @@ function buildLevels(){
 
   // LEVEL 1: Tutorial & Jumpboxes
   levels.push({
-    name:'ეპ.1 — აბსოლუტურად არანაირი სიცრუე',
-    diffRating: 'EASY', diffStars: '⭐', diffColor: '#22c55e',
-    gimmickTitle: '🔰 სწავლების რეჟიმი', diffDesc: 'იოლი საწყისი დონე: ზოზინა ზომბები (0.8x) და [?] ყუთები.',
+    name:'ეპ.1 — საწყისი ქუჩა',
+    diffRating: 'მარტივი', diffStars: '⭐', diffColor: '#22c55e',
+    gimmickTitle: '🔰 სწავლება', diffDesc: 'პირველი ნაბიჯები: გაეცანი სამყაროს და მოერიდე ზომბებს.',
     zombieSpeedMult: 0.8, zombieHpMult: 1.0, gravityMult: 1.0, hazardType: 'none',
     width: 4400,
     spawn:{x:60,y:GROUND_Y-60},
@@ -3433,6 +3433,7 @@ function buildLevels(){
       rect(3320, GROUND_Y-140, 260, 24),
       rect(3680, GROUND_Y, 700, 90),
     ],
+    conveyors: [ rect(1000, GROUND_Y, 500, 10, {speed: 1.5}) ],
     fakespikes: [ rect(430,GROUND_Y-24,90,24) ],
     spikes: [ rect(400, GROUND_Y-24, 50, 24), rect(920,GROUND_Y-24,80,24), rect(1990, GROUND_Y-104, 50, 24), rect(2870,GROUND_Y-24,70,24) ],
     waters: [ rect(900, GROUND_Y, 100, 90), rect(1500, GROUND_Y, 120, 90) ],
@@ -3445,7 +3446,7 @@ function buildLevels(){
     bushes: [ rect(1750, GROUND_Y-50, 50,50, {triggered:false}) ],
     signs: [ 
       {x:380, text:"უსაფრთხო გზა >"}, 
-      {x:1180,text:"დაარტყი [?] ყუთებს ქვემოდან!"}, 
+      {x:1180,text:"კონვეიერი გიბიძგებს წინ!"}, 
       {x:2800,text:"codezero.ge-საუკეთესო წიგნები"} 
     ],
     flag: rect(4260, GROUND_Y-140, 30,140),
@@ -3459,12 +3460,13 @@ function buildLevels(){
     bgHue:'blue'
   });
 
-  // LEVEL 2: Moving Platforms & Horde
+  // LEVEL 2: Cyber Alley & Moving Platforms
   levels.push({
-    name:'ეპ.2 — ალგორითმის შურისძიება',
-    diffRating: 'MEDIUM', diffStars: '⭐⭐', diffColor: '#38c6ff',
-    gimmickTitle: '🌧️ მოძრავი პლატფორმები', diffDesc: 'საშუალო სირთულე: ჰორიზონტალურად და ვერტიკალურად მოძრავი პლატფორმები.',
+    name:'ეპ.2 — კიბერ უბანი',
+    diffRating: 'საშუალო', diffStars: '⭐⭐', diffColor: '#38c6ff',
+    gimmickTitle: '⛓️ მბრუნავი ნაჯახები', diffDesc: 'მოერიდე მბრუნავ ნაჯახებს და მოძრავ პლატფორმებს!',
     zombieSpeedMult: 1.1, zombieHpMult: 1.1, gravityMult: 1.0, hazardType: 'moving_platforms',
+    theme: 'cyberpunk_alley',
     width: 4600,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -3478,6 +3480,7 @@ function buildLevels(){
       rect(3300, GROUND_Y-140, 200, 24),
       rect(3620, GROUND_Y, 900, 90),
     ],
+    swingingAxes: [ {cx: 2300, cy: GROUND_Y-220, len: 140, speed: 0.003, range: 1.0} ],
     fakespikes: [ rect(2200,GROUND_Y-24,90,24), rect(3900,GROUND_Y-24,90,24) ],
     spikes: [ rect(540,GROUND_Y-24,70,24), rect(1550, GROUND_Y-94, 60, 24), rect(2500,GROUND_Y-24,80,24), rect(3300, GROUND_Y-164, 60, 24), rect(4200,GROUND_Y-24,80,24) ],
     waters: [ rect(500, GROUND_Y, 120, 90), rect(800, GROUND_Y, 300, 90) ],
@@ -3502,9 +3505,9 @@ function buildLevels(){
 
   // LEVEL 3: CodeZero Horror Library
   levels.push({
-    name:'ეპ.3 — CODEZERO-ს ელექტრონული წიგნების ჯოჯოხეთი 📚💀',
-    diffRating: 'MEDIUM-HARD', diffStars: '⭐⭐⭐', diffColor: '#eab308',
-    gimmickTitle: '🌫️ ჰორორ ნისლი', diffDesc: 'სქელი ნისლი ზღუდავს ხედვის არეს. ზომბებს აქვთ 1.3x მეტი სიცოცხლე.',
+    name:'ეპ.3 — დაწყევლილი ბიბლიოთეკა 📚💀',
+    diffRating: 'საშუალო+', diffStars: '⭐⭐⭐', diffColor: '#eab308',
+    gimmickTitle: '🌫️ ბნელი ნისლი', diffDesc: 'ნისლი ხილვადობას ზღუდავს. იყავი ფხიზლად!',
     zombieSpeedMult: 1.2, zombieHpMult: 1.3, gravityMult: 1.0, hazardType: 'dense_fog',
     width: 4800,
     spawn:{x:60,y:GROUND_Y-60},
@@ -3551,10 +3554,11 @@ function buildLevels(){
 
   // LEVEL 4: Extreme Parkour & Horror Jumpscares
   levels.push({
-    name:'ეპ.4 — გაპარკურებული ზომბოკალიფსი 💥',
-    diffRating: 'HARD', diffStars: '⭐⭐⭐', diffColor: '#f97316',
-    gimmickTitle: '🦘 მძიმე გრავიტაცია & ექსტრემალური პარკური', diffDesc: 'მძიმე გრავიტაცია (1.25x) მოითხოვს ზუსტ ხტომებს. სწრაფი ზომბები (1.35x).',
+    name:'ეპ.4 — პარკურის მოედანი 💥',
+    diffRating: 'რთული', diffStars: '⭐⭐⭐', diffColor: '#f97316',
+    gimmickTitle: '🦘 მძიმე გრავიტაცია', diffDesc: 'აქ ხტომა უფრო რთულია. გამოიჩინე პარკურის უნარები!',
     zombieSpeedMult: 1.35, zombieHpMult: 1.2, gravityMult: 1.25, hazardType: 'heavy_gravity',
+    theme: 'parkour_rooftops',
     width: 5000,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -3570,7 +3574,8 @@ function buildLevels(){
       rect(3700, GROUND_Y-170, 220, 24),
       rect(4050, GROUND_Y, 900, 90),
     ],
-    fakespikes: [ rect(1550,GROUND_Y-24,90,24), rect(2800,GROUND_Y-24,90,24) ],
+    conveyors: [ rect(2650, GROUND_Y, 600, 10, {speed: -1.8}) ],
+    swingingAxes: [ {cx: 1600, cy: GROUND_Y-200, len: 120, speed: 0.004, range: 1.2} ],
     spikes: [ rect(640,GROUND_Y-24,50,24), rect(950, GROUND_Y-164, 60, 24), rect(1800,GROUND_Y-24,80,24), rect(2350, GROUND_Y-184, 60, 24), rect(3150,GROUND_Y-24,90,24) ],
     lavas: [ rect(600, GROUND_Y, 100, 90), rect(860, GROUND_Y, 90, 90), rect(1110, GROUND_Y, 90, 90), rect(1950, GROUND_Y, 100, 90), rect(3250, GROUND_Y, 100, 90) ],
     bananas: [ rect(1480,GROUND_Y-14,40,14), rect(4100,GROUND_Y-14,40,14) ],
@@ -3580,7 +3585,7 @@ function buildLevels(){
     ],
     bells: [ rect(1000, GROUND_Y-190,26,30), rect(2400, GROUND_Y-210,26,30), rect(3750, GROUND_Y-220,26,30) ],
     bushes: [ rect(1700, GROUND_Y-50,50,50,{triggered:false}), rect(2900, GROUND_Y-50,50,50,{triggered:false}) ],
-    signs: [ {x:800,text:"არ ჩავარდე!"}, {x:2700,text:"ადიოს მუჩაჩოოოსსს!"} ],
+    signs: [ {x:800,text:"არ ჩავარდე!"}, {x:2700,text:"უკან გიბიძგებს!"} ],
     flag: rect(4850, GROUND_Y-140,30,140),
     zombies: [ 
       {x:1600,y:GROUND_Y-54}, 
@@ -3599,10 +3604,11 @@ function buildLevels(){
 
   // LEVEL 5: Ultimate Boss Arena
   levels.push({
-    name:'ეპ.5 — ხულიგანის აპოთეოზი - ფინალური ბრძოლა 🏆',
-    diffRating: 'VERY HARD', diffStars: '⭐⭐⭐⭐', diffColor: '#ef4444',
-    gimmickTitle: '👹 ორმაგი გიგანტი ბოსების არენა', diffDesc: '2 გიგანტური ბოსი ზომბი 2.0x HP-ით და დარტყმითი ტალღებით.',
+    name:'ეპ.5 — გიგანტების ბუდე 🏆',
+    diffRating: 'ძალიან რთული', diffStars: '⭐⭐⭐⭐', diffColor: '#ef4444',
+    gimmickTitle: '👹 ორმაგი ბოსი', diffDesc: 'ორი გიგანტური მტერი ერთად. შეძლებ მათ დამარცხებას?',
     zombieSpeedMult: 1.4, zombieHpMult: 2.0, gravityMult: 1.0, hazardType: 'boss_duo',
+    theme: 'lava_fortress',
     width: 5200,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -3616,7 +3622,8 @@ function buildLevels(){
       rect(3850, GROUND_Y-160, 250, 24),
       rect(4200, GROUND_Y, 950, 90),
     ],
-    fakespikes: [ rect(1600,GROUND_Y-24,90,24), rect(2900,GROUND_Y-24,90,24) ],
+    firejets: [ {x: 3000, y: GROUND_Y, flameH: 150, period: 2500, offset: 0} ],
+    swingingAxes: [ {cx: 4000, cy: GROUND_Y-250, len: 180, speed: 0.005, range: 1.5} ],
     spikes: [ rect(840,GROUND_Y-24,50,24), rect(1200, GROUND_Y-154, 60, 24), rect(1900,GROUND_Y-24,80,24), rect(3300,GROUND_Y-24,80,24), rect(3850, GROUND_Y-184, 60, 24) ],
     lavas: [ rect(800, GROUND_Y, 100, 90), rect(2000, GROUND_Y, 100, 90), rect(3400, GROUND_Y, 100, 90) ],
     bananas: [ rect(1550,GROUND_Y-14,40,14), rect(2800,GROUND_Y-14,40,14) ],
@@ -3625,34 +3632,28 @@ function buildLevels(){
       ...Array.from({length:8}, (_,i)=>rect(2730+i*55, GROUND_Y-120,22,22))
     ],
     bells: [ rect(1260, GROUND_Y-180,26,30), rect(3920, GROUND_Y-210,26,30) ],
-    bushes: [ rect(1750, GROUND_Y-50,50,50,{triggered:false}), rect(3100, GROUND_Y-50,50,50,{triggered:false}) ],
-    signs: [ 
-      {x:400,text:"CODEZERO.GE - ფინალური გამოცდა!"}, 
-      {x:2750,text:"საბოლოო გამარჯვება ახლოსაა!"} 
-    ],
-    flag: rect(5050, GROUND_Y-140,30,140),
+    bushes: [ rect(1700, GROUND_Y-50, 50, 50, {triggered:false}) ],
+    signs: [ {x:400, text:"ბოლო ბრძოლა!"}, {x:2400, text:"ორმაგი საფრთხე!"} ],
+    flag: rect(5050, GROUND_Y-140, 30, 140),
     zombies: [ 
-      {x:1600,y:GROUND_Y-54}, 
-      {x:2800,y:GROUND_Y-80, type:'boss'}, 
-      {x:3000,y:GROUND_Y-54},
-      {x:4400,y:GROUND_Y-80, type:'boss'},
-      {x:4600,y:GROUND_Y-54} 
+      {x:1800,y:GROUND_Y-80, type:'boss'}, 
+      {x:4500,y:GROUND_Y-80, type:'boss'} 
     ],
     jumpboxes: [ 
-      rect(1000, GROUND_Y-100, 42, 42, {hit:false, type:'triple'}),
-      rect(1650, GROUND_Y-110, 42, 42, {hit:false, type:'fastener'}),
-      rect(2850, GROUND_Y-110, 42, 42, {hit:false, type:'heart'}),
-      rect(3950, GROUND_Y-210, 42, 42, {hit:false, type:'sponsor'})
+      rect(1300, GROUND_Y-180, 42, 42, {hit:false, type:'heart'}),
+      rect(2800, GROUND_Y-180, 42, 42, {hit:false, type:'sponsor'}),
+      rect(4000, GROUND_Y-220, 42, 42, {hit:false, type:'triple'})
     ],
     bgHue:'pink'
   });
 
-  // LEVEL 6: Fastener & Laser Guillotine
+  // LEVEL 6: Industrial Corridor & Conveyors
   levels.push({
-    name:'ეპ.6 — FASTENER და ლაზერული გილიოტინა ⚡',
-    diffRating: 'HARD', diffStars: '⭐⭐⭐⭐', diffColor: '#f97316',
-    gimmickTitle: '⚡ ლაზერული გილიოტინების ხაფანგი', diffDesc: 'პერიოდული ლაზერული გილიოტინები ჭრიან გზას! გამოიყენე Fastener!',
+    name:'ეპ.6 — ინდუსტრიული დერეფანი',
+    diffRating: 'რთული', diffStars: '⭐⭐⭐⭐', diffColor: '#f97316',
+    gimmickTitle: '⚙️ კონვეიერების სისტემა', diffDesc: 'გამოიყენე კონვეიერები სწრაფი გადაადგილებისთვის!',
     zombieSpeedMult: 1.3, zombieHpMult: 1.3, gravityMult: 1.0, hazardType: 'laser_guillotine',
+    theme: 'industrial',
     width: 5300,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -3666,7 +3667,10 @@ function buildLevels(){
       rect(3700, GROUND_Y-180, 220, 24),
       rect(4000, GROUND_Y, 1200, 90),
     ],
-    fakespikes: [ rect(1500,GROUND_Y-24,100,24), rect(2800,GROUND_Y-24,100,24) ],
+    conveyors: [ 
+      rect(2600, GROUND_Y, 700, 10, {speed: 2.5}),
+      rect(4000, GROUND_Y, 600, 10, {speed: -2.0})
+    ],
     spikes: [ rect(740,GROUND_Y-24,60,24), rect(1100, GROUND_Y-164, 60, 24), rect(2400,GROUND_Y-24,100,24), rect(3700, GROUND_Y-204, 60, 24), rect(3800,GROUND_Y-24,80,24) ],
     lavas: [ rect(700, GROUND_Y, 100, 90), rect(1800, GROUND_Y, 100, 90), rect(3620, GROUND_Y, 80, 90) ],
     bananas: [ rect(1440,GROUND_Y-14,40,14), rect(2650,GROUND_Y-14,40,14) ],
@@ -3677,15 +3681,15 @@ function buildLevels(){
     bells: [ rect(1160, GROUND_Y-190,26,30), rect(3750, GROUND_Y-230,26,30) ],
     bushes: [ rect(1650, GROUND_Y-50,50,50,{triggered:false}), rect(2950, GROUND_Y-50,50,50,{triggered:false}) ],
     signs: [ 
-      {x:400,text:"FASTENER-ით გადააფრინდი უფსკრულს! ⚡"}, 
+      {x:400,text:"კონვეიერი გეხმარება! ⚡"}, 
       {x:2700,text:"შოტგანით გაანადგურე ზომბები!"} 
     ],
     flag: rect(5100, GROUND_Y-140,30,140),
     zombies: [ 
-      {x:1500,y:GROUND_Y-54, type:0.1}, 
-      {x:2700,y:GROUND_Y-54, type:0.1}, 
+      {x:1500,y:GROUND_Y-54}, 
+      {x:2700,y:GROUND_Y-54}, 
       {x:4200,y:GROUND_Y-54, type:'boss'},
-      {x:4500,y:GROUND_Y-54, type:0.1}
+      {x:4500,y:GROUND_Y-54}
     ],
     jumpboxes: [ 
       rect(500, GROUND_Y-120, 42, 42, {hit:false, type:'fastener'}),
@@ -3747,12 +3751,13 @@ function buildLevels(){
     bgHue:'pink'
   });
 
-  // LEVEL 8: Gravity Chaos & Reverse Controls
+  // LEVEL 8: Gravity Chaos & Cosmic Theme
   levels.push({
-    name:'ეპ.8 — CODEZERO-ს გრავიტაციული ქაოსი 🌀',
-    diffRating: 'MEDIUM', diffStars: '⭐⭐⭐', diffColor: '#38c6ff',
-    gimmickTitle: '🌀 დაბალი კოსმიური გრავიტაცია', diffDesc: 'დაბალი გრავიტაცია (0.55x) — გიგანტური ფრენის ხტომები უფსკრულებზე!',
+    name:'ეპ.8 — კოსმოსური სადგური',
+    diffRating: 'საშუალო', diffStars: '⭐⭐⭐', diffColor: '#38c6ff',
+    gimmickTitle: '🔥 კოსმოსური ცეცხლი', diffDesc: 'მოერიდე ცეცხლოვან ნაკადებს დაბალ გრავიტაციაში.',
     zombieSpeedMult: 1.2, zombieHpMult: 1.2, gravityMult: 0.55, hazardType: 'low_gravity',
+    theme: 'cosmic',
     width: 5500,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -3766,7 +3771,8 @@ function buildLevels(){
       rect(3980, GROUND_Y-170, 230, 24),
       rect(4300, GROUND_Y, 1100, 90),
     ],
-    fakespikes: [ rect(1500,GROUND_Y-24,100,24), rect(2900,GROUND_Y-24,100,24) ],
+    firejets: [ {x: 1500, y: GROUND_Y, flameH: 120, period: 2000, offset: 500} ],
+    conveyors: [ rect(4300, GROUND_Y, 1100, 10, {speed: 3.0}) ],
     spikes: [ rect(790,GROUND_Y-24,60,24), rect(1150, GROUND_Y-174, 60, 24), rect(2000,GROUND_Y-24,90,24), rect(3500,GROUND_Y-24,100,24), rect(3980, GROUND_Y-194, 60, 24) ],
     lavas: [ rect(750, GROUND_Y, 100, 90), rect(2000, GROUND_Y, 100, 90), rect(3580, GROUND_Y, 70, 90) ],
     bananas: [ rect(1480,GROUND_Y-14,40,14), rect(2850,GROUND_Y-14,40,14) ],
@@ -3777,8 +3783,8 @@ function buildLevels(){
     bells: [ rect(1200, GROUND_Y-200,26,30), rect(4030, GROUND_Y-220,26,30) ],
     bushes: [ rect(1700, GROUND_Y-50,50,50,{triggered:false}), rect(3100, GROUND_Y-50,50,50,{triggered:false}) ],
     signs: [ 
-      {x:400,text:"ფრთხილად! მახეები ირგვლივ!"}, 
-      {x:2850,text:"codezero.ge - ისწავლე Python & C++"} 
+      {x:400,text:"კოსმოსური კონვეიერი!"}, 
+      {x:2850,text:"დაბალი გრავიტაცია!"} 
     ],
     flag: rect(5300, GROUND_Y-140,30,140),
     zombies: [ 
@@ -3798,10 +3804,11 @@ function buildLevels(){
 
   // LEVEL 9: Hooligan Labyrinth & Boss Horde
   levels.push({
-    name:'ეპ.9 — ხულიგანური ლაბირინთი & ბოსების არმია 💀',
-    diffRating: 'VERY HARD', diffStars: '⭐⭐⭐⭐', diffColor: '#ef4444',
-    gimmickTitle: '🔮 ბოსების ურდო & პორტალები', diffDesc: '3 გიგანტური ბოსი და იისფერი პორტალები, რომლებიც მუდმივად აჩენენ ზომბებს!',
+    name:'ეპ.9 — ბოსების არენა',
+    diffRating: 'ძალიან რთული', diffStars: '⭐⭐⭐⭐', diffColor: '#ef4444',
+    gimmickTitle: '🔮 პორტალების საფრთხე', diffDesc: 'ძლიერი მტრები ყველგან არიან. მოემზადე ბრძოლისთვის!',
     zombieSpeedMult: 1.45, zombieHpMult: 2.2, gravityMult: 1.0, hazardType: 'portal_spawners',
+    theme: 'industrial',
     width: 5600,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -3900,10 +3907,11 @@ function buildLevels(){
 
   // LEVEL 11: Screaming Bananas & Flamethrower Inferno
   levels.push({
-    name:'ეპ.11 — ყვირილის ბანანები და ცეცხლის მფრქვეველი 🍌🔥',
-    diffRating: 'HARD', diffStars: '⭐⭐⭐⭐', diffColor: '#f97316',
-    gimmickTitle: '🌋 ცეცხლოვანი ლავის გეიზერები', diffDesc: 'უფსკრულებიდან ამოტყორცნილი ლავის შადრევნები! გამოიყენე Flamethrower!',
+    name:'ეპ.11 — ვულკანის პირი',
+    diffRating: 'რთული', diffStars: '⭐⭐⭐⭐', diffColor: '#f97316',
+    gimmickTitle: '🌋 ლავის გეიზერები', diffDesc: 'ვულკანი იღვიძებს! მოერიდე ამოფრქვეულ ლავას.',
     zombieSpeedMult: 1.4, zombieHpMult: 1.5, gravityMult: 1.0, hazardType: 'lava_geysers',
+    theme: 'desert',
     width: 6000,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -3949,10 +3957,11 @@ function buildLevels(){
 
   // LEVEL 12: CodeZero Cyber-Matrix
   levels.push({
-    name:'ეპ.12 — CODEZERO-ს კოსმიური მატრიცა 💻🌌',
-    diffRating: 'EXTREME', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#a855f7',
-    gimmickTitle: '💻 მცურავი ლაზერული კედლები', diffDesc: 'ჰორიზონტალურად მოძრავი ლაზერული ბარიერები და სწრაფი კიბერ-ზომბები.',
+    name:'ეპ.12 — კიბერ ლაბორატორია',
+    diffRating: 'ექსტრემალური', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#a855f7',
+    gimmickTitle: '💻 ლაზერული კედლები', diffDesc: 'დაცვის სისტემა გააქტიურებულია. გაიარე ლაზერებს შორის.',
     zombieSpeedMult: 1.6, zombieHpMult: 1.7, gravityMult: 1.0, hazardType: 'moving_laser_walls',
+    theme: 'cyber',
     width: 6100,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -4047,10 +4056,11 @@ function buildLevels(){
 
   // LEVEL 14: Zombie Wedding Party
   levels.push({
-    name:'ეპ.14 — ზომბების საშინელი ქორწილი 👰🧟‍♂️',
-    diffRating: 'VERY HARD', diffStars: '⭐⭐⭐⭐', diffColor: '#ef4444',
-    gimmickTitle: '👟 სპრინტერი ზომბების წყვილები', diffDesc: 'ზომბები დარბიან 2.2x სიჩქარით წყვილებად. სწრაფი რეაქცია აუცილებელია!',
+    name:'ეპ.14 — საშიში ქორწილი',
+    diffRating: 'ძალიან რთული', diffStars: '⭐⭐⭐⭐', diffColor: '#ef4444',
+    gimmickTitle: '👟 სწრაფი მტრები', diffDesc: 'აქ მტრები განსაკუთრებით სწრაფები არიან. არ გაჩერდე!',
     zombieSpeedMult: 2.2, zombieHpMult: 1.2, gravityMult: 1.0, hazardType: 'runner_horde',
+    theme: 'night',
     width: 6300,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -4144,12 +4154,13 @@ function buildLevels(){
     bgHue:'blue'
   });
 
-  // LEVEL 16: Flying Zombie UFO Trap
+  // LEVEL 16: Cosmic Base
   levels.push({
-    name:'ეპ.16 — მფრინავი ზომბების UFO ხაფანგი 🛸🧟',
-    diffRating: 'EXTREME', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#a855f7',
-    gimmickTitle: '🛸 UFO აბდუქციის სხივები', diffDesc: 'უცხოპლანეტელების სხივი გქაჩავს ჰაერში მფრინავ ზომბებთან!',
+    name:'ეპ.16 — კოსმიური ბაზა',
+    diffRating: 'რთული', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#a855f7',
+    gimmickTitle: '🛸 გრავიტაციის ცვლილება', diffDesc: 'უცხოპლანეტელების ტექნოლოგია გრავიტაციაზე მოქმედებს.',
     zombieSpeedMult: 1.6, zombieHpMult: 1.8, gravityMult: 0.8, hazardType: 'ufo_abduction',
+    theme: 'cosmic_void',
     width: 6500,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -4194,12 +4205,13 @@ function buildLevels(){
     bgHue:'pink'
   });
 
-  // LEVEL 17: Hooligan Nightclub
+  // LEVEL 17: Cyber City
   levels.push({
-    name:'ეპ.17 — ხულიგნური ღამის კლუბი 🎧⚡',
-    diffRating: 'INSANE', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#ec4899',
-    gimmickTitle: '⚡ ჰიპერ-სიჩქარე (1.85x)', diffDesc: 'ზომბები მოძრაობენ 1.85x ჰიპერ-სიჩქარით ბასების რიტმზე!',
+    name:'ეპ.17 — კიბერ ქალაქი',
+    diffRating: 'ძალიან რთული', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#ec4899',
+    gimmickTitle: '⚡ ჰიპერ-სიჩქარე', diffDesc: 'ნეონის განათებები და სწრაფი მტრები. არ მოდუნდე!',
     zombieSpeedMult: 1.85, zombieHpMult: 1.5, gravityMult: 1.0, hazardType: 'hyper_speed',
+    theme: 'cyberpunk_alley',
     width: 6600,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -4243,12 +4255,13 @@ function buildLevels(){
     bgHue:'blue'
   });
 
-  // LEVEL 18: Jump-scare Manor
+  // LEVEL 18: Night Forest
   levels.push({
-    name:'ეპ.18 — საშიში ჯამპსქეირების მამული 👻🏚️',
-    diffRating: 'INSANE', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#ec4899',
-    gimmickTitle: '👻 დემონური ჯამპსქეირები', diffDesc: 'ყოველი ბუჩქი და ყუთი შეიცავს გიგანტურ დემონურ ჯამპსქეირებს!',
+    name:'ეპ.18 — ღამის ტყე',
+    diffRating: 'რთული', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#ec4899',
+    gimmickTitle: '👻 ღამის ხმები', diffDesc: 'ტყეში ბევრი საშიშროება იმალება. გამოიყენე ფანარი!',
     zombieSpeedMult: 1.6, zombieHpMult: 2.0, gravityMult: 1.0, hazardType: 'spooky_jumpscares',
+    theme: 'night_forest',
     width: 6700,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -4296,12 +4309,13 @@ function buildLevels(){
     bgHue:'pink'
   });
 
-  // LEVEL 19: Extreme CodeZero Exam
+  // LEVEL 19: Industrial Zone
   levels.push({
-    name:'ეპ.19 — ექსტრემალური CODEZERO-ს გამოცდა 🎓🔥',
-    diffRating: 'NIGHTMARE', diffStars: '💀💀💀💀💀', diffColor: '#dc2626',
-    gimmickTitle: '🎓 CODEZERO-ს ულმობელი გამოცდა', diffDesc: '3.0x HP სუპერ ბოსები, მოძრავი პლატფორმები და ლაზერული ხაფანგები.',
+    name:'ეპ.19 — ინდუსტრიული ზონა',
+    diffRating: 'ძალიან რთული', diffStars: '💀💀💀💀💀', diffColor: '#dc2626',
+    gimmickTitle: '🏭 რთული მექანიზმები', diffDesc: 'მოძრავი ნაწილები და ლაზერები ყველგანაა.',
     zombieSpeedMult: 1.8, zombieHpMult: 3.0, gravityMult: 1.0, hazardType: 'boss_gauntlet',
+    theme: 'nuclear_lab',
     width: 6800,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -4345,12 +4359,13 @@ function buildLevels(){
     bgHue:'blue'
   });
 
-  // LEVEL 20: Ultimate Multiverse Finale
+  // LEVEL 20: Cosmic Chaos
   levels.push({
-    name:'ეპ.20 — მულტივერსის გრანდიოზული ფინალი 🏆🚀',
-    diffRating: 'NIGHTMARE', diffStars: '💀💀💀💀💀', diffColor: '#dc2626',
-    gimmickTitle: '🏆 მულტივერსული აპოკალიფსი', diffDesc: 'ყველა ტიპის მახე, 4 გიგანტური ბოსი და მაქსიმალური სიჩქარე (2.0x)!',
+    name:'ეპ.20 — კოსმიური ქაოსი',
+    diffRating: 'ექსტრემალური', diffStars: '💀💀💀💀💀', diffColor: '#dc2626',
+    gimmickTitle: '🏆 საბოლოო გამოწვევა', diffDesc: 'ყველა დაბრკოლება ერთად. შეძლებ გადარჩენას?',
     zombieSpeedMult: 2.0, zombieHpMult: 2.5, gravityMult: 1.0, hazardType: 'multiverse_chaos',
+    theme: 'cosmic_void',
     width: 7200,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -4397,12 +4412,13 @@ function buildLevels(){
     bgHue:'pink'
   });
 
-  // LEVEL 21: Final Godzilla City Destruction Boss Battle
+  // LEVEL 21: Godzilla Invasion
   levels.push({
-    name:'ეპ.21 — გოდზილას აპოკალიფსი: ტანკების შეტევა 🦖🏙️',
-    diffRating: 'FINAL BOSS', diffStars: '👑💀👑💀👑', diffColor: '#ef4444',
-    gimmickTitle: '🦖 გოდზილას და ტანკების დუელი', diffDesc: 'საბოლოო ბრძოლა გიგანტურ გოდზილასთან! მართე ტანკი, ესროლე ჭურვები და გადაარჩინე ქალაქი!',
+    name:'ეპ.21 — გოდზილას შემოსევა 🦖🏙️',
+    diffRating: 'ბოსი', diffStars: '👑💀👑💀👑', diffColor: '#ef4444',
+    gimmickTitle: '🦖 ბრძოლა ქალაქისთვის', diffDesc: 'გიგანტური გოდზილა ანგრევს ყველაფერს! გამოიყენე ტანკი!',
     zombieSpeedMult: 2.2, zombieHpMult: 4.0, gravityMult: 1.0, hazardType: 'godzilla_boss_battle',
+    theme: 'godzilla_ruins',
     width: 9000,
     spawn:{x:80,y:GROUND_Y-70},
     isGodzillaLevel: true,
@@ -4448,12 +4464,12 @@ function buildLevels(){
     bgHue:'pink'
   });
 
-  // LEVEL 23: CODEZERO Airplane & Hanging System Challenge
+  // LEVEL 23: Airplane War
   levels.push({
-    name:'ეპ.23 — CODEZERO თვითმფრინავი ✈️',
-    diffRating: 'INSANE', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#dc2626',
-    gimmickTitle: '✈️ CODEZERO თვითმფრინავი & გაკიდების სისტემა',
-    diffDesc: 'თვითმფრინავზე გაკიდებული გმირი! W/S — ფრენა, კოსმოსური სროლა და "codezero"!',
+    name:'ეპ.23 — საჰაერო ომი ✈️',
+    diffRating: 'რთული', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#dc2626',
+    gimmickTitle: '✈️ საჰაერო ბრძოლა',
+    diffDesc: 'მართე თვითმფრინავი და გაანადგურე მტრები ცაში!',
     isAirplaneLevel: true,
     zombieSpeedMult: 1.5, zombieHpMult: 1.5, gravityMult: 0,
     width: 9000,
@@ -4478,12 +4494,12 @@ function buildLevels(){
     bgHue:'airplane_sky'
   });
 
-  // LEVEL 24: Epic Sky Dogfight — CODEZERO Final Flying Battle
+  // LEVEL 24: Sky Skirmish
   levels.push({
-    name:'ეპ.24 — ცაში ომი & CODEZERO ✈️',
-    diffRating:'EXTREME', diffStars:'⭐⭐⭐⭐⭐', diffColor:'#f97316',
-    gimmickTitle:'✈️ CODEZERO საბოლოო საჰაერო ბრძოლა',
-    diffDesc:'ცაში ბრძოლა! გაკიდებული გმირი, ზომბი-თვითმფრინავები და ბოსი!',
+    name:'ეპ.24 — საჰაერო შეტაკება ✈️',
+    diffRating:'ძალიან რთული', diffStars:'⭐⭐⭐⭐⭐', diffColor:'#f97316',
+    gimmickTitle:'✈️ გადამწყვეტი ბრძოლა ცაში',
+    diffDesc:'ბოლო საჰაერო დავალება. მოემზადე ბოსისთვის!',
     isAirplaneLevel: true,
     zombieSpeedMult:1.8, zombieHpMult:2.0, gravityMult:0,
     width: 9000,
@@ -4507,13 +4523,14 @@ function buildLevels(){
     bgHue:'airplane_sky'
   });
 
-  // LEVEL 25: Cloud Summit Obby
+  // LEVEL 25: Cloud Palace
   levels.push({
-    name:'ეპ.25 — ღრუბლების ცათამბჯენი (CLOUD SUMMIT) ☁️🦘',
-    diffRating:'PRO PARKOUR', diffStars:'⭐⭐⭐⭐⭐', diffColor:'#38c6ff',
-    gimmickTitle:'☁️ ცის ბატუტები & შხამიანი ხაფანგები',
-    diffDesc:'ხტუნვა ცის ღრუბლებზე! აირიდე შხამიანი ჩონჩხები!',
+    name:'ეპ.25 — ღრუბლების სასახლე ☁️🦘',
+    diffRating:'პარკური', diffStars:'⭐⭐⭐⭐⭐', diffColor:'#38c6ff',
+    gimmickTitle:'☁️ ღრუბლებზე ხტომა',
+    diffDesc:'იმოძრავე ღრუბლებზე და აირიდე საფრთხეები!',
     zombieSpeedMult: 1.6, zombieHpMult: 2.2, gravityMult: 1.0,
+    theme: 'cosmic_void',
     width: 8200, spawn:{x:60, y:GROUND_Y-60},
     plats:[
       rect(0, GROUND_Y, 700, 90),
@@ -4542,13 +4559,14 @@ function buildLevels(){
     jumpboxes:[ rect(1150, GROUND_Y-140, 42, 42, {hit:false, type:'minigun'}), rect(3850, GROUND_Y-140, 42, 42, {hit:false, type:'plasma'}) ]
   });
 
-  // LEVEL 26: Pushbox Physics Obby
+  // LEVEL 26: Box Parkour
   levels.push({
-    name:'ეპ.26 — ყუთების მიწოლა & მაღალი კედელი (PUSHBOX OBBY) 📦🧱',
-    diffRating:'PHYSICS OBBY', diffStars:'⭐⭐⭐⭐⭐', diffColor:'#eab308',
-    gimmickTitle:'📦 ხის ყუთების მიწოლა & 200px კედლები',
-    diffDesc:'მიაწექი ხის მძიმე ყუთებს მაღალი კედლების გადასალახად!',
+    name:'ეპ.26 — ყუთების პარკური 📦🧱',
+    diffRating:'ფიზიკა', diffStars:'⭐⭐⭐⭐⭐', diffColor:'#eab308',
+    gimmickTitle:'📦 ყუთების გამოყენება',
+    diffDesc:'მიაწექი ყუთებს და გამოიყენე ისინი დაბრკოლებების გადასალახად!',
     zombieSpeedMult: 1.5, zombieHpMult: 2.5, gravityMult: 1.0,
+    theme: 'industrial_sector',
     width: 8400, spawn:{x:60, y:GROUND_Y-60},
     plats:[
       rect(0, GROUND_Y, 800, 90),
@@ -4574,13 +4592,14 @@ function buildLevels(){
     jumpboxes:[ rect(1250, GROUND_Y-120, 42, 42, {hit:false, type:'flamethrower'}), rect(3000, GROUND_Y-120, 42, 42, {hit:false, type:'fastener'}) ]
   });
 
-  // LEVEL 27: Spinning Saw Blade Inferno
+  // LEVEL 27: Saw Canyon
   levels.push({
-    name:'ეპ.27 — მბრუნავი ხერხების ჯოჯოხეთი 🪚🔥',
-    diffRating:'INSANE OBBY', diffStars:'💀💀💀💀', diffColor:'#ef4444',
-    gimmickTitle:'🪚 მბრუნავი ხერხების გილიოტინა',
-    diffDesc:'ზუსტი ტაიმინგი! ხერხები ბრუნავენ 360 გრადუსით!',
+    name:'ეპ.27 — ხერხების კანიონი 🪚🔥',
+    diffRating:'საშიში', diffStars:'💀💀💀💀', diffColor:'#ef4444',
+    gimmickTitle:'🪚 მოძრავი ხერხები',
+    diffDesc:'გამოთვალე დრო და გაიარე ხერხებს შორის!',
     zombieSpeedMult: 1.8, zombieHpMult: 3.0, gravityMult: 1.0,
+    theme: 'desert_canyon',
     width: 8600, spawn:{x:60, y:GROUND_Y-60},
     plats:[
       rect(0, GROUND_Y, 900, 90),
@@ -4606,13 +4625,14 @@ function buildLevels(){
     jumpboxes:[ rect(1300, GROUND_Y-120, 42, 42, {hit:false, type:'rocket'}), rect(3500, GROUND_Y-120, 42, 42, {hit:false, type:'tank'}) ]
   });
 
-  // LEVEL 28: Poison Skull Labyrinth
+  // LEVEL 28: Poison Lab
   levels.push({
-    name:'ეპ.28 — შხამიანი ჩონჩხების ლაბირინთი ☠️🧪',
-    diffRating:'POISON HAZARD', diffStars:'⭐⭐⭐⭐⭐', diffColor:'#a855f7',
-    gimmickTitle:'🧪 ტოქსიკური ჩონჩხების ხაფანგი',
-    diffDesc:'არ აიღო შხამიანი ჩონჩხები — ისიი აკლებენ HP-ს!',
+    name:'ეპ.28 — შხამიანი ლაბორატორია ☠️🧪',
+    diffRating:'ტოქსიკური', diffStars:'⭐⭐⭐⭐⭐', diffColor:'#a855f7',
+    gimmickTitle:'🧪 ტოქსიკური საფრთხე',
+    diffDesc:'მოერიდე შხამიან ნივთებს. ისინი სიცოცხლეს გაკლებენ!',
     zombieSpeedMult: 1.7, zombieHpMult: 2.8, gravityMult: 1.0,
+    theme: 'nuclear_lab',
     width: 8800, spawn:{x:60, y:GROUND_Y-60},
     plats:[
       rect(0, GROUND_Y, 800, 90),
@@ -4639,13 +4659,14 @@ function buildLevels(){
     jumpboxes:[ rect(1200, GROUND_Y-120, 42, 42, {hit:false, type:'plasma'}), rect(2800, GROUND_Y-120, 42, 42, {hit:false, type:'sponsor'}) ]
   });
 
-  // LEVEL 29: Skyward Cloud Bounce Frenzy
+  // LEVEL 29: Sky Jump
   levels.push({
-    name:'ეპ.29 — ცისკენ ასვლა: სუპერ-ბატუტები 🌤️💥',
-    diffRating:'EXTREME AIR', diffStars:'⭐⭐⭐⭐⭐', diffColor:'#38c6ff',
-    gimmickTitle:'🌤️ მრავალდონიანი ცის ბატუტები',
-    diffDesc:'ახტი ღრუბლიდან ღრუბელზე 500px სიმაღლეზე!',
+    name:'ეპ.29 — ნახტომი ცაში 🌤️💥',
+    diffRating:'ექსტრემალური', diffStars:'⭐⭐⭐⭐⭐', diffColor:'#38c6ff',
+    gimmickTitle:'🌤️ მაღალი ხტომები',
+    diffDesc:'გამოიყენე ბატუტები და ავიდი რაც შეიძლება მაღლა!',
     zombieSpeedMult: 1.8, zombieHpMult: 3.2, gravityMult: 1.0,
+    theme: 'cosmic_void',
     width: 9000, spawn:{x:60, y:GROUND_Y-60},
     plats:[
       rect(0, GROUND_Y, 800, 90),
@@ -4671,13 +4692,14 @@ function buildLevels(){
     jumpboxes:[ rect(900, GROUND_Y-120, 42, 42, {hit:false, type:'fastener'}), rect(2500, GROUND_Y-120, 42, 42, {hit:false, type:'minigun'}) ]
   });
 
-  // LEVEL 30: Giant Mutant Zombie Invasion
+  // LEVEL 30: Mutant Lair
   levels.push({
-    name:'ეპ.30 — გიგანტი მუტანტი ზომბების შემოსევა 👹🧟‍♂️',
-    diffRating:'MUTANT BOSS', diffStars:'💀💀💀💀💀', diffColor:'#dc2626',
-    gimmickTitle:'👹 გიგანტური 2.5x ტიტანი ზომბები (100+ HP)',
-    diffDesc:'ტიტანები ანგრევენ მიწას! გამოიყენე ტანკი და რაკეტმტყორცნი!',
+    name:'ეპ.30 — მუტანტების ბუნაგი 👹🧟‍♂️',
+    diffRating:'ბოსი', diffStars:'💀💀💀💀💀', diffColor:'#dc2626',
+    gimmickTitle:'👹 გიგანტური მტრები',
+    diffDesc:'აქ მუტანტები ბინადრობენ. გამოიყენე მძიმე შეიარაღება!',
     zombieSpeedMult: 1.9, zombieHpMult: 4.0, gravityMult: 1.0,
+    theme: 'horror_ruins',
     width: 9200, spawn:{x:60, y:GROUND_Y-60},
     plats:[
       rect(0, GROUND_Y, 1000, 90),
@@ -4698,13 +4720,14 @@ function buildLevels(){
     jumpboxes:[ rect(300, GROUND_Y-120, 42, 42, {hit:false, type:'tank'}), rect(1700, GROUND_Y-120, 42, 42, {hit:false, type:'rocket'}) ]
   });
 
-  // LEVEL 31: PRO OBBY: Laser Guillotine Canyon (75 Stars Gate!)
+  // LEVEL 31: Path of Professionals
   levels.push({
-    name:'ეპ.31 — PRO OBBY: ლაზერული გილიოტინების კანიონი ⚡🔥',
-    diffRating:'PRO OBBY', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#ff3d6e',
-    gimmickTitle:'⚡ 75 ვარსკვლავიანი პრო პარკური',
-    diffDesc:'საჭიროებს 75 ვარსკვლავს! მოძრავი პლატფორმები და ლაზერები!',
+    name:'ეპ.31 — პროფესიონალთა გზა ⚡🔥',
+    diffRating:'პრო', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#ff3d6e',
+    gimmickTitle:'⚡ ოსტატობის გამოცდა',
+    diffDesc:'საჭიროა 75 ვარსკვლავი! აჩვენე შენი უნარები.',
     zombieSpeedMult: 2.0, zombieHpMult: 4.5, gravityMult: 1.0,
+    theme: 'industrial_sector',
     width: 9400, spawn:{x:60, y:GROUND_Y-60},
     plats:[
       rect(0, GROUND_Y, 900, 90),
@@ -4725,13 +4748,14 @@ function buildLevels(){
     jumpboxes:[ rect(1200, GROUND_Y-120, 42, 42, {hit:false, type:'flamethrower'}), rect(2900, GROUND_Y-120, 42, 42, {hit:false, type:'plasma'}) ]
   });
 
-  // LEVEL 32: PRO OBBY: Low-Gravity Cosmic Obby
+  // LEVEL 32: Weightlessness
   levels.push({
-    name:'ეპ.32 — PRO OBBY: კოსმიური გრავიტაციის ტრიუკები 🌌🛸',
-    diffRating:'PRO OBBY', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#a855f7',
-    gimmickTitle:'🌌 დაბალი გრავიტაცია (0.45x) & ფრენის ხტომები',
-    diffDesc:'დაბალი კოსმიური გრავიტაცია — გადააფრინდი გიგანტურ უფსკრულებს!',
+    name:'ეპ.32 — უწონადობა 🌌🛸',
+    diffRating:'პრო', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#a855f7',
+    gimmickTitle:'🌌 დაბალი გრავიტაცია',
+    diffDesc:'კოსმოსური გრავიტაცია საშუალებას გაძლევს დიდხანს იფრინო.',
     zombieSpeedMult: 2.1, zombieHpMult: 4.2, gravityMult: 0.45,
+    theme: 'cosmic_void',
     width: 9600, spawn:{x:60, y:GROUND_Y-60},
     plats:[
       rect(0, GROUND_Y, 800, 90),
@@ -4751,13 +4775,14 @@ function buildLevels(){
     jumpboxes:[ rect(900, GROUND_Y-120, 42, 42, {hit:false, type:'fastener'}), rect(2300, GROUND_Y-120, 42, 42, {hit:false, type:'rocket'}) ]
   });
 
-  // LEVEL 33: PRO OBBY: CodeZero Extreme Exam II
+  // LEVEL 33: Final Challenge
   levels.push({
-    name:'ეპ.33 — PRO OBBY: CODEZERO ექსტრემალური გამოცდა II 🎓🔥',
-    diffRating:'PRO OBBY', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#dc2626',
-    gimmickTitle:'🎓 3 ტიტანი ბოსი & კომბინირებული მახეები',
-    diffDesc:'ხერხები, პოპ-სპაიკები, ჩონჩხები და ტიტანები ერთად!',
+    name:'ეპ.33 — საბოლოო გამოწვევა 🎓🔥',
+    diffRating:'პრო', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#dc2626',
+    gimmickTitle:'🎓 გადამწყვეტი გამოცდა',
+    diffDesc:'ყველა მტერი და მახე ერთად. დაამტკიცე რომ საუკეთესო ხარ!',
     zombieSpeedMult: 2.2, zombieHpMult: 5.0, gravityMult: 1.0,
+    theme: 'industrial_sector',
     width: 9800, spawn:{x:60, y:GROUND_Y-60},
     plats:[
       rect(0, GROUND_Y, 1000, 90),
@@ -4780,13 +4805,14 @@ function buildLevels(){
     jumpboxes:[ rect(1300, GROUND_Y-120, 42, 42, {hit:false, type:'minigun'}), rect(3300, GROUND_Y-120, 42, 42, {hit:false, type:'tank'}) ]
   });
 
-  // LEVEL 34: PRO OBBY: Toxic Sewer Slime Obby
+  // LEVEL 34: Toxic Channel
   levels.push({
-    name:'ეპ.34 — PRO OBBY: ტოქსიკური კანალიზაციის პარკური 🧪🤢',
-    diffRating:'PRO OBBY', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#22c55e',
-    gimmickTitle:'🧪 ტოქსიკური მწვანე ლორწოს ტბა',
-    diffDesc:'ტოქსიკური წყალი და მცურავი ლორწოს მილები!',
+    name:'ეპ.34 — ტოქსიკური არხი 🧪🤢',
+    diffRating:'პრო', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#22c55e',
+    gimmickTitle:'🧪 ტოქსიკური წყლები',
+    diffDesc:'გაიარე კანალიზაცია და მოერიდე მწვანე წყალს!',
     zombieSpeedMult: 2.1, zombieHpMult: 4.5, gravityMult: 1.0,
+    theme: 'nuclear_lab',
     width: 10000, spawn:{x:60, y:GROUND_Y-60},
     plats:[
       rect(0, GROUND_Y, 900, 90),
@@ -4806,13 +4832,14 @@ function buildLevels(){
     jumpboxes:[ rect(1200, GROUND_Y-120, 42, 42, {hit:false, type:'plasma'}), rect(3400, GROUND_Y-120, 42, 42, {hit:false, type:'flamethrower'}) ]
   });
 
-  // LEVEL 35: PRO OBBY: Fire Volcano Super Jumps
+  // LEVEL 35: Volcano Heart
   levels.push({
-    name:'ეპ.35 — PRO OBBY: ცეცხლოვანი ვულკანის სუპერ-ხტომები 🌋🔥',
-    diffRating:'PRO OBBY', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#ef4444',
-    gimmickTitle:'🌋 ამოფრქვეული ლავა & ცის ბატუტები',
-    diffDesc:'მანევრირება მოადგინე ლავის ნაკადებს შორის!',
+    name:'ეპ.35 — ვულკანის გული',
+    diffRating:'პრო', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#ef4444',
+    gimmickTitle:'🌋 ლავის ტბები',
+    diffDesc:'იმოძრავე ლავის ნაკადებს შორის და გამოიყენე ღრუბლები!',
     zombieSpeedMult: 2.2, zombieHpMult: 4.8, gravityMult: 1.0,
+    theme: 'pro_volcano_magma',
     width: 10200, spawn:{x:60, y:GROUND_Y-60},
     plats:[
       rect(0, GROUND_Y, 800, 90),
@@ -4835,13 +4862,14 @@ function buildLevels(){
     jumpboxes:[ rect(900, GROUND_Y-120, 42, 42, {hit:false, type:'fastener'}), rect(2600, GROUND_Y-120, 42, 42, {hit:false, type:'rocket'}) ]
   });
 
-  // LEVEL 36: PRO OBBY: Apocalypse Skyscraper Rooftops
+  // LEVEL 36: City Rooftops
   levels.push({
-    name:'ეპ.36 — PRO OBBY: აპოკალიფსური ცათამბჯენის სახურავები 🏢🌆',
-    diffRating:'PRO OBBY', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#f97316',
-    gimmickTitle:'🌆 მაღალი ცათამბჯენების სახურავები',
-    diffDesc:'გიგანტური მანძილი შენობებს შორის! გამოიყენე Fastener!',
+    name:'ეპ.36 — ქალაქის სახურავები',
+    diffRating:'პრო', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#f97316',
+    gimmickTitle:'🌆 მაღალი შენობები',
+    diffDesc:'გიგანტური მანძილი შენობებს შორის! არ ჩავარდე.',
     zombieSpeedMult: 2.2, zombieHpMult: 4.6, gravityMult: 1.0,
+    theme: 'pro_rooftop_sunset',
     width: 10400, spawn:{x:60, y:GROUND_Y-60},
     plats:[
       rect(0, GROUND_Y, 900, 90),
@@ -4861,14 +4889,15 @@ function buildLevels(){
     jumpboxes:[ rect(1300, GROUND_Y-120, 42, 42, {hit:false, type:'fastener'}), rect(2600, GROUND_Y-120, 42, 42, {hit:false, type:'plasma'}) ]
   });
 
-  // LEVEL 37: PRO OBBY: Godzilla Titan Clash II
+  // LEVEL 37: Godzilla's Return
   levels.push({
-    name:'ეპ.37 — PRO OBBY: გოდზილას მეორე შემოსევა 🦖💥',
-    diffRating:'PRO OBBY', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#ef4444',
-    gimmickTitle:'🦖 გოდზილას და ტანკების დუელი II',
-    diffDesc:'ქალაქი იწვის! მართე ტანკი და გაანადგურე გოდზილა!',
+    name:'ეპ.37 — გოდზილას დაბრუნება',
+    diffRating:'ბოსი', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#ef4444',
+    gimmickTitle:'🦖 დიდი ბრძოლა',
+    diffDesc:'ქალაქი საფრთხეშია! მართე ტანკი და გაანადგურე გოდზილა!',
     isGodzillaLevel: true,
     zombieSpeedMult: 2.3, zombieHpMult: 5.2, gravityMult: 1.0,
+    theme: 'pro_godzilla_arena',
     width: 10600, spawn:{x:80, y:GROUND_Y-70},
     plats:[
       rect(0, GROUND_Y, 1800, 90),
@@ -4887,13 +4916,14 @@ function buildLevels(){
     jumpboxes:[ rect(300, GROUND_Y-120, 42, 42, {hit:false, type:'tank'}), rect(2600, GROUND_Y-120, 42, 42, {hit:false, type:'rocket'}) ]
   });
 
-  // LEVEL 38: PRO OBBY: Demonic Jumpscare Labyrinth
+  // LEVEL 38: Dark Labyrinth
   levels.push({
-    name:'ეპ.38 — PRO OBBY: დემონური ლაბირინთი 👻🕸️',
-    diffRating:'PRO OBBY', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#ec4899',
-    gimmickTitle:'👻 დემონური ჯამპსქეირები & ხერხები',
-    diffDesc:'ბნელი ატმოსფერო, ჯამპსქეირები და შხამიანი ხაფანგები!',
+    name:'ეპ.38 — ბნელი ლაბირინთი',
+    diffRating:'პრო', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#ec4899',
+    gimmickTitle:'👻 საშიში ჩრდილები',
+    diffDesc:'ბნელი ატმოსფერო და მოულოდნელი ხაფანგები!',
     zombieSpeedMult: 2.3, zombieHpMult: 5.0, gravityMult: 1.0,
+    theme: 'pro_demonic_realm',
     width: 10800, spawn:{x:60, y:GROUND_Y-60},
     plats:[
       rect(0, GROUND_Y, 1000, 90),
@@ -4909,18 +4939,19 @@ function buildLevels(){
     coins: Array.from({length:30}, (_,i)=>rect(1100+i*220, GROUND_Y-130, 22, 22)),
     bells:[ rect(1500, GROUND_Y-210, 26, 30), rect(2500, GROUND_Y-180, 26, 30) ],
     signs:[ {x:400, text:'👻 დემონი იმალება ყოველ ნაბიჯზე!'} ],
-    flag: me = rect(4900, GROUND_Y-140, 30, 140),
+    flag: rect(4900, GROUND_Y-140, 30, 140),
     zombies:[ {x:2200, y:GROUND_Y-90, type:'mutant'}, {x:3800, y:GROUND_Y-90, type:'titan'} ],
     jumpboxes:[ rect(1300, GROUND_Y-120, 42, 42, {hit:false, type:'prank_jumpscare_giant'}), rect(2600, GROUND_Y-120, 42, 42, {hit:false, type:'plasma'}) ]
   });
 
-  // LEVEL 39: PRO OBBY: Hyper-Speed Speedrun Obby
+  // LEVEL 39: Speed Zone
   levels.push({
-    name:'ეპ.39 — PRO OBBY: ჰიპერ-სიჩქარის ქაოსი ⚡🏃',
-    diffRating:'PRO OBBY', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#eab308',
-    gimmickTitle:'⚡ ჰიპერ-სიჩქარე (2.2x) & რეაქციის ტესტი',
-    diffDesc:'2.2x ჰიპერ-სიჩქარე — მყისიერი რეაქცია მოძრავ პლატფორმებზე!',
+    name:'ეპ.39 — სიჩქარის ზონა',
+    diffRating:'პრო', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#eab308',
+    gimmickTitle:'⚡ მაქსიმალური სიჩქარე',
+    diffDesc:'სწრაფი მოძრაობა და რეაქციის ტესტი პლატფორმებზე!',
     zombieSpeedMult: 2.5, zombieHpMult: 4.8, gravityMult: 1.0,
+    theme: 'pro_hyperspeed_void',
     width: 11000, spawn:{x:60, y:GROUND_Y-60},
     plats:[
       rect(0, GROUND_Y, 900, 90),
@@ -4940,13 +4971,14 @@ function buildLevels(){
     jumpboxes:[ rect(1200, GROUND_Y-120, 42, 42, {hit:false, type:'fastener'}), rect(3300, GROUND_Y-120, 42, 42, {hit:false, type:'minigun'}) ]
   });
 
-  // LEVEL 40: PRO OBBY: Atomic Reactor Obby
+  // LEVEL 40: Atomic Reactor
   levels.push({
-    name:'ეპ.40 — PRO OBBY: ატომური ლაბორატორია ☢️⚡',
-    diffRating:'PRO OBBY', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#22c55e',
-    gimmickTitle:'☢️ ატომური ლაზერები & 5.0x ტიტანები',
-    diffDesc:'ატომური რეაქტორი! ლაზერული გილიოტინები და ტიტანები!',
+    name:'ეპ.40 — ატომური რეაქტორი',
+    diffRating:'პრო', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#22c55e',
+    gimmickTitle:'☢️ რადიაციული ზონა',
+    diffDesc:'ატომური რეაქტორის გული! მოერიდე ლაზერებს და ტიტანებს.',
     zombieSpeedMult: 2.3, zombieHpMult: 5.5, gravityMult: 1.0,
+    theme: 'pro_atomic_reactor',
     width: 11200, spawn:{x:60, y:GROUND_Y-60},
     plats:[
       rect(0, GROUND_Y, 1000, 90),
@@ -4967,13 +4999,14 @@ function buildLevels(){
     jumpboxes:[ rect(1300, GROUND_Y-120, 42, 42, {hit:false, type:'plasma'}), rect(2600, GROUND_Y-120, 42, 42, {hit:false, type:'tank'}) ]
   });
 
-  // LEVEL 41: PRO OBBY: CodeZero Multiverse Cosmos
+  // LEVEL 41: Cosmic Stars
   levels.push({
-    name:'ეპ.41 — PRO OBBY: CODEZERO მულტივერსის კოსმოსი 🌌🚀',
-    diffRating:'PRO OBBY', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#38c6ff',
-    gimmickTitle:'🌌 კოსმიური მულტივერსი & დაბალი გრავიტაცია',
-    diffDesc:'კოსმიური მულტივერსი! იფრინე ვარსკვლავებში!',
+    name:'ეპ.41 — კოსმიური ვარსკვლავები',
+    diffRating:'პრო', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#38c6ff',
+    gimmickTitle:'🌌 კოსმიური მოგზაურობა',
+    diffDesc:'დაბალი გრავიტაცია და ვარსკვლავთშორისი ფრენა!',
     zombieSpeedMult: 2.3, zombieHpMult: 5.0, gravityMult: 0.5,
+    theme: 'pro_void_multiverse',
     width: 11400, spawn:{x:60, y:GROUND_Y-60},
     plats:[
       rect(0, GROUND_Y, 900, 90),
@@ -4992,12 +5025,12 @@ function buildLevels(){
     jumpboxes:[ rect(1300, GROUND_Y-120, 42, 42, {hit:false, type:'fastener'}), rect(2700, GROUND_Y-120, 42, 42, {hit:false, type:'rocket'}) ]
   });
 
-  // LEVEL 42: PRO OBBY: Extreme Airplane Dogfight II
+  // LEVEL 42: Air Strike
   levels.push({
-    name:'ეპ.42 — PRO OBBY: ექსტრემალური თვითმფრინავის საჰაერო ომი II ✈️🔥',
-    diffRating:'PRO OBBY AIR', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#f97316',
-    gimmickTitle:'✈️ CODEZERO საჰაერო დუელი II',
-    diffDesc:'საჰაერო ომი ცაში! გაკიდებული გმირი ისვრის ყველა იარაღს!',
+    name:'ეპ.42 — საჰაერო შეტევა ✈️🔥',
+    diffRating:'პრო', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#f97316',
+    gimmickTitle:'✈️ საჰაერო ბრძოლა',
+    diffDesc:'რთული ბრძოლა ცაში ზომბი-თვითმფრინავებთან!',
     isAirplaneLevel: true,
     zombieSpeedMult: 2.2, zombieHpMult: 5.5, gravityMult: 0,
     width: 11600, spawn:{x:80, y:180},
@@ -5012,13 +5045,14 @@ function buildLevels(){
     bgHue:'airplane_sky'
   });
 
-  // LEVEL 43: PRO OBBY: Hooligan Championship Arena
+  // LEVEL 43: Final Arena
   levels.push({
-    name:'ეპ.43 — PRO OBBY: ხულიგნური ჩემპიონატის ფინალი 🏆💥',
-    diffRating:'PRO OBBY', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#ef4444',
-    gimmickTitle:'🏆 ჩემპიონატის არენა: ყველა მახე ერთად!',
-    diffDesc:'ღრუბლები, ყუთები, ხერხები, პოპ-სპაიკები, შხამი და 3 ტიტანი!',
+    name:'ეპ.43 — საბოლოო არენა 🏆💥',
+    diffRating:'პრო', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#ef4444',
+    gimmickTitle:'🏆 ჩემპიონატი',
+    diffDesc:'ყველა დაბრკოლება ერთად! დაამტკიცე რომ საუკეთესო ხარ.',
     zombieSpeedMult: 2.4, zombieHpMult: 6.0, gravityMult: 1.0,
+    theme: 'pro_infernal_abyss',
     width: 11800, spawn:{x:60, y:GROUND_Y-60},
     plats:[
       rect(0, GROUND_Y, 1100, 90),
@@ -5041,13 +5075,14 @@ function buildLevels(){
     jumpboxes:[ rect(1400, GROUND_Y-120, 42, 42, {hit:false, type:'flamethrower'}), rect(3600, GROUND_Y-120, 42, 42, {hit:false, type:'tank'}) ]
   });
 
-  // LEVEL 44: PRO OBBY: CodeZero.ge Absolute Legend Finale
+  // LEVEL 44: Legend's Birth
   levels.push({
-    name:'ეპ.44 — PRO OBBY: CODEZERO.GE აბსოლუტური ლეგენდა 👑🚀',
-    diffRating:'LEGENDARY FINALE', diffStars:'👑👑👑👑👑', diffColor:'#ffd23f',
-    gimmickTitle:'👑 თამაშის აბსოლუტური ფინალი & ჩემპიონის მონუმენტი',
-    diffDesc:'აბსოლუტური ფინალი! გადაალახე უკანასკნელი გამოცდა და გახდი ლეგენდა!',
+    name:'ეპ.44 — ლეგენდის დაბადება 👑🚀',
+    diffRating:'ლეგენდა', diffStars:'👑👑👑👑👑', diffColor:'#ffd23f',
+    gimmickTitle:'👑 საბოლოო გამოწვევა',
+    diffDesc:'გაიარე უკანასკნელი გამოცდა და გახდი ნამდვილი ლეგენდა!',
     zombieSpeedMult: 2.5, zombieHpMult: 7.0, gravityMult: 1.0,
+    theme: 'pro_codezero_hall',
     width: 12000, spawn:{x:60, y:GROUND_Y-60},
     plats:[
       rect(0, GROUND_Y, 1200, 90),
@@ -6023,6 +6058,35 @@ function updatePlayer(dt){
     }
   }
 
+  // Swinging Axe Hazards
+  for(const ax of (level.swingingAxes || [])){
+    const angle = Math.sin(state.time * (ax.speed || 0.002) + (ax.offset || 0)) * (ax.range || 1.2);
+    const axX = ax.cx + Math.sin(angle) * ax.len;
+    const axY = ax.cy + Math.cos(angle) * ax.len;
+    const px = player.x + player.w/2;
+    const py = player.y + player.h/2;
+    const dist = Math.hypot(px - axX, py - axY);
+    if(dist < 45 && player.invuln <= 0){
+      spawnParticles(px, py, '#94a3b8', 25, 3.0);
+      sfxHurt();
+      shake(22);
+      hurtPlayer("🪓 მბრუნავი ნაჯახის დარტყმა! 🩸");
+    }
+  }
+
+  // Conveyor Belts
+  for(const cv of (level.conveyors || [])){
+    if(overlap(player, cv)){
+      const prevBottom = player.y - player.vy + player.h;
+      if(player.vy >= 0 && prevBottom <= cv.y + 10){
+        player.y = cv.y - player.h;
+        player.vy = 0;
+        player.onGround = true;
+        player.x += cv.speed; // Push player
+      }
+    }
+  }
+
   // PRO OBBY: Acid Geysers
   for(const ag of (level.acidGeysers || [])){
     const cycle = (state.time + (ag.offset || 0)) % (ag.period || 2000);
@@ -6589,10 +6653,10 @@ function drawBackground(theme){
         }
 
         if(i%3===0){
-          ctx.fillStyle = 'rgba(255, 0, 170, 0.85)';
-          ctx.font = '900 12px sans-serif';
+          ctx.fillStyle = 'rgba(255, 0, 170, 0.4)';
+          ctx.font = 'bold 14px sans-serif';
           ctx.textAlign = 'center';
-          ctx.fillText('CYBER 2077', bx + 70, GROUND_Y - bh + 18);
+          ctx.fillText('NEON CITY', bx + 70, GROUND_Y - bh + 18);
         }
       }
       break;
@@ -6706,6 +6770,39 @@ function drawBackground(theme){
       break;
     }
 
+    case 'night_forest': {
+      // 10. Moonlit Forest
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0, '#020a10');
+      g.addColorStop(0.5, '#051622');
+      g.addColorStop(1, '#0b2434');
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,W,H);
+
+      // Silver Moon
+      ctx.save();
+      const nMoonX = W * 0.82 - (camX * 0.025) % W;
+      ctx.fillStyle = '#f8fafc'; ctx.shadowColor = '#94a3b8'; ctx.shadowBlur = 30;
+      ctx.beginPath(); ctx.arc(nMoonX, 90, 45, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+
+      // Pine Trees Parallax
+      for(let layer=0; layer<3; layer++){
+        const speed = 0.08 + layer*0.08;
+        ctx.fillStyle = layer===0 ? 'rgba(5, 25, 20, 0.4)' : layer===1 ? 'rgba(8, 35, 25, 0.55)' : 'rgba(12, 45, 30, 0.7)';
+        for(let i=-1; i<8; i++){
+          const tx = (i*260 - camX*speed) % (260*8);
+          ctx.beginPath();
+          ctx.moveTo(tx, GROUND_Y+50);
+          ctx.lineTo(tx+60, GROUND_Y-120-layer*40);
+          ctx.lineTo(tx+120, GROUND_Y+50);
+          ctx.fill();
+        }
+      }
+      break;
+    }
+
+    case 'industrial_sector':
     case 'nuclear_lab': {
       // 6. Nuclear Power Plant / Laser Matrix
       const g = ctx.createLinearGradient(0,0,0,H);
@@ -7277,8 +7374,32 @@ function drawBackground(theme){
       break;
     }
 
+    case 'airplane_sky': {
+      // Airplane Sky Theme
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0, '#0ea5e9');
+      g.addColorStop(0.5, '#7dd3fc');
+      g.addColorStop(1, '#bae6fd');
+      ctx.fillStyle = g;
+      ctx.fillRect(0,0,W,H);
+
+      // Clouds
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      for(let i=0; i<15; i++){
+        const cx = (i*240 + state.time*0.05) % W;
+        const cy = (i*67) % (H-100);
+        ctx.beginPath();
+        ctx.arc(cx, cy, 30, 0, Math.PI*2);
+        ctx.arc(cx+25, cy-10, 25, 0, Math.PI*2);
+        ctx.arc(cx+45, cy, 20, 0, Math.PI*2);
+        ctx.fill();
+      }
+      break;
+    }
+
+    case 'parkour_rooftops':
     case 'pro_rooftop_sunset': {
-      // PRO 12. Apocalyptic Skyscraper Sunset
+      // 12. Apocalyptic Skyscraper Sunset
       const g = ctx.createLinearGradient(0,0,0,H);
       g.addColorStop(0, '#150029');
       g.addColorStop(0.5, '#45003b');
@@ -7291,6 +7412,15 @@ function drawBackground(theme){
         const bh = 210 + ((i*41)%120);
         ctx.fillStyle = '#0f001c';
         ctx.fillRect(bx, GROUND_Y-bh, 150, bh+100);
+        
+        // Windows
+        ctx.fillStyle = 'rgba(255, 210, 63, 0.3)';
+        for(let wy = GROUND_Y-bh+20; wy < GROUND_Y-20; wy += 40){
+          ctx.fillRect(bx+20, wy, 15, 20);
+          ctx.fillRect(bx+55, wy, 15, 20);
+          ctx.fillRect(bx+90, wy, 15, 20);
+          ctx.fillRect(bx+115, wy, 15, 20);
+        }
       }
       break;
     }
@@ -7367,6 +7497,7 @@ function drawBackground(theme){
       break;
     }
 
+    case 'final_challenge':
     case 'pro_codezero_hall':
     case 'ultimate_cosmos':
     default: {
@@ -7555,9 +7686,49 @@ function drawGround(theme){
         break;
       }
 
-      case 'sky_temple':
-      case 'pro_golden_god_realm':
+      case 'airplane_sky': {
+        const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+        g.addColorStop(0, '#38c6ff');
+        g.addColorStop(1, '#0284c7');
+        ctx.fillStyle = g;
+        ctx.fillRect(sx, p.y, p.w, p.h);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(sx, p.y, p.w, 4);
+        break;
+      }
+
+      case 'parkour_rooftops':
+      case 'pro_rooftop_sunset': {
+        const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+        g.addColorStop(0, '#1e293b');
+        g.addColorStop(0.2, '#0f172a');
+        g.addColorStop(1, '#020617');
+        ctx.fillStyle = g;
+        ctx.fillRect(sx, p.y, p.w, p.h);
+
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(sx, p.y, p.w, 4);
+        break;
+      }
+
+      case 'final_challenge':
       case 'pro_codezero_hall': {
+        const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+        g.addColorStop(0, '#1c1917');
+        g.addColorStop(0.2, '#0c0a09');
+        g.addColorStop(1, '#000000');
+        ctx.fillStyle = g;
+        ctx.fillRect(sx, p.y, p.w, p.h);
+
+        ctx.fillStyle = '#ffd23f';
+        ctx.fillRect(sx, p.y, p.w, 4);
+        ctx.fillStyle = '#38c6ff';
+        ctx.fillRect(sx, p.y + 4, p.w, 1.5);
+        break;
+      }
+
+      case 'sky_temple':
+      case 'pro_golden_god_realm': {
         const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
         g.addColorStop(0, '#1c1917');
         g.addColorStop(0.2, '#0c0a09');
@@ -7890,6 +8061,68 @@ function drawFirejet(fj){
   }
 }
 
+function drawSwingingAxe(ax){
+  const sx = ax.cx - camX;
+  if(sx < -200 || sx > W + 200) return;
+  
+  const angle = Math.sin(state.time * (ax.speed || 0.002) + (ax.offset || 0)) * (ax.range || 1.2);
+  const axX = ax.cx + Math.sin(angle) * ax.len;
+  const axY = ax.cy + Math.cos(angle) * ax.len;
+  const saxX = axX - camX;
+  
+  ctx.strokeStyle = '#64748b';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(sx, ax.cy);
+  ctx.lineTo(saxX, axY);
+  ctx.stroke();
+  
+  ctx.save();
+  ctx.translate(saxX, axY);
+  ctx.rotate(-angle);
+  
+  // Axe Head
+  ctx.fillStyle = '#94a3b8';
+  ctx.beginPath();
+  ctx.moveTo(-30, 0);
+  ctx.quadraticCurveTo(0, 40, 30, 0);
+  ctx.lineTo(0, -10);
+  ctx.closePath();
+  ctx.fill();
+  
+  ctx.strokeStyle = '#f1f5f9';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  
+  ctx.restore();
+}
+
+function drawConveyor(cv){
+  const sx = cv.x - camX;
+  if(sx + cv.w < -20 || sx > W + 20) return;
+  
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(sx, cv.y, cv.w, cv.h);
+  
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 2;
+  const step = 20;
+  const offset = (state.time * cv.speed * 0.5) % step;
+  
+  for(let x = -step; x < cv.w + step; x += step){
+    const px = sx + x + offset;
+    if(px > sx && px < sx + cv.w){
+      ctx.beginPath();
+      ctx.moveTo(px, cv.y);
+      ctx.lineTo(px, cv.y + cv.h);
+      ctx.stroke();
+    }
+  }
+  
+  ctx.strokeStyle = '#0f172a';
+  ctx.strokeRect(sx, cv.y, cv.w, cv.h);
+}
+
 function drawAcidGeyser(ag){
   const sx = ag.x - camX;
   if(sx < -40 || sx > W + 40) return;
@@ -8116,14 +8349,60 @@ function drawFakespike(f){
 
 function drawSpike(s){
   const sx=s.x-camX; if(sx+s.w<0||sx>W) return;
-  ctx.fillStyle='#ff3d6e';
-  const n=4;
-  for(let i=0;i<n;i++){
-    ctx.beginPath();
-    ctx.moveTo(sx+i*(s.w/n), s.y+s.h);
-    ctx.lineTo(sx+i*(s.w/n)+s.w/(2*n), s.y-6);
-    ctx.lineTo(sx+(i+1)*(s.w/n), s.y+s.h);
-    ctx.fill();
+  const theme = level.theme || 'dusk_suburbs';
+  
+  if(theme === 'cyber' || theme === 'cyberpunk_alley' || theme === 'pro_cyber_matrix' || theme === 'pro_plasma_storm'){
+    // Laser Spikes
+    ctx.fillStyle='#00f0ff';
+    ctx.shadowColor='#00f0ff';
+    ctx.shadowBlur=10;
+    const n=5;
+    for(let i=0;i<n;i++){
+      ctx.beginPath();
+      ctx.moveTo(sx+i*(s.w/n)+2, s.y+s.h);
+      ctx.lineTo(sx+i*(s.w/n)+s.w/(2*n), s.y-8);
+      ctx.lineTo(sx+(i+1)*(s.w/n)-2, s.y+s.h);
+      ctx.fill();
+    }
+    ctx.shadowBlur=0;
+  } else if(theme === 'horror_ruins' || theme === 'gothic_cemetery' || theme === 'pro_demonic_realm'){
+    // Bone Spikes
+    ctx.fillStyle='#e2e8f0';
+    const n=3;
+    for(let i=0;i<n;i++){
+      ctx.beginPath();
+      ctx.moveTo(sx+i*(s.w/n)+5, s.y+s.h);
+      ctx.quadraticCurveTo(sx+i*(s.w/n)+s.w/(2*n), s.y-10, sx+(i+1)*(s.w/n)-5, s.y+s.h);
+      ctx.fill();
+      ctx.fillStyle='#94a3b8';
+      ctx.fillRect(sx+i*(s.w/n)+s.w/(2*n)-2, s.y+s.h-10, 4, 10);
+      ctx.fillStyle='#e2e8f0';
+    }
+  } else if(theme === 'pro_volcano_magma' || theme === 'volcanic_inferno'){
+    // Obsidian Spikes
+    ctx.fillStyle='#1c1917';
+    const n=4;
+    for(let i=0;i<n;i++){
+      ctx.beginPath();
+      ctx.moveTo(sx+i*(s.w/n), s.y+s.h);
+      ctx.lineTo(sx+i*(s.w/n)+s.w/(2*n), s.y-4);
+      ctx.lineTo(sx+(i+1)*(s.w/n), s.y+s.h);
+      ctx.fill();
+      ctx.strokeStyle='#ef4444';
+      ctx.lineWidth=1;
+      ctx.stroke();
+    }
+  } else {
+    // Default Spikes
+    ctx.fillStyle='#ff3d6e';
+    const n=4;
+    for(let i=0;i<n;i++){
+      ctx.beginPath();
+      ctx.moveTo(sx+i*(s.w/n), s.y+s.h);
+      ctx.lineTo(sx+i*(s.w/n)+s.w/(2*n), s.y-6);
+      ctx.lineTo(sx+(i+1)*(s.w/n), s.y+s.h);
+      ctx.fill();
+    }
   }
 }
 
@@ -8238,18 +8517,29 @@ function drawBoulder(bd){
 function drawLava(l){
   const sx = l.x - camX; if(sx + l.w < -20 || sx > W + 20) return;
   const t = state.time * 0.006;
+  const theme = level.theme || 'dusk_suburbs';
 
-  // Molten Lava Base
+  let color1 = '#ff3300', color2 = '#ff7700', color3 = '#cc1100', color4 = '#550000', foamColor = '#ffcc00';
+
+  if(theme === 'cyber' || theme === 'pro_plasma_storm' || theme === 'pro_cyber_matrix'){
+    // Plasma Pit
+    color1 = '#7c3aed'; color2 = '#d946ef'; color3 = '#4c1d95'; color4 = '#2e1065'; foamColor = '#00f0ff';
+  } else if(theme === 'nuclear_lab' || theme === 'pro_atomic_reactor' || theme === 'pro_toxic_wasteland'){
+    // Toxic Sludge
+    color1 = '#059669'; color2 = '#10b981'; color3 = '#064e3b'; color4 = '#022c1f'; foamColor = '#34d399';
+  }
+
+  // Molten Base
   const g = ctx.createLinearGradient(0, l.y, 0, l.y + l.h);
-  g.addColorStop(0, '#ff3300');
-  g.addColorStop(0.35, '#ff7700');
-  g.addColorStop(0.7, '#cc1100');
-  g.addColorStop(1, '#550000');
+  g.addColorStop(0, color1);
+  g.addColorStop(0.35, color2);
+  g.addColorStop(0.7, color3);
+  g.addColorStop(1, color4);
   ctx.fillStyle = g;
   ctx.fillRect(sx, l.y, l.w, l.h);
 
   // Animated Bubbling Top Waves
-  ctx.fillStyle = '#ffcc00';
+  ctx.fillStyle = foamColor;
   ctx.beginPath();
   ctx.moveTo(sx, l.y);
   for(let x = 0; x <= l.w; x += 10){
@@ -8261,8 +8551,8 @@ function drawLava(l){
   ctx.closePath();
   ctx.fill();
 
-  // Heat Outline & Lava Bubbles
-  ctx.strokeStyle = '#ffaa00';
+  // Heat Outline
+  ctx.strokeStyle = foamColor;
   ctx.lineWidth = 2;
   ctx.strokeRect(sx, l.y, l.w, l.h);
 
@@ -8278,17 +8568,28 @@ function drawLava(l){
 function drawWater(w){
   const sx = w.x - camX; if(sx + w.w < -20 || sx > W + 20) return;
   const t = state.time * 0.005;
+  const theme = level.theme || 'dusk_suburbs';
+
+  let color1 = 'rgba(0, 153, 255, 0.82)', color2 = 'rgba(0, 85, 204, 0.90)', color3 = 'rgba(0, 30, 90, 0.96)', foamColor = 'rgba(255, 255, 255, 0.7)';
+
+  if(theme === 'horror_ruins' || theme === 'gothic_cemetery' || theme === 'pro_demonic_realm'){
+    // Cursed Blood Water
+    color1 = 'rgba(153, 0, 0, 0.85)'; color2 = 'rgba(100, 0, 0, 0.92)'; color3 = 'rgba(50, 0, 0, 0.96)'; foamColor = 'rgba(200, 50, 50, 0.5)';
+  } else if(theme === 'desert_canyon'){
+    // Muddy Water
+    color1 = 'rgba(161, 98, 7, 0.82)'; color2 = 'rgba(120, 53, 15, 0.90)'; color3 = 'rgba(66, 32, 6, 0.96)'; foamColor = 'rgba(217, 119, 6, 0.6)';
+  }
 
   // Translucent Deep Water Base
   const g = ctx.createLinearGradient(0, w.y, 0, w.y + w.h);
-  g.addColorStop(0, 'rgba(0, 153, 255, 0.82)');
-  g.addColorStop(0.5, 'rgba(0, 85, 204, 0.90)');
-  g.addColorStop(1, 'rgba(0, 30, 90, 0.96)');
+  g.addColorStop(0, color1);
+  g.addColorStop(0.5, color2);
+  g.addColorStop(1, color3);
   ctx.fillStyle = g;
   ctx.fillRect(sx, w.y, w.w, w.h);
 
   // Water Surface Animated Foam
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+  ctx.fillStyle = foamColor;
   ctx.beginPath();
   ctx.moveTo(sx, w.y);
   for(let x = 0; x <= w.w; x += 10){
@@ -11280,40 +11581,40 @@ function drawMenu(){
 }
 
 const shopUpgrades = [
-  { id: 'doubleJump', title: '🚀 ორმაგი ნახტომი (DOUBLE JUMP)', desc: 'ნახტომი ჰაერში მეორედ!', cost: 50, icon: '🚀' },
-  { id: 'dash', title: '⚡ TURBO DASH ENGINE', desc: 'დააჭირე SHIFT/⚡ დეშისთვის!', cost: 60, icon: '⚡' },
-  { id: 'shield', title: '🛡️ NANOTECH SHIELD', desc: 'ბლოკავს 1 დარტყმას დონეზე!', cost: 40, icon: '🛡️' },
-  { id: 'maxHp', title: '💖 MAX HP HEART (+2)', desc: '10 სიცოცხლის კონტეინერი!', cost: 70, icon: '💖' },
-  { id: 'magnet', title: '🧲 COIN MAGNET', desc: 'იზიდავს მონეტებს შორს!', cost: 45, icon: '🧲' },
-  { id: 'shotgun', title: '💥 SHOTGUN STARTER', desc: 'იწყებ შოტგანით შეიარაღებული!', cost: 80, icon: '💥' }
+  { id: 'doubleJump', title: '🚀 ჰაეროვანი ნახტომი', desc: 'ხტომა ჰაერში მეორედ!', cost: 50, icon: '🚀' },
+  { id: 'dash', title: '⚡ სწრაფი გაქცევა', desc: 'გამოიყენე SHIFT სწრაფი მოძრაობისთვის!', cost: 60, icon: '⚡' },
+  { id: 'shield', title: '🛡️ ენერგო-ჯავშანი', desc: 'გიცავს 1 დარტყმისგან!', cost: 40, icon: '🛡️' },
+  { id: 'maxHp', title: '💖 მეტი სიცოცხლე', desc: 'მაქსიმალური სიცოცხლის გაზრდა!', cost: 70, icon: '💖' },
+  { id: 'magnet', title: '🧲 მონეტების მაგნიტი', desc: 'მიიზიდე მონეტები შორიდან!', cost: 45, icon: '🧲' },
+  { id: 'shotgun', title: '💥 შოტგანით დაწყება', desc: 'თამაშს იწყებ შოტგანით!', cost: 80, icon: '💥' }
 ];
 
 const shopSkins = [
-  { id: 'classic', title: '🦕 კლასიკური დინო', desc: 'ორიგინალი ლურჯ-ვარდისფერი ხულიგანი.', cost: 0, icon: '🦕' },
-  { id: 'lasha', title: '✏️ ლაშა (LASHA)', desc: 'შავი პერანგი, შავი შარვალი და X-თვალებიანი სახე!', cost: 180, icon: '✏️' },
-  { id: 'gold', title: '👑 ოქროს ნინძა დინო', desc: 'ოქროსფრად მოციმციმე ლეგენდარული გმირი!', cost: 100, icon: '👑' },
-  { id: 'cyber', title: '🌆 კიბერპანკ 2077 დინო', desc: 'ნეონის ნათებითა და კიბერ-ვიზორით!', cost: 150, icon: '🌆' },
-  { id: 'zombie', title: '🧟 ტოქსიკური ზომბი დინო', desc: 'ტოქსიკური მწვანე კანი და წითელი თვალები!', cost: 120, icon: '🧟' },
-  { id: 'dragon', title: '🐉 ცეცხლოვანი დრაკონი', desc: 'ცეცხლოვანი რქები და ალმოდებული კვალი!', cost: 200, icon: '🐉' },
-  { id: 'godzilla', title: '🦖 გოდზილას მონადირე', desc: 'ობსიდიანის ჯავშანი და ატომური ეკლები!', cost: 250, icon: '🦖' },
-  { id: 'ninja', title: '🥷 ჩრდილის ნინძა', desc: 'სრულ შავ კოსტიუმში, ნიღბით და ვარსკვლავ ირიკენით!', cost: 180, icon: '🥷' },
-  { id: 'robot', title: '🤖 ლითონის რობოტი', desc: 'სტალის ჯავშანი, LED თვალები და ჩარჩოს ანტენა!', cost: 210, icon: '🤖' },
-  { id: 'ghost', title: '👻 ანდეზიტის მოჩვენება', desc: 'ნახევრად გამჭვირვალე, ცარიელი თვალები და ეთერული ნამქერი!', cost: 190, icon: '👻' },
-  { id: 'viking', title: '⚔️ ველური ვიკინგი', desc: 'ბეწვის ქსოვილი, რქებიანი ჩაფხუტი და სახის ნაომარი ნაკერები!', cost: 220, icon: '⚔️' },
-  { id: 'qunem_davita', title: '🕶️ QUNEM DAVITA', desc: 'წითელი პანტერის პერანგი, ლუდი და ხულიგნური ვიზუალი!', cost: 300, icon: '🕶️' }
+  { id: 'classic', title: '🦕 დინო', desc: 'ჩვენი კლასიკური ხულიგანი.', cost: 0, icon: '🦕' },
+  { id: 'lasha', title: '✏️ ლაშა', desc: 'ლაშა თავისი ცნობილი ვიზუალით!', cost: 180, icon: '✏️' },
+  { id: 'gold', title: '👑 ოქროს რაინდი', desc: 'ოქროში ამოვლებული მებრძოლი!', cost: 100, icon: '👑' },
+  { id: 'cyber', title: '🌆 კიბერპანკი', desc: 'მომავლის ტექნოლოგიებით აღჭურვილი!', cost: 150, icon: '🌆' },
+  { id: 'zombie', title: '🧟 ინფიცირებული', desc: 'ზომბად ქცეული დინოზავრი!', cost: 120, icon: '🧟' },
+  { id: 'dragon', title: '🐉 ცეცხლის მბრძანებელი', desc: 'დრაკონის ძალის მქონე გმირი!', cost: 200, icon: '🐉' },
+  { id: 'godzilla', title: '🦖 მონსტრების რისხვა', desc: 'გიგანტების წინააღმდეგ საბრძოლველად!', cost: 250, icon: '🦖' },
+  { id: 'ninja', title: '🥷 ღამის ჩრდილი', desc: 'ჩუმად და შეუმჩნევლად მოძრაობს!', cost: 180, icon: '🥷' },
+  { id: 'robot', title: '🤖 რკინის კაცი', desc: 'ლითონისგან დამზადებული მებრძოლი!', cost: 210, icon: '🤖' },
+  { id: 'ghost', title: '👻 სული', desc: 'ეთერული და შეუხებელი არსება!', cost: 190, icon: '👻' },
+  { id: 'viking', title: '⚔️ ვარანგი', desc: 'ჩრდილოეთის ველური მებრძოლი!', cost: 220, icon: '⚔️' },
+  { id: 'qunem_davita', title: '🕶️ ყუნემა', desc: 'ყველასთვის საყვარელი ყუნემა დავითა!', cost: 300, icon: '🕶️' }
 ];
 
 const shopWeapons = [
-  { id: 'pistol', title: '🔫 პლაზმური პისტოლეტი', desc: 'სტანდარტული სწრაფი ენერგო-იარაღი.', cost: 0, icon: '🔫' },
-  { id: 'shotgun', title: '💥 მძიმე შოტგანი', desc: 'ისვრის 3 მძლავრ ჭურვს ერთდროულად!', cost: 80, icon: '💥' },
-  { id: 'triple', title: '🔥 სამმაგი ლაზერი', desc: 'ისვრის 3 სწრაფ პარალელურ სხივს!', cost: 100, icon: '🔥' },
-  { id: 'plasma', title: '⚛ პლაზმური ქვემეხი', desc: 'ულტრა-სწრაფი პლაზმური ბურთულები!', cost: 130, icon: '⚛' },
-  { id: 'minigun', title: '⚡ სუპერ მინიგანი', desc: 'ტყვიების უწყვეტი ცეცხლოვანი ქარიშხალი!', cost: 160, icon: '⚡' },
-  { id: 'flamethrower', title: '🔥 ცეცხლსაფრქვევი', desc: 'ალმოდებული ცეცხლის ნაკადი ზომბებზე!', cost: 200, icon: '🔥' },
-  { id: 'rocket', title: '🚀 რაკეტის გამშვები', desc: 'ნელი, მძიმე რაკეტა — მოხვედრისას AOE აფეთქება!', cost: 240, icon: '🚀' },
-  { id: 'laser', title: '🔮 ლაზერული შაშხანა', desc: 'მყისიერი სხივი, 5 ზომბს ერთდროულად განგმირავს!', cost: 260, icon: '🔮' },
-  { id: 'grenade', title: '💣 გრენადის გამშვები', desc: 'მოხვედვიდან 90 ფრეიმში — ძლიერი აფეთქება!', cost: 220, icon: '💣' },
-  { id: 'bike', title: '🏍️ KAWASAKI Z750 (2007)', desc: 'ხულიგნური მოტოციკლეტი! მაღალი სიჩქარე და სროლის შესაძლებლობა!', cost: 350, icon: '🏍️' }
+  { id: 'pistol', title: '🔫 პისტოლეტი', desc: 'უბრალო და საიმედო იარაღი.', cost: 0, icon: '🔫' },
+  { id: 'shotgun', title: '💥 შოტგანი', desc: 'ახლო მანძილზე ძალიან ძლიერია!', cost: 80, icon: '💥' },
+  { id: 'triple', title: '🔥 სამმაგი ლაზერი', desc: 'სამი სხივი ერთდროულად!', cost: 100, icon: '🔥' },
+  { id: 'plasma', title: '⚛ პლაზმური ქვემეხი', desc: 'სწრაფი პლაზმური ჭურვები!', cost: 130, icon: '⚛' },
+  { id: 'minigun', title: '⚡ მინიგანი', desc: 'ტყვიების ნამდვილი ქარიშხალი!', cost: 160, icon: '⚡' },
+  { id: 'flamethrower', title: '🔥 ცეცხლსაფრქვევი', desc: 'დაწვი ყველა ზომბი!', cost: 200, icon: '🔥' },
+  { id: 'rocket', title: '🚀 რაკეტმტყორცნი', desc: 'მძიმე რაკეტები დიდი აფეთქებით!', cost: 240, icon: '🚀' },
+  { id: 'laser', title: '🔮 მძლავრი ლაზერი', desc: 'ჭრის ყველაფერს თავის გზაზე!', cost: 260, icon: '🔮' },
+  { id: 'grenade', title: '💣 ყუმბარმტყორცნი', desc: 'ასაფეთქებელი მოწყობილობები!', cost: 220, icon: '💣' },
+  { id: 'bike', title: '🏍️ მოტოციკლეტი', desc: 'ნამდვილი ხულიგნური ბაიკი!', cost: 350, icon: '🏍️' }
 ];
 
 // ---------- Product Preview Modal & Shop Functions ----------
@@ -13571,6 +13872,8 @@ function loop(now){
       if(level.gravityRunes) level.gravityRunes.forEach(drawGravityRune);
       if(level.boulders) level.boulders.forEach(drawBoulder);
       if(level.spinners) level.spinners.forEach(drawSpinner);
+      if(level.swingingAxes) level.swingingAxes.forEach(drawSwingingAxe);
+      if(level.conveyors) level.conveyors.forEach(drawConveyor);
       if(level.acidGeysers) level.acidGeysers.forEach(drawAcidGeyser);
       if(level.firejets) level.firejets.forEach(drawFirejet);
       if(level.lasers) level.lasers.forEach(drawLaserBeam);
