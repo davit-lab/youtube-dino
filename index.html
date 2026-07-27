@@ -812,7 +812,6 @@ const state = {
   score: 0,
   highScore: 0,
   lives: 8,
-  subs: 0, // subscribe meter 0..100
   coinsCollected: 0,
   combo: 0,
   comboTimer: 0,
@@ -3535,7 +3534,7 @@ function buildLevels(){
     bushes: [ rect(1600, GROUND_Y-50,50,50,{triggered:false}), rect(2800, GROUND_Y-50,50,50,{triggered:false}) ],
     signs: [ 
       {x:300,text:"CODEZERO.GE - ისწავლე პროგრამირება!"}, 
-      {x:2550,text:"საუკეთესო ��ი���ნები = გადარჩენა"} 
+      {x:2550,text:"საუკეთესო მიზნები = გადარჩენა"},
     ],
     flag: rect(4650, GROUND_Y-140,30,140),
     zombies: [ 
@@ -3704,7 +3703,7 @@ function buildLevels(){
   levels.push({
     name:'ეპ.7 — შავ-ბნელი ზომბოკალიფსი 🧟‍♂️',
     diffRating: 'VERY HARD', diffStars: '⭐⭐⭐⭐', diffColor: '#ef4444',
-    gimmickTitle: '⛈️ შტორმის ღამე & ყინულ��ს საფარი', diffDesc: 'მცურავი ყინულის ზედაპირი, სიბნელე და აგრესიული ზომბების არმია (1.5x).',
+    gimmickTitle: '⛈️ შტორმის ღამე & ყინულის საფარი', diffDesc: 'მცურავი ყინულის ზედაპირი, სიბნელე და აგრესიული ზომბების არმია (1.5x).',
     zombieSpeedMult: 1.5, zombieHpMult: 1.4, gravityMult: 1.0, hazardType: 'ice_storm',
     width: 5400,
     spawn:{x:60,y:GROUND_Y-60},
@@ -3730,7 +3729,7 @@ function buildLevels(){
     bells: [ rect(1250, GROUND_Y-200,26,30), rect(4100, GROUND_Y-230,26,30) ],
     bushes: [ rect(1800, GROUND_Y-50,50,50,{triggered:false}), rect(3200, GROUND_Y-50,50,50,{triggered:false}) ],
     signs: [ 
-      {x:450,text:"ღამის ჰორორი ���აიწყო! 🔥"}, 
+      {x:450,text:"ღამის ჰორორი დაიწყო! 🔥"},
       {x:2900,text:"მინიგანი შენი ერთადერთი ხსნაა!"} 
     ],
     flag: rect(5200, GROUND_Y-140,30,140),
@@ -3857,7 +3856,7 @@ function buildLevels(){
   levels.push({
     name:'ეპ.10 — კოსმიური ხულიგანობის ფინალური აპოკალიფსი 🌌',
     diffRating: 'EXTREME', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#a855f7',
-    gimmickTitle: '⚡ არეული კონტროლის იმპულსე���ი', diffDesc: 'გლიჩ იმპულსები პერიოდულად აბრუნებენ კონტროლებს. ზომბების სიჩქარე 1.65x!',
+    gimmickTitle: '⚡ არეული კონტროლის იმპულსები', diffDesc: 'გლიჩ იმპულსები პერიოდულად აბრუნებენ კონტროლებს. ზომბების სიჩქარე 1.65x!',
     zombieSpeedMult: 1.65, zombieHpMult: 1.6, gravityMult: 1.0, hazardType: 'glitch_pulses',
     width: 5800,
     spawn:{x:60,y:GROUND_Y-60},
@@ -3883,7 +3882,7 @@ function buildLevels(){
     bells: [ rect(1330, GROUND_Y-200,26,30), rect(4600, GROUND_Y-230,26,30) ],
     bushes: [ rect(1850, GROUND_Y-50,50,50,{triggered:false}), rect(3600, GROUND_Y-50,50,50,{triggered:false}) ],
     signs: [ 
-      {x:500,text:"🏆 ფინალური ლეველი! გა���ოიყენე FASTENER!"}, 
+      {x:500,text:"🏆 ფინალური ლეველი! გამოიყენე FASTENER!"},
       {x:3300,text:"გეოდინოს არხის მაყურებლები ამარცხებენ ყველა ზომბს!"},
       {x:5000,text:"გილოცავ! CODEZERO.GE შენთანაა!"}
     ],
@@ -4007,7 +4006,7 @@ function buildLevels(){
 
   // LEVEL 13: Giant Mutant Dinosaurs
   levels.push({
-    name:'��პ.13 — გიგანტური მუტანტი დინოზავრები 🦖💀',
+    name:'ეპ.13 — გიგანტური მუტანტი დინოზავრები 🦖💀',
     diffRating: 'EXTREME', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#a855f7',
     gimmickTitle: '☄️ მუტანტები & ცეცხლოვანი მეტეორები', diffDesc: 'მძიმე გრავიტაცია (1.35x), ცის მეტეორული წვიმა და 2.5x HP მუტანტი ბოსები.',
     zombieSpeedMult: 1.5, zombieHpMult: 2.5, gravityMult: 1.35, hazardType: 'meteor_rain',
@@ -4109,7 +4108,7 @@ function buildLevels(){
   levels.push({
     name:'ეპ.15 — გლიჩ-ინფერნო და ცეკვის ქაოსი 💃🌀',
     diffRating: 'INSANE', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#ec4899',
-    gimmickTitle: '💃 დისკო-ხულიგნური ქაოსი', diffDesc: 'სტრობო განათება, იძულებითი ცეკვის პრ��ნკები და მოულოდნელი მახეები.',
+    gimmickTitle: '💃 დისკო-ხულიგნური ქაოსი', diffDesc: 'სტრობო განათება, იძულებითი ცეკვის პრანკები და მოულოდნელი მახეები.',
     zombieSpeedMult: 1.7, zombieHpMult: 1.6, gravityMult: 1.0, hazardType: 'disco_strobe',
     width: 6400,
     spawn:{x:60,y:GROUND_Y-60},
@@ -4291,7 +4290,7 @@ function buildLevels(){
     ],
     signs: [ 
       {x:500,text:"ყველა ბუჩქში დემონი იმალება! 👻"}, 
-      {x:3500,text:"��რ შეგეშინდეს! გეოდინო შენთანაა!"} 
+      {x:3500,text:"არ შეგეშინდეს! გეოდინო შენთანაა!"},
     ],
     flag: rect(6500, GROUND_Y-140,30,140),
     zombies: [ 
@@ -4443,7 +4442,7 @@ function buildLevels(){
     bushes: [ rect(2400, GROUND_Y-50,50,50,{triggered:false}), rect(5300, GROUND_Y-50,50,50,{triggered:false}) ],
     signs: [ 
       {x:400,text:"🦖 🚨 გიგანტი ანგრევს ქალაქს! ომის ტანკი გამოიყენე!"}, 
-      {x:2200,text:"გამოიყენე ��ანკის მძიმე ზარბაზანი (K/F)"},
+      {x:2200,text:"გამოიყენე ტანკის მძიმე ზარბაზანი (K/F)"},
       {x:5100,text:"დაარტყი ატომური ლაზერის გამოტყორცნამდე!"},
       {x:7600,text:"🏆 ფინალური გამარჯვება! CODEZERO.GE"}
     ],
@@ -4974,138 +4973,58 @@ function buildLevels(){
   // LEVEL 40: Atomic Reactor
   levels.push({
     name:'ეპ.40 — ატომური რეაქტორი',
-    diffRating:'პრო', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#22c55e',
+    diffRating:'პრო', diffStars:'⭐⭐⭐⭐⭐', diffColor:'#ef4444',
     gimmickTitle:'☢️ რადიაციული ზონა',
-    diffDesc:'ატომური რეაქტორის გული! მოერიდე ლაზერებს და ტიტანებს.',
-    zombieSpeedMult: 2.3, zombieHpMult: 5.5, gravityMult: 1.0,
-    theme: 'pro_atomic_reactor',
-    width: 11200, spawn:{x:60, y:GROUND_Y-60},
-    plats:[
-      rect(0, GROUND_Y, 1000, 90),
-      rect(1200, GROUND_Y-90, 280, 24),
-      rect(1600, GROUND_Y-170, 280, 24),
-      rect(2000, GROUND_Y, 1200, 90),
-      rect(3400, GROUND_Y, 1700, 90)
-    ],
-    spinners:[ {cx: 2200, cy: GROUND_Y-140, r: 55, angle: 0, speed: 0.09} ],
-    popspikes:[ rect(2100, GROUND_Y-24, 160, 24, {period: 1100, offset: 0}) ],
-    pushboxes:[ rect(500, GROUND_Y-44, 44, 44, {origX:500, origY:GROUND_Y-44, vx:0, vy:0}) ],
-    lavas:[ rect(1000, GROUND_Y, 1000, 90), rect(3200, GROUND_Y, 200, 90) ],
-    coins: Array.from({length:32}, (_,i)=>rect(1100+i*220, GROUND_Y-130, 22, 22)),
-    bells:[ rect(1500, GROUND_Y-210, 26, 30), rect(2500, GROUND_Y-180, 26, 30) ],
-    signs:[ {x:400, text:'☢️ ატომური ლაბორატორიის უსაფრთხოების ზონა!'} ],
-    flag: rect(4900, GROUND_Y-140, 30, 140),
-    zombies:[ {x:2200, y:GROUND_Y-90, type:'titan'}, {x:3700, y:GROUND_Y-90, type:'mutant'} ],
-    jumpboxes:[ rect(1300, GROUND_Y-120, 42, 42, {hit:false, type:'plasma'}), rect(2600, GROUND_Y-120, 42, 42, {hit:false, type:'tank'}) ]
+    diffDesc:'ატომური რეაქტორის გული! მოერიდე ლაზერებს და რადიაციას.',
+    zombieSpeedMult: 1.8, zombieHpMult: 3.0, gravityMult: 1.0, hazardType: 'boss_gauntlet',
+    width: 6000, spawn:{x:60, y:GROUND_Y-60},
+    plats: [ rect(0, GROUND_Y, 1000, 90) ],
+    flag: rect(5800, GROUND_Y-140, 30, 140)
   });
 
-  // LEVEL 41: Cosmic Stars
   levels.push({
-    name:'ეპ.41 — კოსმიური ვარსკვლავები',
-    diffRating:'პრო', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#38c6ff',
-    gimmickTitle:'🌌 კოსმიური მოგზაურობა',
-    diffDesc:'დაბალი გრავიტაცია და ვარსკვლავთშორისი ფრენა!',
-    zombieSpeedMult: 2.3, zombieHpMult: 5.0, gravityMult: 0.5,
-    theme: 'pro_void_multiverse',
-    width: 11400, spawn:{x:60, y:GROUND_Y-60},
-    plats:[
-      rect(0, GROUND_Y, 900, 90),
-      rect(1200, GROUND_Y-100, 280, 24),
-      rect(1700, GROUND_Y-200, 280, 24),
-      rect(2200, GROUND_Y, 1300, 90),
-      rect(3700, GROUND_Y, 1800, 90)
-    ],
-    clouds:[ rect(1000, GROUND_Y-220, 130, 26, {origY: GROUND_Y-220, bobSpeed:0.003, bobAmp:8}) ],
-    lavas:[ rect(900, GROUND_Y, 1300, 90), rect(3500, GROUND_Y, 200, 90) ],
-    coins: Array.from({length:35}, (_,i)=>rect(1000+i*220, GROUND_Y-180, 22, 22)),
-    bells:[ rect(1400, GROUND_Y-240, 26, 30), rect(2600, GROUND_Y-180, 26, 30) ],
-    signs:[ {x:400, text:'🌌 კოსმიური მულტივერსის კარიბჭე!'} ],
-    flag: rect(5200, GROUND_Y-140, 30, 140),
-    zombies:[ {x:2400, y:GROUND_Y-90, type:'titan'}, {x:3900, y:GROUND_Y-90, type:'mutant'} ],
-    jumpboxes:[ rect(1300, GROUND_Y-120, 42, 42, {hit:false, type:'fastener'}), rect(2700, GROUND_Y-120, 42, 42, {hit:false, type:'rocket'}) ]
+    name:'ეპ.41 — მულტისამყაროს ქაოსი',
+    diffRating:'პრო', diffStars:'⭐⭐⭐⭐⭐', diffColor:'#a855f7',
+    gimmickTitle:'🌀 მულტისამყარო',
+    diffDesc:'არეული რეალობა და უცხოპლანეტელთა შემოსევა.',
+    zombieSpeedMult: 2.0, zombieHpMult: 2.5, gravityMult: 1.0, hazardType: 'multiverse_chaos',
+    width: 6500, spawn:{x:60, y:GROUND_Y-60},
+    plats: [ rect(0, GROUND_Y, 1200, 90) ],
+    flag: rect(6300, GROUND_Y-140, 30, 140)
   });
 
-  // LEVEL 42: Air Strike
   levels.push({
-    name:'ეპ.42 — საჰაერო შეტევა ✈️🔥',
-    diffRating:'პრო', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#f97316',
-    gimmickTitle:'✈️ საჰაერო ბრძოლა',
-    diffDesc:'რთული ბრძოლა ცაში ზომბი-თვითმფრინავებთან!',
+    name:'ეპ.42 — საჰაერო ბრძოლა II',
+    diffRating:'პრო', diffStars:'⭐⭐⭐⭐⭐', diffColor:'#38c6ff',
     isAirplaneLevel: true,
-    zombieSpeedMult: 2.2, zombieHpMult: 5.5, gravityMult: 0,
-    width: 11600, spawn:{x:80, y:180},
-    plats:[], spikes:[], waters:[], lavas:[], bananas:[],
-    coins: Array.from({length:35}, (_,i)=>rect(300+i*320, 80+Math.sin(i)*120, 22, 22)),
-    bells:[ rect(1800, 100, 26, 30), rect(4500, 200, 26, 30), rect(7500, 150, 26, 30) ],
-    bushes:[], fakespikes:[],
-    signs:[ {x:200, text:'✈️ CODEZERO ექსტრემალური საჰაერო ომი II!'}, {x:6000, text:'ზომბი-ბომბდამშენი ტიტანი გამოჩნდა!'} ],
-    flag: rect(10200, 200, 30, 300),
-    zombies:[],
-    jumpboxes:[ rect(600, 160, 42, 42, {hit:false, type:'minigun'}), rect(2800, 100, 42, 42, {hit:false, type:'rocket'}), rect(5800, 200, 42, 42, {hit:false, type:'tank'}) ],
-    bgHue:'airplane_sky'
+    width: 14000,
+    spawn:{x:60, y:200}
   });
 
-  // LEVEL 43: Final Arena
   levels.push({
-    name:'ეპ.43 — საბოლოო არენა 🏆💥',
-    diffRating:'პრო', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#ef4444',
+    name:'ეპ.43 — ხულიგნობის ჩემპიონატი',
+    diffRating:'პრო', diffStars:'⭐⭐⭐⭐⭐', diffColor:'#fbbf24',
     gimmickTitle:'🏆 ჩემპიონატი',
-    diffDesc:'ყველა დაბრკოლება ერთად! დაამტკიცე რომ საუკეთესო ხარ.',
-    zombieSpeedMult: 2.4, zombieHpMult: 6.0, gravityMult: 1.0,
-    theme: 'pro_infernal_abyss',
-    width: 11800, spawn:{x:60, y:GROUND_Y-60},
-    plats:[
-      rect(0, GROUND_Y, 1100, 90),
-      rect(1300, GROUND_Y-100, 300, 24, {vx: 5, minX:1300, maxX:1800}),
-      rect(2000, GROUND_Y, 1300, 90),
-      rect(3500, GROUND_Y-110, 300, 24),
-      rect(4000, GROUND_Y, 1800, 90)
-    ],
-    clouds:[ rect(1100, GROUND_Y-220, 130, 26, {origY: GROUND_Y-220, bobSpeed:0.004, bobAmp:10}) ],
-    pushboxes:[ rect(500, GROUND_Y-44, 44, 44, {origX:500, origY:GROUND_Y-44, vx:0, vy:0}) ],
-    spinners:[ {cx: 2400, cy: GROUND_Y-140, r: 58, angle: 0, speed: 0.10} ],
-    popspikes:[ rect(2200, GROUND_Y-24, 180, 24, {period: 1000, offset: 0}) ],
-    traps:[ rect(1500, GROUND_Y-150, 26, 26, {taken:false, type:'poison_skull'}) ],
-    lavas:[ rect(1100, GROUND_Y, 900, 90), rect(3300, GROUND_Y, 700, 90) ],
-    coins: Array.from({length:35}, (_,i)=>rect(1200+i*220, GROUND_Y-140, 22, 22)),
-    bells:[ rect(2200, GROUND_Y-180, 26, 30), rect(4200, GROUND_Y-180, 26, 30) ],
-    signs:[ {x:500, text:'🏆 ხულიგნური ჩემპიონატის ფინალური არენა!'} ],
-    flag: rect(5500, GROUND_Y-140, 30, 140),
-    zombies:[ {x:2200, y:GROUND_Y-90, type:'titan'}, {x:2600, y:GROUND_Y-90, type:'mutant'}, {x:4300, y:GROUND_Y-90, type:'titan'} ],
-    jumpboxes:[ rect(1400, GROUND_Y-120, 42, 42, {hit:false, type:'flamethrower'}), rect(3600, GROUND_Y-120, 42, 42, {hit:false, type:'tank'}) ]
+    diffDesc:'გამოსცადე შენი ძალები ფინალურ არენაზე.',
+    zombieSpeedMult: 1.8, zombieHpMult: 3.5, gravityMult: 1.0, hazardType: 'none',
+    width: 7000, spawn:{x:60, y:GROUND_Y-60},
+    plats: [ rect(0, GROUND_Y, 1500, 90) ],
+    flag: rect(6800, GROUND_Y-140, 30, 140)
   });
 
-  // LEVEL 44: Legend's Birth
   levels.push({
-    name:'ეპ.44 — ლეგენდის დაბადება 👑🚀',
-    diffRating:'ლეგენდა', diffStars:'👑👑👑👑👑', diffColor:'#ffd23f',
-    gimmickTitle:'👑 საბოლოო გამოწვევა',
-    diffDesc:'გაიარე უკანასკნელი გამოცდა და გახდი ნამდვილი ლეგენდა!',
-    zombieSpeedMult: 2.5, zombieHpMult: 7.0, gravityMult: 1.0,
-    theme: 'pro_codezero_hall',
-    width: 12000, spawn:{x:60, y:GROUND_Y-60},
-    plats:[
-      rect(0, GROUND_Y, 1200, 90),
-      rect(1400, GROUND_Y-100, 320, 24),
-      rect(1800, GROUND_Y-180, 320, 24),
-      rect(2200, GROUND_Y, 1400, 90),
-      rect(3800, GROUND_Y, 2000, 90)
-    ],
-    clouds:[ rect(1200, GROUND_Y-240, 130, 26, {origY: GROUND_Y-240, bobSpeed:0.003, bobAmp:8}) ],
-    pushboxes:[ rect(600, GROUND_Y-44, 44, 44, {origX:600, origY:GROUND_Y-44, vx:0, vy:0}) ],
-    spinners:[ {cx: 2600, cy: GROUND_Y-140, r: 60, angle: 0, speed: 0.10} ],
-    popspikes:[ rect(2400, GROUND_Y-24, 200, 24, {period: 1000, offset: 0}) ],
-    traps:[ rect(1600, GROUND_Y-150, 26, 26, {taken:false, type:'poison_skull'}) ],
-    lavas:[ rect(1200, GROUND_Y, 1000, 90), rect(3600, GROUND_Y, 200, 90) ],
-    coins: Array.from({length:40}, (_,i)=>rect(1300+i*220, GROUND_Y-140, 22, 22)),
-    bells:[ rect(2400, GROUND_Y-180, 26, 30), rect(4500, GROUND_Y-180, 26, 30) ],
-    signs:[
+    name:'ეპ.44 — CODEZERO ლეგენდა',
+    diffRating:'აბსოლუტური', diffStars:'👑👑👑👑👑', diffColor:'#ffd23f',
+    gimmickTitle:'🎉 ფინალი',
+    diffDesc:'შენ ხარ ლეგენდა! გაიარე ბოლო გამოცდა.',
+    zombieSpeedMult: 2.2, zombieHpMult: 4.0, gravityMult: 1.0, hazardType: 'none',
+    width: 8000, spawn:{x:60, y:GROUND_Y-60},
+    plats: [ rect(0, GROUND_Y, 2000, 90) ],
+    flag: rect(7800, GROUND_Y-140, 30, 140),
+    signs: [
       {x:600, text:'🎉 44-ე აბსოლუტური ფინალური ლეველი! CODEZERO.GE'},
       {x:2500, text:'👑 შენ ხარ თამაშის აბსოლუტური ჩემპიონი!'}
-    ],
-    flag: rect(5600, GROUND_Y-140, 30, 140),
-    zombies:[ {x:2400, y:GROUND_Y-90, type:'titan'}, {x:2800, y:GROUND_Y-90, type:'mutant'}, {x:4600, y:GROUND_Y-90, type:'titan'} ],
-    jumpboxes:[ rect(1500, GROUND_Y-120, 42, 42, {hit:false, type:'tank'}), rect(3800, GROUND_Y-120, 42, 42, {hit:false, type:'plasma'}) ]
+    ]
   });
 
   const levelThemes = [
@@ -5224,7 +5143,7 @@ function buildLevels(){
     let segmentIndex = 0;
     let addedCp1 = false, addedCp2 = false, addedCp3 = false;
     while(currX < targetW - 600){
-      const segType = segmentIndex % 6;
+      const segType = Math.floor(Math.random() * 6);
       segmentIndex++;
 
       if(!addedCp1 && currX >= targetW * 0.28){
@@ -5419,9 +5338,8 @@ function activateJumpbox(jb){
     checkAchievements();
   } else if(jb.type === 'bell'){
     addScore(100);
-    state.subs = Math.min(100, state.subs+20);
     sfxBell();
-    addFloatingText(jb.x, jb.y-20, "+20% გამოწერა! 🔔", '#ff3d6e');
+    addFloatingText(jb.x, jb.y-20, "+100 ქულა! 🔔", '#ff3d6e');
   } else if(jb.type === 'heart'){
     const maxLives = state.upgrades.maxHp ? 10 : 8;
     state.lives = Math.min(maxLives, state.lives + 1);
@@ -6253,11 +6171,10 @@ function updatePlayer(dt){
   for(const b of (level.bells || [])){
     if(!b.taken && overlap(player,b)){
       b.taken = true;
-      addScore(50);
-      state.subs = Math.min(100, state.subs+15);
+      addScore(150);
       sfxBell();
       spawnParticles(b.x+b.w/2, b.y+b.h/2, '#ff3d6e', 10);
-      toast("+15% Subscribe 🔔", 1200);
+      toast("+150 ქულა! 🔔", 1200);
     }
   }
   // Jumpboxes / Lucky Drops (Hit from below, kick from above, or sides!)
@@ -6558,7 +6475,6 @@ function startGame(){
   const baseLives = state.upgrades.maxHp ? 10 : 8;
   const isHardcore = state.settings && state.settings.difficulty === 'hardcore';
   state.lives = isHardcore ? Math.floor(baseLives * 0.6) : baseLives;
-  state.subs = 0;
   loadLevel(0);
   state.mode = 'playing';
 }
@@ -11066,18 +10982,8 @@ function drawHUD(){
 
   // Combo Multiplier Counter (Removed redundant)
 
-  // Subscribe Meter (Bottom Right)
-  const mx=W-220, my=H-35, mw=200, mh=15;
-  ctx.fillStyle='rgba(0,0,0,.5)';
-  ctx.fillRect(mx,my,mw,mh);
-  ctx.fillStyle='#ff3d6e';
-  ctx.fillRect(mx,my,mw*(state.subs/100),mh);
-  ctx.strokeStyle='rgba(255,255,255,0.4)'; ctx.strokeRect(mx,my,mw,mh);
-  ctx.font='bold 11px sans-serif';
-  ctx.textAlign='center';
-  ctx.fillStyle='#fff';
-  ctx.fillText('გამოწერების მეტრი '+Math.floor(state.subs)+'%', mx+mw/2, my-4);
-
+  // Subscribe Meter Removed
+  
   ctx.textAlign='left';
   ctx.font='bold 15px sans-serif';
   ctx.fillStyle='rgba(255,255,255,.9)';
@@ -13603,11 +13509,11 @@ function drawWin(){
   ctx.textAlign='center';
   ctx.fillStyle='#38c6ff';
   ctx.font='bold 48px sans-serif';
-  ctx.fillText('ყველა დონე დაძლეულია! ����', W/2, H/2-60);
+  ctx.fillText('ყველა დონე დაძლეულია! 🎉', W/2, H/2-60);
   ctx.fillStyle='#fff';
   ctx.font='21px sans-serif';
   ctx.fillText('საბოლოო ქულა: '+state.score, W/2, H/2-25);
-  ctx.fillText('გამოწერების მეტრი: '+Math.floor(state.subs)+'%', W/2, H/2+10);
+  ctx.fillText('დახოცილი ზომბები: '+state.zombiesKilledInLevel, W/2, H/2+10);
 
   // Draw 3 Interactive Action Buttons
   const bw = 190, bh = 46, gap = 18;
