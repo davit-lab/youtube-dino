@@ -3806,8 +3806,8 @@ function buildLevels(){
   levels.push({
     name:'ეპ.9 — ბოსების არენა',
     diffRating: 'ძალიან რთული', diffStars: '⭐⭐⭐⭐', diffColor: '#ef4444',
-    gimmickTitle: '🔮 პორტალების საფრთხე', diffDesc: 'ძლიერი მტრები ყველგან არიან. მოემზადე ბრძოლისთვის!',
-    zombieSpeedMult: 1.45, zombieHpMult: 2.2, gravityMult: 1.0, hazardType: 'portal_spawners',
+    gimmickTitle: '💀 ბოსების არენა', diffDesc: 'ძლიერი მტრები ყველგან არიან. მოემზადე გადამწყვეტი ბრძოლისთვის!',
+    zombieSpeedMult: 1.45, zombieHpMult: 2.2, gravityMult: 1.0, hazardType: 'none',
     theme: 'industrial',
     width: 5600,
     spawn:{x:60,y:GROUND_Y-60},
@@ -5214,7 +5214,6 @@ function buildLevels(){
     if(!lvl.goldTrophies) lvl.goldTrophies = [];
     if(!lvl.checkpoints) lvl.checkpoints = [];
     if(!lvl.trampolines) lvl.trampolines = [];
-    if(!lvl.portals) lvl.portals = [];
     if(!lvl.boulders) lvl.boulders = [];
     if(!lvl.boosters) lvl.boosters = [];
     if(!lvl.gravityRunes) lvl.gravityRunes = [];
@@ -5277,17 +5276,6 @@ function buildLevels(){
         lvl.zombies.push({x: currX + 350, y: GROUND_Y - 54, type: 0.1});
         lvl.energyCrystals.push(rect(currX + 330, GROUND_Y - 260, 24, 28));
 
-        // Diversified Portal in Type 0: Aerial Shortcut
-        if(Math.random() < 0.4){
-           const c = [['#8b5cf6','#10b981'], ['#f43f5e','#3b82f6']][Math.floor(Math.random()*2)];
-           lvl.portals.push({
-             inX: currX + 50, inY: GROUND_Y - 64,
-             outX: currX + 400, outY: GROUND_Y - 280,
-             w: 32, h: 64, cooldown: 0, colorIn: c[0], colorOut: c[1]
-           });
-           lvl.clouds.push(rect(currX + 380, GROUND_Y - 240, 150, 26, {origY: GROUND_Y - 240, bobSpeed: 0.002, bobAmp: 5}));
-           lvl.energyCrystals.push(rect(currX + 420, GROUND_Y - 280, 24, 28));
-        }
 
         currX += platW;
       } else if(segType === 1){
@@ -5295,42 +5283,6 @@ function buildLevels(){
         lvl.lavas.push(rect(currX, GROUND_Y, pitW, 90));
         lvl.plats.push(rect(currX + 20, GROUND_Y - 60, 180, 24, {vx: 2.5 + (idx*0.1), minX: currX, maxX: currX + pitW - 20}));
         
-        // Diversified Portals
-        const pType = Math.random();
-        const pCols = [
-          ['#00f0ff', '#ec4899'], ['#facc15', '#ef4444'], ['#22c55e', '#3b82f6'], 
-          ['#a855f7', '#f97316'], ['#38c6ff', '#ffffff'], ['#ff3d6e', '#00f0ff'],
-          ['#fbbf24', '#8b5cf6'], ['#10b981', '#f43f5e']
-        ];
-        const [c1, c2] = pCols[idx % pCols.length];
-
-        if(pType < 0.3) {
-          // Type 1: Standard Horizontal Shortcut (across the pit)
-          lvl.portals.push({ 
-            inX: currX - 60, inY: GROUND_Y - 64, 
-            outX: currX + pitW + 80, outY: GROUND_Y - 64, 
-            w: 32, h: 64, cooldown: 0, colorIn: c1, colorOut: c2 
-          });
-        } else if(pType < 0.6) {
-          // Type 2: Vertical Ascent (to a high secret platform)
-          const highY = GROUND_Y - 180;
-          lvl.portals.push({ 
-            inX: currX + 40, inY: GROUND_Y - 64, 
-            outX: currX + 100, outY: highY - 64, 
-            w: 32, h: 64, cooldown: 0, colorIn: c1, colorOut: c2 
-          });
-          lvl.plats.push(rect(currX + 80, highY - 24, 150, 24));
-          lvl.goldTrophies.push(rect(currX + 130, highY - 60, 26, 26));
-        } else {
-          // Type 3: Escape Portal (from middle of pit to safety)
-          lvl.portals.push({ 
-            inX: currX + pitW/2 - 16, inY: GROUND_Y - 100, 
-            outX: currX + pitW + 150, outY: GROUND_Y - 64, 
-            w: 32, h: 64, cooldown: 0, colorIn: c1, colorOut: c2 
-          });
-          // Add a static middle plat to reach this portal
-          lvl.plats.push(rect(currX + pitW/2 - 40, GROUND_Y - 70, 80, 16));
-        }
         lvl.popspikes.push(rect(currX + 60, GROUND_Y - 24, 70, 24, {period: 2000, offset: 0}));
         lvl.spinners.push({cx: currX + pitW/2, cy: GROUND_Y - 150, r: 38, angle: 0, speed: 0.04});
         if(idx >= 24){
@@ -5357,14 +5309,6 @@ function buildLevels(){
         lvl.goldTrophies.push(rect(currX + 310, GROUND_Y - 200, 28, 32));
         lvl.zombies.push({x: currX + 200, y: GROUND_Y - 54, type: (idx > 3 && segmentIndex % 3 === 0) ? 'boss' : 0.1});
         
-        // Type 2: Vertical Leap (connecting low ground to highest platform)
-        if(Math.random() < 0.5) {
-          lvl.portals.push({
-            inX: currX + 20, inY: GROUND_Y - 64,
-            outX: currX + 350, outY: GROUND_Y - 224,
-            w: 32, h: 64, cooldown: 0, colorIn: '#fbbf24', colorOut: '#38c6ff'
-          });
-        }
 
         currX += platW;
       } else if(segType === 3){
@@ -5380,14 +5324,6 @@ function buildLevels(){
         lvl.jumpboxes.push(rect(currX + gapW/2, GROUND_Y - 140, 42, 42, {hit: false, type: 'prank_zombie'}));
         lvl.energyCrystals.push(rect(currX + gapW/2 - 30, GROUND_Y - 220, 24, 28));
 
-        // Type 3: Water Crossing (Safe path over dangerous waters)
-        if(Math.random() < 0.6) {
-          lvl.portals.push({
-            inX: currX - 30, inY: GROUND_Y - 64,
-            outX: currX + gapW + 100, outY: GROUND_Y - 64,
-            w: 32, h: 64, cooldown: 0, colorIn: '#00f0ff', colorOut: '#ffffff'
-          });
-        }
 
         currX += gapW + 30;
       } else if(segType === 4){
@@ -5408,14 +5344,6 @@ function buildLevels(){
         lvl.electroOrbs.push(rect(currX + 220, GROUND_Y - 180, 26, 26));
         lvl.zombies.push({x: currX + 450, y: GROUND_Y - 80, type: 'boss'});
 
-        // Type 4: Boss Bypass (optional path to avoid the mini-boss)
-        if(Math.random() < 0.3) {
-          lvl.portals.push({
-            inX: currX + 20, inY: GROUND_Y - 64,
-            outX: currX + platW + 40, outY: GROUND_Y - 64,
-            w: 32, h: 64, cooldown: 0, colorIn: '#f43f5e', colorOut: '#fbbf24'
-          });
-        }
 
         currX += platW;
       } else {
@@ -5989,23 +5917,6 @@ function updatePlayer(dt){
     }
   }
 
-  // Teleportation Portals
-  for(const pt of (level.portals || [])){
-    const inRect = { x: pt.inX, y: pt.inY, w: pt.w, h: pt.h };
-    if(!pt.cooldown && overlap(player, inRect)){
-      pt.cooldown = 120;
-      sfxWin();
-      shake(12);
-      triggerFlash('0,240,255', 0.85);
-      spawnParticles(player.x + player.w/2, player.y + player.h/2, pt.colorIn || '#00f0ff', 25, 3.0);
-      player.x = pt.outX;
-      player.y = pt.outY;
-      player.vy = -8;
-      spawnParticles(player.x + player.w/2, player.y + player.h/2, pt.colorOut || '#ec4899', 25, 3.0);
-      toast("🌀 ენერგო-პორტალმა გადაგატყორცნა წინ! 🌌", 2000);
-    }
-    if(pt.cooldown > 0) pt.cooldown--;
-  }
 
   // Gravity Runes
   for(const gr of (level.gravityRunes || [])){
@@ -8527,28 +8438,6 @@ function drawBooster(bs){
   ctx.restore();
 }
 
-function drawPortal(pt){
-  const drawP = (x, y, color) => {
-    const sx = x - camX;
-    if(sx+pt.w<-50 || sx>W+50) return;
-    ctx.save();
-    ctx.translate(sx, y);
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 15;
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.beginPath();
-    ctx.ellipse(pt.w/2, pt.h/2, pt.w/2, pt.h/2, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 3;
-    ctx.setLineDash([5, 5]);
-    ctx.lineDashOffset = -state.time / 20;
-    ctx.stroke();
-    ctx.restore();
-  };
-  drawP(pt.inX, pt.inY, pt.colorIn || '#00f0ff');
-  drawP(pt.outX, pt.outY, pt.colorOut || '#ec4899');
-}
 
 function drawGravityRune(gr){
   if(gr.taken) return;
@@ -13947,7 +13836,6 @@ function loop(now){
       if(level.popspikes) level.popspikes.forEach(drawPopSpike);
       if(level.trampolines) level.trampolines.forEach(drawTrampoline);
       if(level.boosters) level.boosters.forEach(drawBooster);
-      if(level.portals) level.portals.forEach(drawPortal);
       if(level.gravityRunes) level.gravityRunes.forEach(drawGravityRune);
       if(level.boulders) level.boulders.forEach(drawBoulder);
       if(level.spinners) level.spinners.forEach(drawSpinner);
