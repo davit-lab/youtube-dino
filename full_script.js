@@ -3097,7 +3097,7 @@ function updateZombies(dt){
       state.score += Math.floor(points);
       sfxZombieHit();
       addFloatingText(z.x, z.y - 10, "+" + Math.floor(points) + " 💀", z.isElite ? '#ff9f1c' : '#ff3d6e');
-      toast(z.isBoss ? "🔥 გიგანტური ბოსი განადგურდა! +" + Math.floor(points) : (z.isElite ? "🌟 ���ლიტური ზომბი განადგურდა! +" + Math.floor(points) : "ზომბი განადგურდა! +" + Math.floor(points)), 1000);
+      toast(z.isBoss ? "🔥 გიგანტური ბოსი განადგურდა! +" + Math.floor(points) : (z.isElite ? "🌟 �����ლიტური ზომბი განადგურდა! +" + Math.floor(points) : "ზომბი განადგურდა! +" + Math.floor(points)), 1000);
     }
   }
 }
@@ -3298,471 +3298,601 @@ function rect(x,y,w,h, extra={}){ return {x,y,w,h, ...extra}; }
 function buildLevels(){
   const levels = [];
 
-  // LEVEL 1: Tutorial & Jumpboxes - EASY START - CLEAN & BEAUTIFUL
+  // ══════════════════════════════════════════════════════════
+  // LEVEL 1 — საწყისი ქუჩა | Sunset Suburbs | VERY EASY
+  // Theme: dusk_suburbs. Mechanic: walk + basic jump over gap.
+  // One gap, two platforms, 6 coins in a friendly arc, 1 zombie.
+  // ══════════════════════════════════════════════════════════
   levels.push({
-    name:'ეპ.1 — საწყისი ქუჩა',
+    name: 'ეპ.1 — საწყისი ქუჩა',
     diffRating: 'ძალიან მარტივი', diffStars: '⭐', diffColor: '#22c55e',
-    gimmickTitle: '🔰 სწავლება', diffDesc: 'პირველი ნაბიჯები! მხოლოდ ხტომა და მოთხოვნილება.',
-    zombieSpeedMult: 0.5, zombieHpMult: 0.8, gravityMult: 1.0, hazardType: 'none',
-    width: 3800,
-    spawn:{x:60,y:GROUND_Y-60},
+    gimmickTitle: 'სწავლება', diffDesc: 'მხოლოდ გადახტე! ზომბი ძალიან ნელია.',
+    zombieSpeedMult: 0.45, zombieHpMult: 0.7, gravityMult: 1.0, hazardType: 'none',
+    theme: 'dusk_suburbs',
+    width: 3600,
+    spawn: {x:80, y:GROUND_Y-60},
     plats: [
-      rect(0, GROUND_Y, 600, 90),
-      rect(750, GROUND_Y, 500, 90),
-      rect(1350, GROUND_Y-100, 200, 24),
-      rect(1650, GROUND_Y, 500, 90),
-      rect(2250, GROUND_Y-100, 200, 24),
-      rect(2550, GROUND_Y, 1100, 90),
+      rect(0,    GROUND_Y,       700, 90),   // start island
+      rect(820,  GROUND_Y,       700, 90),   // mid island
+      rect(1650, GROUND_Y-110,   220, 24),   // raised step
+      rect(1990, GROUND_Y,       500, 90),   // rest zone
+      rect(2600, GROUND_Y-90,    220, 24),   // final step
+      rect(2950, GROUND_Y,       600, 90),   // finish island
     ],
     conveyors: [],
     fakespikes: [],
     spikes: [],
-    waters: [ rect(700, GROUND_Y, 50, 90) ],
-    bananas: [ rect(1680,GROUND_Y-14,40,14) ],
+    waters: [ rect(700, GROUND_Y, 120, 90) ],
+    lavas:  [],
+    bananas: [],
     coins: [
-      ...Array.from({length:4}, (_,i)=>rect(1380+i*70, GROUND_Y-130, 22,22)),
-      ...Array.from({length:4}, (_,i)=>rect(2280+i*70, GROUND_Y-130, 22,22))
+      rect(900,  GROUND_Y-110, 22,22),
+      rect(960,  GROUND_Y-110, 22,22),
+      rect(1020, GROUND_Y-110, 22,22),
+      rect(1680, GROUND_Y-155, 22,22),
+      rect(1740, GROUND_Y-155, 22,22),
+      rect(2020, GROUND_Y-110, 22,22),
     ],
-    bells: [ rect(1550, GROUND_Y-130, 26,30) ],
+    bells: [ rect(1700, GROUND_Y-160, 26,30) ],
     bushes: [],
-    signs: [ 
-      {x:300, text:"დაიწყე!"}, 
-      {x:1200,text:"ხტე კარგად!"}, 
-      {x:2800,text:"ფინიშ!"} 
+    signs: [
+      {x: 320,  text: 'გამარჯობა! ხტე!'},
+      {x: 1800, text: 'კარგია!'},
+      {x: 3050, text: 'ფინიში!'},
+    ],
+    flag: rect(3450, GROUND_Y-140, 30,140),
+    zombies: [ {x:2200, y:GROUND_Y-54} ],
+    jumpboxes: [
+      rect(850,  GROUND_Y-140, 42,42, {hit:false, type:'coin'}),
+      rect(2050, GROUND_Y-140, 42,42, {hit:false, type:'bell'}),
+      rect(2980, GROUND_Y-140, 42,42, {hit:false, type:'sponsor'}),
+    ],
+  });
+
+  // ══════════════════════════════════════════════════════════
+  // LEVEL 2 — კიბერ ქალაქი | Cyberpunk Alley | EASY
+  // Theme: cyberpunk_alley. Mechanic: one horizontal moving platform.
+  // ══════════════════════════════════════════════════════════
+  levels.push({
+    name: 'ეპ.2 — კიბერ ქალაქი',
+    diffRating: 'მარტივი', diffStars: '⭐⭐', diffColor: '#38c6ff',
+    gimmickTitle: 'მოძრავი პლატფორმა', diffDesc: 'ნეონური ქუჩა — მოძრავ პლატფორმაზე გადახტე!',
+    zombieSpeedMult: 0.65, zombieHpMult: 0.85, gravityMult: 1.0, hazardType: 'moving_platforms',
+    theme: 'cyberpunk_alley',
+    width: 3800,
+    spawn: {x:80, y:GROUND_Y-60},
+    plats: [
+      rect(0,    GROUND_Y,       600, 90),
+      rect(720,  GROUND_Y-70,    180, 24, {vx:1.4, minX:720, maxX:950}),  // moving
+      rect(1100, GROUND_Y,       550, 90),
+      rect(1780, GROUND_Y-90,    200, 24),
+      rect(2130, GROUND_Y,       600, 90),
+      rect(2840, GROUND_Y-80,    200, 24, {vx:1.6, minX:2840, maxX:3040}), // moving
+      rect(3200, GROUND_Y,       550, 90),
+    ],
+    conveyors: [],
+    fakespikes: [],
+    spikes: [ rect(1040, GROUND_Y-24, 60, 24) ],
+    waters: [ rect(660, GROUND_Y, 60, 90) ],
+    lavas:  [],
+    bananas: [],
+    coins: [
+      rect(740,  GROUND_Y-120, 22,22),
+      rect(1130, GROUND_Y-110, 22,22),
+      rect(1190, GROUND_Y-110, 22,22),
+      rect(1800, GROUND_Y-135, 22,22),
+      rect(1860, GROUND_Y-135, 22,22),
+      rect(2160, GROUND_Y-110, 22,22),
+      rect(2870, GROUND_Y-130, 22,22),
+      rect(2930, GROUND_Y-130, 22,22),
+    ],
+    bells: [ rect(780, GROUND_Y-120, 26,30), rect(2850, GROUND_Y-130, 26,30) ],
+    bushes: [],
+    signs: [
+      {x: 300,  text: 'ნეონი!'},
+      {x: 1500, text: 'მოძრავი!'},
+      {x: 3050, text: 'კარგია!'},
     ],
     flag: rect(3650, GROUND_Y-140, 30,140),
-    zombies: [ {x:1600,y:GROUND_Y-54}, {x:2400,y:GROUND_Y-54} ],
-    jumpboxes: [ 
-      rect(800, GROUND_Y-140, 42, 42, {hit:false, type:'coin'}),
-      rect(1400, GROUND_Y-140, 42, 42, {hit:false, type:'bell'}),
-      rect(2300, GROUND_Y-140, 42, 42, {hit:false, type:'sponsor'}) 
+    zombies: [ {x:1350, y:GROUND_Y-54}, {x:2500, y:GROUND_Y-54} ],
+    jumpboxes: [
+      rect(780,  GROUND_Y-120, 42,42, {hit:false, type:'heart'}),
+      rect(1820, GROUND_Y-140, 42,42, {hit:false, type:'sponsor'}),
+      rect(3250, GROUND_Y-140, 42,42, {hit:false, type:'bell'}),
     ],
-    bgHue:'blue'
   });
 
-  // LEVEL 2: Moving Platforms Challenge - EASY - CLEAN
+  // ══════════════════════════════════════════════════════════
+  // LEVEL 3 — ბიბლიოთეკის ნანგრევები | Horror Ruins | MEDIUM
+  // Theme: horror_ruins. Mechanic: step-climb + fog atmosphere.
+  // ══════════════════════════════════════════════════════════
   levels.push({
-    name:'ეპ.2 — მოძრავი ფორმა',
-    diffRating: 'მარტივი', diffStars: '⭐⭐', diffColor: '#38c6ff',
-    gimmickTitle: '⚙️ მოძრავი პლატფორმა', diffDesc: 'მოძრავი პლატფორმები გეხმარება! დაისთან!',
-    zombieSpeedMult: 0.7, zombieHpMult: 0.9, gravityMult: 1.0, hazardType: 'moving_platforms',
-    theme: 'cyberpunk_alley',
-    width: 3900,
-    spawn:{x:60,y:GROUND_Y-60},
-    plats: [
-      rect(0, GROUND_Y, 500, 90),
-      rect(650, GROUND_Y-60, 180, 24, {vx: 1.2, minX:650, maxX:820}),
-      rect(1050, GROUND_Y, 500, 90),
-      rect(1700, GROUND_Y-100, 180, 24, {vy: 1.5, minY:GROUND_Y-160, maxY:GROUND_Y-60}),
-      rect(2050, GROUND_Y, 600, 90),
-      rect(2750, GROUND_Y-80, 200, 24, {vx: 1.5, minX:2750, maxX:2950}),
-      rect(3100, GROUND_Y, 700, 90),
-    ],
-    swingingAxes: [],
-    fakespikes: [],
-    spikes: [ rect(1000,GROUND_Y-24,50,24), rect(2700,GROUND_Y-24,50,24) ],
-    waters: [ rect(550, GROUND_Y, 100, 90) ],
-    lavas: [],
-    bananas: [ rect(1400,GROUND_Y-14,40,14), rect(2400,GROUND_Y-14,40,14) ],
-    coins: [
-      ...Array.from({length:4}, (_,i)=>rect(1750+i*70, GROUND_Y-140,22,22)),
-      ...Array.from({length:4}, (_,i)=>rect(2800+i*70, GROUND_Y-120,22,22))
-    ],
-    bells: [ rect(700, GROUND_Y-110, 26,30) ],
-    bushes: [],
-    signs: [ {x:300,text:"ხტე!"}, {x:1700,text:"მოძრავი!"}, {x:2900,text:"დასრულება!"} ],
-    flag: rect(3750, GROUND_Y-140,30,140),
-    zombies: [ {x:1200,y:GROUND_Y-54}, {x:2500,y:GROUND_Y-54} ],
-    jumpboxes: [ 
-      rect(700, GROUND_Y-120, 42, 42, {hit:false, type:'heart'}),
-      rect(1700, GROUND_Y-150, 42, 42, {hit:false, type:'sponsor'}),
-      rect(2800, GROUND_Y-130, 42, 42, {hit:false, type:'bell'})
-    ],
-    bgHue:'pink'
-  });
-
-  // LEVEL 3: Climbing Heights - MEDIUM - BEAUTIFUL ARCHITECTURE
-  levels.push({
-    name:'ეპ.3 — ცის სახლი',
+    name: 'ეპ.3 — ბიბლიოთეკის ნანგრევები',
     diffRating: 'საშუალო', diffStars: '⭐⭐', diffColor: '#eab308',
-    gimmickTitle: '🏢 ზევით ცოცხლობა', diffDesc: 'მაღლა ააგე! სიმაღლე ადამიანებს იშინებს!',
-    zombieSpeedMult: 0.9, zombieHpMult: 1.0, gravityMult: 1.0, hazardType: 'dense_fog',
+    gimmickTitle: 'ბიბლიოთეკის საიდუმლო', diffDesc: 'ნანგრევებში ნელი ზომბები იმალებიან — ყურადღება!',
+    zombieSpeedMult: 0.85, zombieHpMult: 1.0, gravityMult: 1.0, hazardType: 'dense_fog',
+    theme: 'horror_ruins',
     width: 4000,
-    spawn:{x:60,y:GROUND_Y-60},
+    spawn: {x:80, y:GROUND_Y-60},
     plats: [
-      rect(0, GROUND_Y, 500, 90),
-      rect(650, GROUND_Y-80, 200, 24),
-      rect(950, GROUND_Y-160, 200, 24),
-      rect(1250, GROUND_Y, 500, 90),
-      rect(1900, GROUND_Y-100, 200, 24),
-      rect(2200, GROUND_Y-180, 200, 24),
-      rect(2500, GROUND_Y, 600, 90),
-      rect(3200, GROUND_Y-120, 220, 24),
-      rect(3550, GROUND_Y, 400, 90),
+      rect(0,    GROUND_Y,       550, 90),
+      rect(670,  GROUND_Y-80,    200, 24),  // step up
+      rect(990,  GROUND_Y-160,   200, 24),  // step up 2
+      rect(1310, GROUND_Y,       550, 90),  // rest
+      rect(1980, GROUND_Y-90,    200, 24),
+      rect(2290, GROUND_Y-170,   200, 24),
+      rect(2580, GROUND_Y,       550, 90),  // rest
+      rect(3250, GROUND_Y-100,   220, 24),
+      rect(3600, GROUND_Y,       380, 90),  // finish
     ],
-    swingingAxes: [],
+    conveyors: [],
     fakespikes: [],
-    spikes: [ rect(1200,GROUND_Y-24,50,24), rect(2450,GROUND_Y-24,50,24) ],
+    spikes: [
+      rect(1260, GROUND_Y-24, 50, 24),
+      rect(2530, GROUND_Y-24, 50, 24),
+    ],
     waters: [],
-    lavas: [],
-    bananas: [ rect(1400,GROUND_Y-14,40,14), rect(2200,GROUND_Y-14,40,14) ],
+    lavas:  [],
+    bananas: [],
     coins: [
-      ...Array.from({length:4}, (_,i)=>rect(1000+i*60, GROUND_Y-190,22,22)),
-      ...Array.from({length:5}, (_,i)=>rect(2250+i*70, GROUND_Y-210,22,22))
+      rect(700,  GROUND_Y-130, 22,22),
+      rect(760,  GROUND_Y-130, 22,22),
+      rect(1010, GROUND_Y-210, 22,22),
+      rect(1340, GROUND_Y-110, 22,22),
+      rect(2010, GROUND_Y-140, 22,22),
+      rect(2320, GROUND_Y-220, 22,22),
+      rect(2610, GROUND_Y-110, 22,22),
+      rect(3270, GROUND_Y-150, 22,22),
     ],
-    bells: [ rect(700, GROUND_Y-130, 26,30), rect(2300, GROUND_Y-220, 26,30) ],
+    bells: [ rect(1010, GROUND_Y-215, 26,30), rect(2320, GROUND_Y-225, 26,30) ],
     bushes: [],
-    signs: [ 
-      {x:300,text:"ზე გა!"}, 
-      {x:1700,text:"უფრო მაღლა!"}, 
-      {x:3300,text:"ბოლო!"}
+    signs: [
+      {x: 300,  text: 'ფრთხილად!'},
+      {x: 1500, text: 'მაღლა!'},
+      {x: 3400, text: 'გაიქეცი!'},
     ],
-    flag: rect(3850, GROUND_Y-140,30,140),
-    zombies: [ 
-      {x:1400,y:GROUND_Y-54}, 
-      {x:2700,y:GROUND_Y-54}
+    flag: rect(3870, GROUND_Y-140, 30,140),
+    zombies: [ {x:1500, y:GROUND_Y-54}, {x:2750, y:GROUND_Y-54} ],
+    jumpboxes: [
+      rect(710,  GROUND_Y-130, 42,42, {hit:false, type:'sponsor'}),
+      rect(1350, GROUND_Y-140, 42,42, {hit:false, type:'heart'}),
+      rect(2620, GROUND_Y-140, 42,42, {hit:false, type:'sponsor'}),
     ],
-    jumpboxes: [ 
-      rect(750, GROUND_Y-130, 42, 42, {hit:false, type:'sponsor'}),
-      rect(1450, GROUND_Y-200, 42, 42, {hit:false, type:'heart'}),
-      rect(2300, GROUND_Y-230, 42, 42, {hit:false, type:'sponsor'})
-    ],
-    bgHue:'blue'
   });
 
-  // LEVEL 4: Parkour Challenge - MEDIUM+ - FLOWING DESIGN
+  // ══════════════════════════════════════════════════════════
+  // LEVEL 4 — უდაბნოს კანიონი | Desert Canyon | MEDIUM+
+  // Theme: desert_canyon. Mechanic: heavier gravity + spikes.
+  // ══════════════════════════════════════════════════════════
   levels.push({
-    name:'ეპ.4 — პარკურის მოედანი 💥',
+    name: 'ეპ.4 — უდაბნოს კანიონი',
     diffRating: 'საშუალო+', diffStars: '⭐⭐⭐', diffColor: '#f97316',
-    gimmickTitle: '🦘 კიდეზე მუშაობა', diffDesc: 'მწვანილებიანი უფსკუს ფასეტი! ქვემოთ მოვი ეს აპა!',
-    zombieSpeedMult: 1.0, zombieHpMult: 1.1, gravityMult: 1.15, hazardType: 'heavy_gravity',
-    theme: 'parkour_rooftops',
+    gimmickTitle: 'მძიმე გრავიტაცია', diffDesc: 'ცხელი კანიონი — სიმძიმე იზრდება, ნახტომი შეამოკლე!',
+    zombieSpeedMult: 0.95, zombieHpMult: 1.1, gravityMult: 1.2, hazardType: 'heavy_gravity',
+    theme: 'desert_canyon',
     width: 4200,
-    spawn:{x:60,y:GROUND_Y-60},
+    spawn: {x:80, y:GROUND_Y-60},
     plats: [
-      rect(0, GROUND_Y, 500, 90),
-      rect(620, GROUND_Y-70, 150, 24),
-      rect(850, GROUND_Y-140, 150, 24),
-      rect(1080, GROUND_Y-70, 150, 24),
-      rect(1280, GROUND_Y, 500, 90),
-      rect(1850, GROUND_Y-90, 180, 24, {vy: 2, minY:GROUND_Y-200, maxY:GROUND_Y-40}),
-      rect(2100, GROUND_Y-160, 180, 24),
-      rect(2350, GROUND_Y, 600, 90),
-      rect(3050, GROUND_Y-100, 200, 24),
-      rect(3350, GROUND_Y, 800, 90),
+      rect(0,    GROUND_Y,       500, 90),
+      rect(620,  GROUND_Y-70,    170, 24),
+      rect(900,  GROUND_Y-140,   170, 24),
+      rect(1180, GROUND_Y,       520, 90),
+      rect(1830, GROUND_Y-80,    180, 24),
+      rect(2120, GROUND_Y-150,   180, 24),
+      rect(2420, GROUND_Y,       550, 90),
+      rect(3090, GROUND_Y-90,    200, 24),
+      rect(3410, GROUND_Y,       760, 90),
     ],
     conveyors: [],
-    swingingAxes: [ {cx: 1400, cy: GROUND_Y-180, len: 100, speed: 0.004, range: 1.0} ],
-    spikes: [ rect(550,GROUND_Y-24,50,24), rect(2300,GROUND_Y-24,50,24), rect(3250,GROUND_Y-24,50,24) ],
+    fakespikes: [],
+    spikes: [
+      rect(570,  GROUND_Y-24, 50, 24),
+      rect(2370, GROUND_Y-24, 50, 24),
+      rect(3360, GROUND_Y-24, 50, 24),
+    ],
     waters: [],
-    lavas: [],
-    bananas: [ rect(1350,GROUND_Y-14,40,14), rect(2650,GROUND_Y-14,40,14) ],
+    lavas: [ rect(1700, GROUND_Y, 130, 90) ],
+    bananas: [ rect(1230, GROUND_Y-14, 40,14) ],
     coins: [
-      ...Array.from({length:4}, (_,i)=>rect(950+i*70, GROUND_Y-170,22,22)),
-      ...Array.from({length:5}, (_,i)=>rect(2150+i*60, GROUND_Y-190,22,22))
+      rect(650,  GROUND_Y-120, 22,22),
+      rect(710,  GROUND_Y-120, 22,22),
+      rect(920,  GROUND_Y-190, 22,22),
+      rect(980,  GROUND_Y-190, 22,22),
+      rect(1850, GROUND_Y-130, 22,22),
+      rect(2140, GROUND_Y-200, 22,22),
+      rect(2200, GROUND_Y-200, 22,22),
+      rect(2460, GROUND_Y-110, 22,22),
+      rect(3120, GROUND_Y-140, 22,22),
     ],
-    bells: [ rect(700, GROUND_Y-120, 26,30), rect(2100, GROUND_Y-200, 26,30) ],
+    bells: [ rect(930, GROUND_Y-195, 26,30), rect(2150, GROUND_Y-205, 26,30) ],
     bushes: [],
-    signs: [ {x:350,text:"ხტე!"}, {x:1700,text:"სვინგი!"}, {x:3100,text:"დასრულება!"} ],
-    flag: rect(4050, GROUND_Y-140,30,140),
-    zombies: [ 
-      {x:1400,y:GROUND_Y-54}, 
-      {x:2600,y:GROUND_Y-54}
+    signs: [
+      {x: 300,  text: 'კანიონი!'},
+      {x: 1500, text: 'მძიმეა!'},
+      {x: 3200, text: 'ფინიში!'},
     ],
-    jumpboxes: [ 
-      rect(700, GROUND_Y-120, 42, 42, {hit:false, type:'bell'}),
-      rect(1450, GROUND_Y-100, 42, 42, {hit:false, type:'sponsor'}),
-      rect(2200, GROUND_Y-200, 42, 42, {hit:false, type:'heart'})
+    flag: rect(4050, GROUND_Y-140, 30,140),
+    zombies: [ {x:1330, y:GROUND_Y-54}, {x:2580, y:GROUND_Y-54} ],
+    jumpboxes: [
+      rect(660,  GROUND_Y-120, 42,42, {hit:false, type:'bell'}),
+      rect(1890, GROUND_Y-130, 42,42, {hit:false, type:'sponsor'}),
+      rect(2480, GROUND_Y-140, 42,42, {hit:false, type:'heart'}),
     ],
-    bgHue:'blue'
   });
 
-  // LEVEL 5: Boss Arena - HARD - EPIC ARENA
+  // ══════════════════════════════════════════════════════════
+  // LEVEL 5 — ვულკანის ციხე | Volcanic Inferno | HARD
+  // Theme: volcanic_inferno. Mechanic: firejets + moving platform.
+  // ══════════════════════════════════════════════════════════
   levels.push({
-    name:'ეპ.5 — ბოსი არენა 🏆',
+    name: 'ეპ.5 — ვულკანის ციხე',
     diffRating: 'რთული', diffStars: '⭐⭐⭐', diffColor: '#ef4444',
-    gimmickTitle: '👹 პირველი დიდი ბოსი', diffDesc: 'ერთი მძლავრი დილოს დამარცხე!',
-    zombieSpeedMult: 1.2, zombieHpMult: 1.5, gravityMult: 1.0, hazardType: 'boss_duo',
-    theme: 'lava_fortress',
-    width: 4100,
-    spawn:{x:60,y:GROUND_Y-60},
+    gimmickTitle: 'ლავა და ცეცხლი', diffDesc: 'ვულკანი იდუღება — ცეცხლის სვეტები და ბოსი!',
+    zombieSpeedMult: 1.15, zombieHpMult: 1.4, gravityMult: 1.0, hazardType: 'boss_duo',
+    theme: 'volcanic_inferno',
+    width: 4300,
+    spawn: {x:80, y:GROUND_Y-60},
     plats: [
-      rect(0, GROUND_Y, 600, 90),
-      rect(750, GROUND_Y-80, 200, 24),
-      rect(1050, GROUND_Y-160, 200, 24),
-      rect(1350, GROUND_Y, 500, 90),
-      rect(1950, GROUND_Y-100, 200, 24, {vx: 2.0, minX:1950, maxX:2150}),
-      rect(2350, GROUND_Y, 600, 90),
-      rect(3050, GROUND_Y-100, 220, 24),
-      rect(3400, GROUND_Y, 650, 90),
+      rect(0,    GROUND_Y,       550, 90),
+      rect(680,  GROUND_Y-80,    200, 24),
+      rect(1000, GROUND_Y-160,   200, 24),
+      rect(1310, GROUND_Y,       500, 90),
+      rect(1950, GROUND_Y-100,   200, 24, {vx:1.8, minX:1950, maxX:2160}),
+      rect(2340, GROUND_Y,       550, 90),
+      rect(3020, GROUND_Y-100,   210, 24),
+      rect(3360, GROUND_Y,       900, 90),
     ],
-    firejets: [ {x: 2200, y: GROUND_Y, flameH: 150, period: 2500, offset: 0} ],
-    swingingAxes: [],
-    spikes: [ rect(3300,GROUND_Y-24,50,24) ],
-    waters: [],
-    lavas: [ rect(1300,GROUND_Y-24,50,90) ],
-    bananas: [ rect(1400,GROUND_Y-14,40,14), rect(2400,GROUND_Y-14,40,14) ],
-    coins: [
-      ...Array.from({length:4}, (_,i)=>rect(1100+i*70, GROUND_Y-190,22,22)),
-      ...Array.from({length:4}, (_,i)=>rect(2050+i*75, GROUND_Y-130,22,22))
-    ],
-    bells: [ rect(850, GROUND_Y-130, 26,30), rect(2000, GROUND_Y-130, 26,30) ],
-    bushes: [],
-    signs: [ {x:300, text:"ბოსი!"}, {x:2000, text:"ის დამარცხე!"}, {x:3300, text:"გმაფლიანი!"} ],
-    flag: rect(3950, GROUND_Y-140, 30, 140),
-    zombies: [ 
-      {x:2000,y:GROUND_Y-80, type:'boss'}
-    ],
-    jumpboxes: [ 
-      rect(800, GROUND_Y-130, 42, 42, {hit:false, type:'heart'}),
-      rect(2050, GROUND_Y-130, 42, 42, {hit:false, type:'sponsor'})
-    ],
-    bgHue:'pink'
-  });
-
-  // LEVEL 6: Industrial Conveyor - HARD+ - SMOOTH FLOW
-  levels.push({
-    name:'ეპ.6 — ინდუსტრიული კონვეიერი',
-    diffRating: 'რთული+', diffStars: '⭐⭐⭐⭐', diffColor: '#f97316',
-    gimmickTitle: '⚙️ მოძრავი კონვეიერი', diffDesc: 'კონვეიერი წინ წაგიძღვებს! სიჩქარე კონტროლი!',
-    zombieSpeedMult: 1.15, zombieHpMult: 1.25, gravityMult: 1.0, hazardType: 'laser_guillotine',
-    theme: 'industrial',
-    width: 4000,
-    spawn:{x:60,y:GROUND_Y-60},
-    plats: [
-      rect(0, GROUND_Y, 500, 90),
-      rect(650, GROUND_Y-70, 180, 24),
-      rect(950, GROUND_Y-140, 180, 24),
-      rect(1250, GROUND_Y, 500, 90),
-      rect(1900, GROUND_Y-80, 180, 24, {vx: 2.5, minX:1900, maxX:2080}),
-      rect(2250, GROUND_Y, 1000, 90),
-      rect(3350, GROUND_Y-100, 200, 24),
-      rect(3700, GROUND_Y, 250, 90),
-    ],
-    conveyors: [ 
-      rect(2250, GROUND_Y, 1000, 10, {speed: 2.0})
-    ],
-    spikes: [ rect(1150,GROUND_Y-24,50,24), rect(2150,GROUND_Y-24,50,24), rect(3650,GROUND_Y-24,50,24) ],
-    waters: [],
-    lavas: [ rect(1200,GROUND_Y-24,50,90) ],
-    bananas: [ rect(1350,GROUND_Y-14,40,14), rect(2400,GROUND_Y-14,40,14) ],
-    coins: [
-      ...Array.from({length:4}, (_,i)=>rect(1000+i*70, GROUND_Y-170,22,22)),
-      ...Array.from({length:5}, (_,i)=>rect(2350+i*60, GROUND_Y-120,22,22))
-    ],
-    bells: [ rect(750, GROUND_Y-120, 26,30) ],
-    bushes: [],
-    signs: [ 
-      {x:300,text:"ხტე!"}, 
-      {x:2000,text:"კონვეიერი!"},
-      {x:3400,text:"დასრულება!"} 
-    ],
-    flag: rect(3850, GROUND_Y-140,30,140),
-    zombies: [ 
-      {x:1400,y:GROUND_Y-54}, 
-      {x:2800,y:GROUND_Y-54}
-    ],
-    jumpboxes: [ 
-      rect(700, GROUND_Y-120, 42, 42, {hit:false, type:'shotgun'}),
-      rect(2000, GROUND_Y-130, 42, 42, {hit:false, type:'sponsor'}),
-      rect(3400, GROUND_Y-130, 42, 42, {hit:false, type:'heart'})
-    ],
-    bgHue:'blue'
-  });
-
-  // LEVEL 7: Horde Challenge - VERY HARD - ZOMBIE GAUNTLET
-  levels.push({
-    name:'ეპ.7 — ზომბი კაეტელი',
-    diffRating: 'ძალიან რთული', diffStars: '⭐⭐⭐⭐', diffColor: '#ef4444',
-    gimmickTitle: '🧟 ბევრი ზომბი', diffDesc: 'მრავალი ზომბი - სიჩქარე და რთულობა!',
-    zombieSpeedMult: 1.3, zombieHpMult: 1.3, gravityMult: 1.0, hazardType: 'ice_storm',
-    width: 4200,
-    spawn:{x:60,y:GROUND_Y-60},
-    plats: [
-      rect(0, GROUND_Y, 550, 90),
-      rect(700, GROUND_Y-70, 180, 24),
-      rect(950, GROUND_Y-140, 180, 24),
-      rect(1200, GROUND_Y, 500, 90),
-      rect(1850, GROUND_Y-80, 180, 24, {vy: 2.0, minY:GROUND_Y-180, maxY:GROUND_Y-40}),
-      rect(2200, GROUND_Y, 700, 90),
-      rect(2950, GROUND_Y-100, 200, 24),
-      rect(3300, GROUND_Y, 850, 90),
-    ],
-    swingingAxes: [],
-    spikes: [ rect(1100,GROUND_Y-24,50,24), rect(2100,GROUND_Y-24,50,24) ],
-    waters: [ rect(650,GROUND_Y,50,90) ],
-    lavas: [],
-    bananas: [ rect(1350,GROUND_Y-14,40,14), rect(2400,GROUND_Y-14,40,14) ],
-    coins: [
-      ...Array.from({length:4}, (_,i)=>rect(1050+i*70, GROUND_Y-170,22,22)),
-      ...Array.from({length:4}, (_,i)=>rect(2300+i*60, GROUND_Y-130,22,22))
-    ],
-    bells: [ rect(800, GROUND_Y-120, 26,30) ],
-    bushes: [],
-    signs: [ 
-      {x:300,text:"გაქეცი!"}, 
-      {x:1800,text:"სწრაფად!"},
-      {x:3100,text:"ფინიშ!"} 
-    ],
-    flag: rect(4050, GROUND_Y-140,30,140),
-    zombies: [ 
-      {x:1300,y:GROUND_Y-54}, 
-      {x:1500,y:GROUND_Y-54},
-      {x:2400,y:GROUND_Y-54}, 
-      {x:2700,y:GROUND_Y-54},
-      {x:3400,y:GROUND_Y-54}
-    ],
-    jumpboxes: [ 
-      rect(750, GROUND_Y-120, 42, 42, {hit:false, type:'minigun'}),
-      rect(1900, GROUND_Y-130, 42, 42, {hit:false, type:'sponsor'}),
-      rect(3000, GROUND_Y-130, 42, 42, {hit:false, type:'heart'})
-    ],
-    bgHue:'pink'
-  });
-
-  // LEVEL 8: Cosmic Low Gravity - MEDIUM - SPACE ADVENTURE
-  levels.push({
-    name:'ეპ.8 — კოსმოსური სადგური',
-    diffRating: 'საშუალო', diffStars: '⭐⭐⭐', diffColor: '#38c6ff',
-    gimmickTitle: '🪐 დაბალი გრავიტაცია', diffDesc: 'კოსმოსი! მსუბუქი ხტომა!',
-    zombieSpeedMult: 1.0, zombieHpMult: 1.1, gravityMult: 0.55, hazardType: 'low_gravity',
-    theme: 'cosmic',
-    width: 4000,
-    spawn:{x:60,y:GROUND_Y-60},
-    plats: [
-      rect(0, GROUND_Y, 550, 90),
-      rect(700, GROUND_Y-80, 180, 24),
-      rect(950, GROUND_Y-150, 180, 24),
-      rect(1200, GROUND_Y, 500, 90),
-      rect(1850, GROUND_Y-100, 180, 24, {vx: 2.0, minX:1850, maxX:2030}),
-      rect(2200, GROUND_Y, 700, 90),
-      rect(2950, GROUND_Y-90, 200, 24),
-      rect(3300, GROUND_Y, 650, 90),
-    ],
-    firejets: [],
     conveyors: [],
-    spikes: [ rect(1100,GROUND_Y-24,50,24), rect(2100,GROUND_Y-24,50,24) ],
+    fakespikes: [],
+    spikes: [
+      rect(1260, GROUND_Y-24, 50, 24),
+      rect(3310, GROUND_Y-24, 50, 24),
+    ],
     waters: [],
-    lavas: [],
-    bananas: [ rect(1350,GROUND_Y-14,40,14), rect(2400,GROUND_Y-14,40,14) ],
+    lavas: [
+      rect(630,  GROUND_Y, 50, 90),
+      rect(1810, GROUND_Y, 80, 90),
+    ],
+    bananas: [ rect(1360, GROUND_Y-14, 40,14) ],
+    firejets: [
+      {x:2050, y:GROUND_Y, flameH:140, period:2800, offset:0},
+    ],
     coins: [
-      ...Array.from({length:4}, (_,i)=>rect(1050+i*70, GROUND_Y-180,22,22)),
-      ...Array.from({length:4}, (_,i)=>rect(2300+i*70, GROUND_Y-130,22,22))
+      rect(710,  GROUND_Y-130, 22,22),
+      rect(1020, GROUND_Y-210, 22,22),
+      rect(1080, GROUND_Y-210, 22,22),
+      rect(1340, GROUND_Y-110, 22,22),
+      rect(1970, GROUND_Y-150, 22,22),
+      rect(2370, GROUND_Y-110, 22,22),
+      rect(3040, GROUND_Y-150, 22,22),
+      rect(3100, GROUND_Y-150, 22,22),
     ],
-    bells: [ rect(800, GROUND_Y-130, 26,30), rect(3000, GROUND_Y-130, 26,30) ],
+    bells: [ rect(1030, GROUND_Y-215, 26,30), rect(3050, GROUND_Y-155, 26,30) ],
     bushes: [],
-    signs: [ 
-      {x:300,text:"კოსმოსი!"}, 
-      {x:1800,text:"მოდი ზე!"}, 
-      {x:3100,text:"სახლი!"} 
+    signs: [
+      {x: 300,  text: 'ცხელია!'},
+      {x: 1600, text: 'ცეცხლი!'},
+      {x: 3200, text: 'ბოსი!'},
     ],
-    flag: rect(3850, GROUND_Y-140,30,140),
-    zombies: [ 
-      {x:1350,y:GROUND_Y-54}, 
-      {x:2500,y:GROUND_Y-54}
+    flag: rect(4150, GROUND_Y-140, 30,140),
+    zombies: [ {x:2100, y:GROUND_Y-80, type:'boss'} ],
+    jumpboxes: [
+      rect(720,  GROUND_Y-130, 42,42, {hit:false, type:'heart'}),
+      rect(2000, GROUND_Y-150, 42,42, {hit:false, type:'sponsor'}),
+      rect(3400, GROUND_Y-140, 42,42, {hit:false, type:'fastener'}),
     ],
-    jumpboxes: [ 
-      rect(750, GROUND_Y-130, 42, 42, {hit:false, type:'plasma'}),
-      rect(1900, GROUND_Y-140, 42, 42, {hit:false, type:'sponsor'}),
-      rect(3000, GROUND_Y-130, 42, 42, {hit:false, type:'heart'})
-    ],
-    bgHue:'blue'
   });
 
-  // LEVEL 9: Double Boss Fight - EXTREME - FINALE
+  // ══════════════════════════════════════════════════════════
+  // LEVEL 6 — ბირთვული ქარხანა | Industrial Nuclear | HARD+
+  // Theme: industrial_sector. Mechanic: conveyor belt + tricky gaps.
+  // ══════════════════════════════════════════════════════════
   levels.push({
-    name:'ეპ.9 — ორმაგი ბოსი',
+    name: 'ეპ.6 — ბირთვული ქარხანა',
+    diffRating: 'რთული+', diffStars: '⭐⭐⭐⭐', diffColor: '#f97316',
+    gimmickTitle: 'კონვეიერი', diffDesc: 'ინდუსტრიული სექტორი — კონვეიერი გიბიძგებს!',
+    zombieSpeedMult: 1.1, zombieHpMult: 1.2, gravityMult: 1.0, hazardType: 'laser_guillotine',
+    theme: 'industrial_sector',
+    width: 4200,
+    spawn: {x:80, y:GROUND_Y-60},
+    plats: [
+      rect(0,    GROUND_Y,       520, 90),
+      rect(640,  GROUND_Y-80,    190, 24),
+      rect(940,  GROUND_Y-160,   190, 24),
+      rect(1250, GROUND_Y,       520, 90),
+      rect(1900, GROUND_Y-80,    180, 24, {vx:2.2, minX:1900, maxX:2100}),
+      rect(2280, GROUND_Y,       900, 90),
+      rect(3300, GROUND_Y-100,   210, 24),
+      rect(3640, GROUND_Y,       530, 90),
+    ],
+    conveyors: [
+      rect(2280, GROUND_Y, 900, 10, {speed: 2.0}),
+    ],
+    fakespikes: [],
+    spikes: [
+      rect(1200, GROUND_Y-24, 50, 24),
+      rect(2230, GROUND_Y-24, 50, 24),
+      rect(3590, GROUND_Y-24, 50, 24),
+    ],
+    waters: [],
+    lavas: [ rect(1160, GROUND_Y, 90, 90) ],
+    bananas: [],
+    coins: [
+      rect(665,  GROUND_Y-130, 22,22),
+      rect(960,  GROUND_Y-210, 22,22),
+      rect(1020, GROUND_Y-210, 22,22),
+      rect(1280, GROUND_Y-110, 22,22),
+      rect(1920, GROUND_Y-130, 22,22),
+      rect(2310, GROUND_Y-110, 22,22),
+      rect(2370, GROUND_Y-110, 22,22),
+      rect(2430, GROUND_Y-110, 22,22),
+      rect(3320, GROUND_Y-150, 22,22),
+      rect(3670, GROUND_Y-110, 22,22),
+    ],
+    bells: [ rect(975, GROUND_Y-215, 26,30) ],
+    bushes: [],
+    signs: [
+      {x: 300,  text: 'ქარხანა!'},
+      {x: 1700, text: 'კონვეიერი!'},
+      {x: 3450, text: 'ფინიში!'},
+    ],
+    flag: rect(4060, GROUND_Y-140, 30,140),
+    zombies: [ {x:1420, y:GROUND_Y-54}, {x:2900, y:GROUND_Y-54} ],
+    jumpboxes: [
+      rect(680,  GROUND_Y-130, 42,42, {hit:false, type:'shotgun'}),
+      rect(1940, GROUND_Y-130, 42,42, {hit:false, type:'sponsor'}),
+      rect(3680, GROUND_Y-140, 42,42, {hit:false, type:'heart'}),
+    ],
+  });
+
+  // ══════════════════════════════════════════════════════════
+  // LEVEL 7 — ყინულის ტუნდრა | Frozen Tundra | VERY HARD
+  // Theme: frozen_tundra. Mechanic: slippery ice + horde.
+  // ══════════════════════════════════════════════════════════
+  levels.push({
+    name: 'ეპ.7 — ყინულის ტუნდრა',
+    diffRating: 'ძალიან რთული', diffStars: '⭐⭐⭐⭐', diffColor: '#38c6ff',
+    gimmickTitle: 'ყინულოვანი ველი', diffDesc: 'ავრორა ციაგობს — ბევრი ზომბი, ყინულოვანი გზა!',
+    zombieSpeedMult: 1.25, zombieHpMult: 1.25, gravityMult: 1.0, hazardType: 'ice_storm',
+    theme: 'frozen_tundra',
+    width: 4400,
+    spawn: {x:80, y:GROUND_Y-60},
+    plats: [
+      rect(0,    GROUND_Y,       560, 90),
+      rect(700,  GROUND_Y-80,    190, 24),
+      rect(1000, GROUND_Y-150,   190, 24),
+      rect(1290, GROUND_Y,       560, 90),
+      rect(1970, GROUND_Y-80,    190, 24, {vy:1.8, minY:GROUND_Y-180, maxY:GROUND_Y-40}),
+      rect(2270, GROUND_Y,       620, 90),
+      rect(3020, GROUND_Y-100,   210, 24),
+      rect(3350, GROUND_Y,       1000, 90),
+    ],
+    conveyors: [],
+    fakespikes: [],
+    spikes: [
+      rect(1240, GROUND_Y-24, 50, 24),
+      rect(2220, GROUND_Y-24, 50, 24),
+    ],
+    waters: [ rect(660, GROUND_Y, 40, 90) ],
+    lavas:  [],
+    bananas: [],
+    coins: [
+      rect(720,  GROUND_Y-130, 22,22),
+      rect(780,  GROUND_Y-130, 22,22),
+      rect(1020, GROUND_Y-200, 22,22),
+      rect(1320, GROUND_Y-110, 22,22),
+      rect(1990, GROUND_Y-130, 22,22),
+      rect(2300, GROUND_Y-110, 22,22),
+      rect(2360, GROUND_Y-110, 22,22),
+      rect(3040, GROUND_Y-150, 22,22),
+      rect(3100, GROUND_Y-150, 22,22),
+    ],
+    bells: [ rect(1030, GROUND_Y-205, 26,30) ],
+    bushes: [],
+    signs: [
+      {x: 300,  text: 'ყინულია!'},
+      {x: 1700, text: 'სწრაფად!'},
+      {x: 3200, text: 'ბოლოა!'},
+    ],
+    flag: rect(4250, GROUND_Y-140, 30,140),
+    zombies: [
+      {x:1380, y:GROUND_Y-54},
+      {x:1580, y:GROUND_Y-54},
+      {x:2500, y:GROUND_Y-54},
+      {x:2700, y:GROUND_Y-54},
+      {x:3500, y:GROUND_Y-54},
+    ],
+    jumpboxes: [
+      rect(740,  GROUND_Y-130, 42,42, {hit:false, type:'minigun'}),
+      rect(2010, GROUND_Y-130, 42,42, {hit:false, type:'sponsor'}),
+      rect(3380, GROUND_Y-140, 42,42, {hit:false, type:'heart'}),
+    ],
+  });
+
+  // ══════════════════════════════════════════════════════════
+  // LEVEL 8 — კოსმოსური სადგური | Cosmic Void | MEDIUM (gravity)
+  // Theme: cosmic_void. Mechanic: low gravity — high floating jumps.
+  // ══════════════════════════════════════════════════════════
+  levels.push({
+    name: 'ეპ.8 — კოსმოსური სადგური',
+    diffRating: 'საშუალო', diffStars: '⭐⭐⭐', diffColor: '#a855f7',
+    gimmickTitle: 'დაბალი გრავიტაცია', diffDesc: 'კოსმოსი! გრავიტაცია ნახევარია — ფრენა მოდება!',
+    zombieSpeedMult: 0.95, zombieHpMult: 1.1, gravityMult: 0.52, hazardType: 'low_gravity',
+    theme: 'cosmic_void',
+    width: 4100,
+    spawn: {x:80, y:GROUND_Y-60},
+    plats: [
+      rect(0,    GROUND_Y,       560, 90),
+      rect(700,  GROUND_Y-100,   190, 24),
+      rect(1000, GROUND_Y-200,   190, 24),
+      rect(1300, GROUND_Y,       560, 90),
+      rect(1990, GROUND_Y-110,   200, 24, {vx:1.8, minX:1990, maxX:2200}),
+      rect(2380, GROUND_Y,       620, 90),
+      rect(3130, GROUND_Y-120,   210, 24),
+      rect(3470, GROUND_Y,       600, 90),
+    ],
+    conveyors: [],
+    fakespikes: [],
+    spikes: [
+      rect(1250, GROUND_Y-24, 50, 24),
+      rect(2330, GROUND_Y-24, 50, 24),
+    ],
+    waters: [],
+    lavas:  [],
+    bananas: [],
+    coins: [
+      rect(720,  GROUND_Y-150, 22,22),
+      rect(780,  GROUND_Y-150, 22,22),
+      rect(1020, GROUND_Y-250, 22,22),
+      rect(1080, GROUND_Y-250, 22,22),
+      rect(1330, GROUND_Y-110, 22,22),
+      rect(2010, GROUND_Y-160, 22,22),
+      rect(2410, GROUND_Y-110, 22,22),
+      rect(3150, GROUND_Y-170, 22,22),
+      rect(3500, GROUND_Y-110, 22,22),
+    ],
+    bells: [ rect(1035, GROUND_Y-255, 26,30), rect(3160, GROUND_Y-175, 26,30) ],
+    bushes: [],
+    signs: [
+      {x: 300,  text: 'კოსმოსი!'},
+      {x: 1600, text: 'ფრენა!'},
+      {x: 3300, text: 'დედამიწა!'},
+    ],
+    flag: rect(3970, GROUND_Y-140, 30,140),
+    zombies: [ {x:1460, y:GROUND_Y-54}, {x:2620, y:GROUND_Y-54} ],
+    jumpboxes: [
+      rect(740,  GROUND_Y-150, 42,42, {hit:false, type:'plasma'}),
+      rect(2030, GROUND_Y-160, 42,42, {hit:false, type:'sponsor'}),
+      rect(3510, GROUND_Y-140, 42,42, {hit:false, type:'heart'}),
+    ],
+  });
+
+  // ══════════════════════════════════════════════════════════
+  // LEVEL 9 — დანგრეული ქალაქი | Doomsday City | EXTREME
+  // Theme: doomsday_city. Mechanic: two bosses + swinging axe.
+  // ══════════════════════════════════════════════════════════
+  levels.push({
+    name: 'ეპ.9 — დანგრეული ქალაქი',
     diffRating: 'ძალიან რთული', diffStars: '⭐⭐⭐⭐', diffColor: '#ef4444',
-    gimmickTitle: '💀 ორი ძლიერი ბოსი', diffDesc: 'ორი ბოსი - წაბლო და სიმაგრე!',
-    zombieSpeedMult: 1.35, zombieHpMult: 1.8, gravityMult: 1.0, hazardType: 'none',
-    theme: 'industrial',
-    width: 4300,
-    spawn:{x:60,y:GROUND_Y-60},
+    gimmickTitle: 'ორი ბოსი', diffDesc: 'სამყაროს ბოლო — ორი ბოსი ერთდროულად!',
+    zombieSpeedMult: 1.3, zombieHpMult: 1.7, gravityMult: 1.0, hazardType: 'none',
+    theme: 'doomsday_city',
+    width: 4500,
+    spawn: {x:80, y:GROUND_Y-60},
     plats: [
-      rect(0, GROUND_Y, 550, 90),
-      rect(700, GROUND_Y-80, 180, 24),
-      rect(950, GROUND_Y-150, 180, 24),
-      rect(1200, GROUND_Y, 500, 90),
-      rect(1850, GROUND_Y-100, 180, 24),
-      rect(2200, GROUND_Y, 700, 90),
-      rect(2950, GROUND_Y-100, 200, 24),
-      rect(3300, GROUND_Y, 950, 90),
+      rect(0,    GROUND_Y,       560, 90),
+      rect(700,  GROUND_Y-90,    200, 24),
+      rect(1010, GROUND_Y-170,   200, 24),
+      rect(1320, GROUND_Y,       560, 90),
+      rect(2010, GROUND_Y-90,    200, 24, {vy:1.8, minY:GROUND_Y-200, maxY:GROUND_Y-40}),
+      rect(2330, GROUND_Y,       620, 90),
+      rect(3100, GROUND_Y-100,   210, 24),
+      rect(3440, GROUND_Y,       1020, 90),
     ],
-    swingingAxes: [],
-    spikes: [ rect(1100,GROUND_Y-24,50,24), rect(2100,GROUND_Y-24,50,24) ],
+    conveyors: [],
+    fakespikes: [],
+    swingingAxes: [ {cx:1500, cy:GROUND_Y-220, len:110, speed:0.004, range:1.0} ],
+    spikes: [
+      rect(1270, GROUND_Y-24, 50, 24),
+      rect(2280, GROUND_Y-24, 50, 24),
+    ],
     waters: [],
-    lavas: [ rect(3200,GROUND_Y-24,50,90) ],
-    bananas: [ rect(1350,GROUND_Y-14,40,14), rect(2400,GROUND_Y-14,40,14) ],
+    lavas: [ rect(1820, GROUND_Y, 90, 90) ],
+    bananas: [],
     coins: [
-      ...Array.from({length:4}, (_,i)=>rect(1050+i*70, GROUND_Y-180,22,22)),
-      ...Array.from({length:4}, (_,i)=>rect(2300+i*70, GROUND_Y-130,22,22))
+      rect(720,  GROUND_Y-140, 22,22),
+      rect(780,  GROUND_Y-140, 22,22),
+      rect(1030, GROUND_Y-220, 22,22),
+      rect(1350, GROUND_Y-110, 22,22),
+      rect(2040, GROUND_Y-140, 22,22),
+      rect(2370, GROUND_Y-110, 22,22),
+      rect(2430, GROUND_Y-110, 22,22),
+      rect(3130, GROUND_Y-150, 22,22),
     ],
-    bells: [ rect(800, GROUND_Y-130, 26,30) ],
+    bells: [ rect(1040, GROUND_Y-225, 26,30) ],
     bushes: [],
-    signs: [ {x:300, text:"ბოსი!"}, {x:1900, text:"და კიდევ!"}, {x:3100, text:"ბოლო!"} ],
-    flag: rect(4150, GROUND_Y-140,30,140),
-    zombies: [ 
-      {x:1400,y:GROUND_Y-80, type:'boss'}, 
-      {x:2700,y:GROUND_Y-80, type:'boss'}
+    signs: [
+      {x: 300,  text: 'სამყაროს ბოლო!'},
+      {x: 1700, text: 'ორი ბოსი!'},
+      {x: 3300, text: 'გაიმარჯვე!'},
     ],
-    jumpboxes: [ 
-      rect(750, GROUND_Y-130, 42, 42, {hit:false, type:'heart'}),
-      rect(1900, GROUND_Y-140, 42, 42, {hit:false, type:'sponsor'}),
-      rect(3000, GROUND_Y-140, 42, 42, {hit:false, type:'sponsor'})
+    flag: rect(4360, GROUND_Y-140, 30,140),
+    zombies: [
+      {x:1700, y:GROUND_Y-80, type:'boss'},
+      {x:2900, y:GROUND_Y-80, type:'boss'},
     ],
-    bgHue:'pink'
+    jumpboxes: [
+      rect(740,  GROUND_Y-140, 42,42, {hit:false, type:'heart'}),
+      rect(2060, GROUND_Y-140, 42,42, {hit:false, type:'sponsor'}),
+      rect(3480, GROUND_Y-140, 42,42, {hit:false, type:'fastener'}),
+    ],
   });
 
-  // LEVEL 10: Final Boss Arena - EXTREME
+  // ══════════════════════════════════════════════════════════
+  // LEVEL 10 — გლიჩ-მატრიქსი | Glitch Cyberverse | EXTREME
+  // Theme: glitch_cyberverse. Mechanic: fast enemies + spike maze.
+  // ══════════════════════════════════════════════════════════
   levels.push({
-    name:'ეპ.10 — ყოვლისამჯერ ბოსი',
+    name: 'ეპ.10 — გლიჩ მატრიქსი',
     diffRating: 'EXTREME', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#a855f7',
-    gimmickTitle: '💀 ბოლო საბრძოლო', diffDesc: 'ყოვლის სიძლიერე! აქ ყველა უნარი საჭიროა!',
-    zombieSpeedMult: 1.5, zombieHpMult: 2.0, gravityMult: 1.0, hazardType: 'glitch_pulses',
-    width: 4300,
-    spawn:{x:60,y:GROUND_Y-60},
+    gimmickTitle: 'გლიჩ-პულსები', diffDesc: 'სისტემა ჩაიჭედა — ყველაფერი ჩქარდება!',
+    zombieSpeedMult: 1.45, zombieHpMult: 1.9, gravityMult: 1.0, hazardType: 'glitch_pulses',
+    theme: 'glitch_cyberverse',
+    width: 4600,
+    spawn: {x:80, y:GROUND_Y-60},
     plats: [
-      rect(0, GROUND_Y, 850, 90),
-      rect(950, GROUND_Y-70, 240, 24),
-      rect(1280, GROUND_Y-150, 240, 24),
-      rect(1600, GROUND_Y, 700, 90),
-      rect(2400, GROUND_Y-90, 260, 24, {vx: 3.5, minX:2400, maxX:2850}),
-      rect(3200, GROUND_Y, 900, 90),
-      rect(4200, GROUND_Y-100, 260, 24),
-      rect(4550, GROUND_Y-180, 260, 24),
-      rect(4900, GROUND_Y, 850, 90),
+      rect(0,    GROUND_Y,       560, 90),
+      rect(700,  GROUND_Y-90,    200, 24),
+      rect(1010, GROUND_Y-180,   200, 24),
+      rect(1320, GROUND_Y,       560, 90),
+      rect(2040, GROUND_Y-90,    200, 24, {vx:2.5, minX:2040, maxX:2250}),
+      rect(2430, GROUND_Y,       600, 90),
+      rect(3200, GROUND_Y-90,    210, 24),
+      rect(3540, GROUND_Y-170,   210, 24),
+      rect(3870, GROUND_Y,       700, 90),
     ],
-    fakespikes: [ rect(1700,GROUND_Y-24,110,24), rect(3400,GROUND_Y-24,110,24) ],
-    spikes: [ rect(890,GROUND_Y-24,60,24), rect(1280, GROUND_Y-174, 60, 24), rect(2300,GROUND_Y-24,100,24), rect(4100,GROUND_Y-24,100,24), rect(4550, GROUND_Y-204, 60, 24) ],
-    lavas: [ rect(850, GROUND_Y, 100, 90), rect(2300, GROUND_Y, 100, 90), rect(4100, GROUND_Y, 100, 90) ],
-    bananas: [ rect(1650,GROUND_Y-14,40,14), rect(3250,GROUND_Y-14,40,14) ],
+    conveyors: [],
+    fakespikes: [],
+    swingingAxes: [ {cx:1600, cy:GROUND_Y-230, len:120, speed:0.005, range:1.1} ],
+    spikes: [
+      rect(1270, GROUND_Y-24, 50, 24),
+      rect(2380, GROUND_Y-24, 50, 24),
+      rect(3820, GROUND_Y-24, 50, 24),
+    ],
+    waters: [],
+    lavas: [ rect(1830, GROUND_Y, 90, 90) ],
+    bananas: [],
     coins: [
-      ...Array.from({length:10}, (_,i)=>rect(1650+i*55, GROUND_Y-110,22,22)),
-      ...Array.from({length:10}, (_,i)=>rect(3250+i*60, GROUND_Y-120,22,22))
+      rect(720,  GROUND_Y-140, 22,22),
+      rect(780,  GROUND_Y-140, 22,22),
+      rect(1040, GROUND_Y-230, 22,22),
+      rect(1350, GROUND_Y-110, 22,22),
+      rect(2060, GROUND_Y-140, 22,22),
+      rect(2460, GROUND_Y-110, 22,22),
+      rect(3230, GROUND_Y-140, 22,22),
+      rect(3560, GROUND_Y-220, 22,22),
+      rect(3900, GROUND_Y-110, 22,22),
     ],
-    bells: [ rect(1330, GROUND_Y-200,26,30), rect(4600, GROUND_Y-230,26,30) ],
-    bushes: [ rect(1850, GROUND_Y-50,50,50,{triggered:false}), rect(3600, GROUND_Y-50,50,50,{triggered:false}) ],
-    signs: [ 
-      {x:500,text:"🏆 ფინალური ლეველი! გამოიყენე FASTENER!"},
-      {x:3300,text:"გეოდინოს არხის მაყურებლები ამარცხებენ ყველა ზომბს!"},
-      {x:5000,text:"გილოცავ! CODEZERO.GE შენთანაა!"}
+    bells: [ rect(1050, GROUND_Y-235, 26,30), rect(3570, GROUND_Y-225, 26,30) ],
+    bushes: [],
+    signs: [
+      {x: 300,  text: 'გლიჩი!'},
+      {x: 1700, text: 'სისტემა!'},
+      {x: 3600, text: 'GAME OVER?'},
     ],
-    flag: rect(5600, GROUND_Y-140,30,140),
-    zombies: [ 
-      {x:1700,y:GROUND_Y-80, type:'boss'}, 
-      {x:1900,y:GROUND_Y-54, type:0.1},
-      {x:3300,y:GROUND_Y-80, type:'boss'}, 
-      {x:3500,y:GROUND_Y-54},
-      {x:5000,y:GROUND_Y-80, type:'boss'},
-      {x:5200,y:GROUND_Y-54, type:0.2} 
+    flag: rect(4460, GROUND_Y-140, 30,140),
+    zombies: [
+      {x:1450, y:GROUND_Y-54},
+      {x:1700, y:GROUND_Y-80, type:'boss'},
+      {x:2700, y:GROUND_Y-54},
+      {x:3000, y:GROUND_Y-80, type:'boss'},
+      {x:4100, y:GROUND_Y-54},
     ],
-    jumpboxes: [ 
-      rect(1000, GROUND_Y-120, 42, 42, {hit:false, type:'fastener'}),
-      rect(1750, GROUND_Y-110, 42, 42, {hit:false, type:'plasma'}),
-      rect(3350, GROUND_Y-110, 42, 42, {hit:false, type:'minigun'}),
-      rect(4600, GROUND_Y-230, 42, 42, {hit:false, type:'sponsor'})
+    jumpboxes: [
+      rect(750,  GROUND_Y-140, 42,42, {hit:false, type:'fastener'}),
+      rect(2080, GROUND_Y-140, 42,42, {hit:false, type:'plasma'}),
+      rect(3580, GROUND_Y-220, 42,42, {hit:false, type:'sponsor'}),
     ],
-    bgHue:'blue'
   });
 
   // LEVEL 11: Screaming Bananas & Flamethrower Inferno
@@ -3867,7 +3997,7 @@ function buildLevels(){
 
   // LEVEL 13: Giant Mutant Dinosaurs
   levels.push({
-    name:'ეპ.13 — გიგანტური მუტანტი დინოზავრები 🦖💀',
+    name:'ეპ.13 — გიგანტური მუტანტი დინო���ავრები 🦖💀',
     diffRating: 'EXTREME', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#a855f7',
     gimmickTitle: '☄️ მუტანტები & ცეცხლოვანი მეტეორები', diffDesc: 'მძიმე გრავიტაცია (1.35x), ცის მეტეორული წვიმა და 2.5x HP მუტანტი ბოსები.',
     zombieSpeedMult: 1.5, zombieHpMult: 2.5, gravityMult: 1.35, hazardType: 'meteor_rain',
@@ -4809,7 +4939,7 @@ function buildLevels(){
     name:'ეპ.39 — სიჩქარის ზონა',
     diffRating:'პრო', diffStars:'⭐75 REQUIREMENT⭐', diffColor:'#eab308',
     gimmickTitle:'⚡ მაქსიმალური სიჩქარე',
-    diffDesc:'სწრაფი მოძრაობა და რეაქციის ტესტი პლატფორმებზე!',
+    diffDesc:'სწრაფი მოძრაობა და რეაქციის ტ���სტი პლატფორმებზე!',
     zombieSpeedMult: 2.5, zombieHpMult: 4.8, gravityMult: 1.0,
     theme: 'pro_hyperspeed_void',
     width: 11000, spawn:{x:60, y:GROUND_Y-60},
@@ -11408,7 +11538,7 @@ const shopUpgrades = [
 
 const shopSkins = [
   { id: 'classic', title: '🦕 დინო', desc: 'ჩვენი კლასიკური ხულიგანი.', cost: 0, icon: '🦕' },
-  { id: 'lasha', title: '✏️ ლაშა', desc: 'ლაშა თავისი ცნობილი ვიზუალით!', cost: 180, icon: '✏️' },
+  { id: 'lasha', title: '✏️ ლაშა', desc: 'ლაშა თავისი ცნო���ილი ვიზუალით!', cost: 180, icon: '✏️' },
   { id: 'gold', title: '👑 ოქროს რაინდი', desc: 'ოქროში ამოვლებული მებრძოლი!', cost: 100, icon: '👑' },
   { id: 'cyber', title: '🌆 კიბერპანკი', desc: 'მომავლის ტექნოლოგიებით აღჭურვილი!', cost: 150, icon: '🌆' },
   { id: 'zombie', title: '🧟 ინფიცირებული', desc: 'ზომბად ქცეული დინოზავრი!', cost: 120, icon: '🧟' },
