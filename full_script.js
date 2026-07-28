@@ -28,9 +28,19 @@ function beep(freq, dur, type='square', vol=0.05, delay=0, freqEnd=null){
   }catch(e){}
 }
 
-function sfxJump(){ beep(420,0.12,'square',0.06,0,780); }
-function sfxCoin(){ beep(880,0.08,'square',0.06,0,1320); }
-function sfxBell(){ beep(660,0.1,'triangle',0.07); beep(990,0.15,'triangle',0.06,0.08); }
+function sfxJump(){ 
+  beep(420,0.12,'triangle',0.07,0,780);
+  beep(600,0.08,'sine',0.05,0.06);
+}
+function sfxCoin(){ 
+  beep(880,0.08,'square',0.07,0,1320);
+  beep(1320,0.06,'triangle',0.05,0.05);
+}
+function sfxBell(){ 
+  beep(660,0.12,'triangle',0.08);
+  beep(990,0.15,'triangle',0.07,0.08);
+  beep(1320,0.08,'sine',0.06,0.15);
+}
 function sfxHurt(){ beep(220,0.25,'sawtooth',0.09,0,40); }
 function sfxPrankGood(){ beep(300,0.06,'square',0.05); beep(200,0.06,'square',0.05,0.06); beep(500,0.12,'square',0.06,0.12); }
 function sfxScare(){ 
@@ -80,8 +90,36 @@ function sfxDeathCustom(){
 }
 
 function sfxZombieHit(){ beep(240,0.12,'sawtooth',0.08,0,80); }
+function sfxZombieHitHeavy(){ 
+  beep(150,0.15,'sawtooth',0.12,0,60);
+  beep(100,0.1,'square',0.08,0.05,30);
+}
 function sfxFall(){ beep(600, 1.2, 'sawtooth', 0.08, 0, 40); }
 function sfxBoxHit(){ beep(300,0.1,'square',0.08,0,600); }
+function sfxCybernetic(){ 
+  beep(420,0.08,'triangle',0.08,0,1000);
+  beep(840,0.06,'square',0.06,0.04,200);
+}
+function sfxExplosion(){ 
+  beep(100,0.3,'sawtooth',0.15,0,20);
+  beep(50,0.25,'triangle',0.12,0.05,10);
+}
+function sfxPowerUp(){ 
+  beep(659,0.08,'sine',0.08);
+  beep(988,0.08,'sine',0.08,0.08);
+  beep(1319,0.1,'sine',0.08,0.16);
+}
+function sfxAmbientBuzz(){
+  // Low ambient buzz for atmosphere
+  beep(55,0.5,'sawtooth',0.03,0,45);
+}
+function sfxLevelComplete(){
+  // Triumphant level complete fanfare
+  beep(523,0.15,'triangle',0.1);
+  beep(659,0.15,'triangle',0.1,0.15);
+  beep(784,0.15,'triangle',0.1,0.3);
+  beep(1047,0.2,'triangle',0.12,0.45);
+}
 
 // ---------- Background Music System (Procedural Web Audio Engine) ----------
 let bgmMuted = false;
@@ -1345,7 +1383,7 @@ function updateAirplaneLevel(dt){
     airBoss.vx = -1.5; airBoss.vy = 0;
     airBoss.animT = 0; airBoss.enraged = false; airBoss.shootTimer = 0;
     shake(25); sfxDemonic(); triggerFlash('255,100,0', 0.7);
-    toast('💀 CODEZERO ზომბი-ბომბდამშენი გამოჩნდა! 💀', 3500);
+    toast('💀 CODEZERO ზომ���ი-ბომბდამშენი გამოჩნდა! 💀', 3500);
   }
 
   // Air boss update
@@ -1450,7 +1488,7 @@ function updateAirplaneLevel(dt){
         airplane.invuln = 180;
         shake(28);
         triggerFlash('0,255,120', 0.8);
-        toast("🛡️ ავარიული ფარის გადატვირთვა! +12 ფარი!", 2500);
+        toast("🛡️ ავარიული ფარის გ��დატვირთვა! +12 ფარი!", 2500);
       } else {
         player.dead = true;
         state.mode = 'gameover';
@@ -3260,12 +3298,12 @@ function rect(x,y,w,h, extra={}){ return {x,y,w,h, ...extra}; }
 function buildLevels(){
   const levels = [];
 
-  // LEVEL 1: Tutorial & Jumpboxes
+  // LEVEL 1: Tutorial & Jumpboxes - EASY START
   levels.push({
     name:'ეპ.1 — საწყისი ქუჩა',
-    diffRating: 'მარტივი', diffStars: '⭐', diffColor: '#22c55e',
-    gimmickTitle: '🔰 სწავლება', diffDesc: 'პირველი ნაბიჯები: გაეცანი სამყაროს და მოერიდე ზომბებს.',
-    zombieSpeedMult: 0.8, zombieHpMult: 1.0, gravityMult: 1.0, hazardType: 'none',
+    diffRating: 'ძალიან მარტივი', diffStars: '⭐', diffColor: '#22c55e',
+    gimmickTitle: '🔰 სწავლება', diffDesc: 'პირველი ნაბიჯები: გაეცანი სამყაროს. ზომბები ნელი და მშვიდი არიან!',
+    zombieSpeedMult: 0.5, zombieHpMult: 0.8, gravityMult: 1.0, hazardType: 'none',
     width: 4400,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -3289,9 +3327,9 @@ function buildLevels(){
     bells: [ rect(2050, GROUND_Y-150, 26,30), rect(3380, GROUND_Y-190,26,30) ],
     bushes: [ rect(1750, GROUND_Y-50, 50,50, {triggered:false}) ],
     signs: [ 
-      {x:380, text:"უსაფრთხო გზა >"}, 
-      {x:1180,text:"კონვეიერი გიბიძგებს წინ!"}, 
-      {x:2800,text:"codezero.ge-საუკეთესო წიგნები"} 
+      {x:380, text:"✓ უსაფრთხო გზა! დაიწყე!"}, 
+      {x:1180,text:"⚡ კონვეიერი წინ!"}, 
+      {x:2800,text:"📚 codezero.ge საუკეთესო!"} 
     ],
     flag: rect(4260, GROUND_Y-140, 30,140),
     zombies: [ {x:1200,y:GROUND_Y-54}, {x:2500,y:GROUND_Y-54}, {x:3800,y:GROUND_Y-54} ],
@@ -3304,12 +3342,12 @@ function buildLevels(){
     bgHue:'blue'
   });
 
-  // LEVEL 2: Cyber Alley & Moving Platforms
+  // LEVEL 2: Cyber Alley & Moving Platforms - EASY
   levels.push({
     name:'ეპ.2 — კიბერ უბანი',
-    diffRating: 'საშუალო', diffStars: '⭐⭐', diffColor: '#38c6ff',
-    gimmickTitle: '⛓️ მბრუნავი ნაჯახები', diffDesc: 'მოერიდე მბრუნავ ნაჯახებს და მოძრავ პლატფორმებს!',
-    zombieSpeedMult: 1.1, zombieHpMult: 1.1, gravityMult: 1.0, hazardType: 'moving_platforms',
+    diffRating: 'მარტივი', diffStars: '⭐⭐', diffColor: '#38c6ff',
+    gimmickTitle: '⛓️ მბრუნავი ნაჯახები', diffDesc: 'მოერიდე მბრუნავ ნაჯახებს - მაგრამ ისინი ნელია!',
+    zombieSpeedMult: 0.7, zombieHpMult: 0.9, gravityMult: 1.0, hazardType: 'moving_platforms',
     theme: 'cyberpunk_alley',
     width: 4600,
     spawn:{x:60,y:GROUND_Y-60},
@@ -3336,7 +3374,7 @@ function buildLevels(){
     ],
     bells: [ rect(1870, GROUND_Y-210,26,30), rect(3000, GROUND_Y-100,26,30) ],
     bushes: [ rect(1250, GROUND_Y-50,50,50,{triggered:false}), rect(3450, GROUND_Y-50,50,50,{triggered:false}) ],
-    signs: [ {x:600,text:"მოძრავი პლატფორმა!"}, {x:2160,text:"0% შანსი გადარჩენის"}, {x:3920,text:"ბოსი წინ არის!"} ],
+    signs: [ {x:600,text:"⚙️ მოძრავი პლატფორმა!"}, {x:2160,text:"⛓️ მბრუნავი ნაჯახი!"}, {x:3920,text:"👹 პირველი ბოსი!"} ],
     flag: rect(4450, GROUND_Y-140,30,140),
     zombies: [ {x:1150,y:GROUND_Y-54}, {x:2200,y:GROUND_Y-54}, {x:3700,y:GROUND_Y-80, type:'boss'} ],
     jumpboxes: [ 
@@ -3347,12 +3385,12 @@ function buildLevels(){
     bgHue:'pink'
   });
 
-  // LEVEL 3: CodeZero Horror Library
+  // LEVEL 3: CodeZero Horror Library - MEDIUM
   levels.push({
     name:'ეპ.3 — დაწყევლილი ბიბლიოთეკა 📚💀',
-    diffRating: 'საშუალო+', diffStars: '⭐⭐⭐', diffColor: '#eab308',
-    gimmickTitle: '🌫️ ბნელი ნისლი', diffDesc: 'ნისლი ხილვადობას ზღუდავს. იყავი ფხიზლად!',
-    zombieSpeedMult: 1.2, zombieHpMult: 1.3, gravityMult: 1.0, hazardType: 'dense_fog',
+    diffRating: 'საშუალო', diffStars: '⭐⭐', diffColor: '#eab308',
+    gimmickTitle: '🌫️ ბნელი ნისლი', diffDesc: 'ნისლი ხილვადობას ზღუდავს. ნელა მოძრაობ და დათვალიერებ!',
+    zombieSpeedMult: 0.9, zombieHpMult: 1.0, gravityMult: 1.0, hazardType: 'dense_fog',
     width: 4800,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -3396,12 +3434,12 @@ function buildLevels(){
     bgHue:'pink'
   });
 
-  // LEVEL 4: Extreme Parkour & Horror Jumpscares
+  // LEVEL 4: Extreme Parkour & Horror Jumpscares - MEDIUM+
   levels.push({
     name:'ეპ.4 — პარკურის მოედანი 💥',
-    diffRating: 'რთული', diffStars: '⭐⭐⭐', diffColor: '#f97316',
-    gimmickTitle: '🦘 მძიმე გრავიტაცია', diffDesc: 'აქ ხტომა უფრო რთულია. გამოიჩინე პარკურის უნარები!',
-    zombieSpeedMult: 1.35, zombieHpMult: 1.2, gravityMult: 1.25, hazardType: 'heavy_gravity',
+    diffRating: 'საშუალო+', diffStars: '⭐⭐⭐', diffColor: '#f97316',
+    gimmickTitle: '🦘 მძიმე გრავიტაცია', diffDesc: 'გრავიტაცია აძლიერდა! უფრო ფხიზლად ხტე წინ!',
+    zombieSpeedMult: 1.0, zombieHpMult: 1.1, gravityMult: 1.15, hazardType: 'heavy_gravity',
     theme: 'parkour_rooftops',
     width: 5000,
     spawn:{x:60,y:GROUND_Y-60},
@@ -3446,12 +3484,12 @@ function buildLevels(){
     bgHue:'blue'
   });
 
-  // LEVEL 5: Ultimate Boss Arena
+  // LEVEL 5: Ultimate Boss Arena - HARD
   levels.push({
     name:'ეპ.5 — გიგანტების ბუდე 🏆',
-    diffRating: 'ძალიან რთული', diffStars: '⭐⭐⭐⭐', diffColor: '#ef4444',
-    gimmickTitle: '👹 ორმაგი ბოსი', diffDesc: 'ორი გიგანტური მტერი ერთად. შეძლებ მათ დამარცხებას?',
-    zombieSpeedMult: 1.4, zombieHpMult: 2.0, gravityMult: 1.0, hazardType: 'boss_duo',
+    diffRating: 'რთული', diffStars: '⭐⭐⭐', diffColor: '#ef4444',
+    gimmickTitle: '👹 ერთი ძლიერი ბოსი', diffDesc: 'პირველი დიდი ბოსი! სიფრთხეს ეპატრონე!',
+    zombieSpeedMult: 1.2, zombieHpMult: 1.5, gravityMult: 1.0, hazardType: 'boss_duo',
     theme: 'lava_fortress',
     width: 5200,
     spawn:{x:60,y:GROUND_Y-60},
@@ -3491,12 +3529,12 @@ function buildLevels(){
     bgHue:'pink'
   });
 
-  // LEVEL 6: Industrial Corridor & Conveyors
+  // LEVEL 6: Industrial Corridor & Conveyors - HARD+
   levels.push({
     name:'ეპ.6 — ინდუსტრიული დერეფანი',
-    diffRating: 'რთული', diffStars: '⭐⭐⭐⭐', diffColor: '#f97316',
-    gimmickTitle: '⚙️ კონვეიერების სისტემა', diffDesc: 'გამოიყენე კონვეიერები სწრაფი გადაადგილებისთვის!',
-    zombieSpeedMult: 1.3, zombieHpMult: 1.3, gravityMult: 1.0, hazardType: 'laser_guillotine',
+    diffRating: 'რთული+', diffStars: '⭐⭐⭐⭐', diffColor: '#f97316',
+    gimmickTitle: '⚙️ კონვეიერების სისტემა', diffDesc: 'წინსვე გაჭიმული კონვეიერი დაგებაძგებს უკან!',
+    zombieSpeedMult: 1.15, zombieHpMult: 1.25, gravityMult: 1.0, hazardType: 'laser_guillotine',
     theme: 'industrial',
     width: 5300,
     spawn:{x:60,y:GROUND_Y-60},
@@ -3544,12 +3582,12 @@ function buildLevels(){
     bgHue:'blue'
   });
 
-  // LEVEL 7: Night Zombie Horde & Minigun
+  // LEVEL 7: Night Zombie Horde & Minigun - VERY HARD
   levels.push({
     name:'ეპ.7 — შავ-ბნელი ზომბოკალიფსი 🧟‍♂️',
-    diffRating: 'VERY HARD', diffStars: '⭐⭐⭐⭐', diffColor: '#ef4444',
-    gimmickTitle: '⛈️ შტორმის ღამე & ყინულის საფარი', diffDesc: 'მცურავი ყინულის ზედაპირი, სიბნელე და აგრესიული ზომბების არმია (1.5x).',
-    zombieSpeedMult: 1.5, zombieHpMult: 1.4, gravityMult: 1.0, hazardType: 'ice_storm',
+    diffRating: 'ძალიან რთული', diffStars: '⭐⭐⭐⭐', diffColor: '#ef4444',
+    gimmickTitle: '⛈️ შტორმის ღამე', diffDesc: 'მრავალი ზომბი! გამოიყენე მინიგანი გადასახლებისთვის!',
+    zombieSpeedMult: 1.3, zombieHpMult: 1.3, gravityMult: 1.0, hazardType: 'ice_storm',
     width: 5400,
     spawn:{x:60,y:GROUND_Y-60},
     plats: [
@@ -3595,12 +3633,12 @@ function buildLevels(){
     bgHue:'pink'
   });
 
-  // LEVEL 8: Gravity Chaos & Cosmic Theme
+  // LEVEL 8: Gravity Chaos & Cosmic Theme - MEDIUM
   levels.push({
     name:'ეპ.8 — კოსმოსური სადგური',
     diffRating: 'საშუალო', diffStars: '⭐⭐⭐', diffColor: '#38c6ff',
-    gimmickTitle: '🔥 კოსმოსური ცეცხლი', diffDesc: 'მოერიდე ცეცხლოვან ნაკადებს დაბალ გრავიტაციაში.',
-    zombieSpeedMult: 1.2, zombieHpMult: 1.2, gravityMult: 0.55, hazardType: 'low_gravity',
+    gimmickTitle: '🪐 დაბალი გრავიტაცია', diffDesc: 'კოსმოსში დაბალი გრავიტაცია! ბერკეტი ითხოვს ს',
+    zombieSpeedMult: 1.0, zombieHpMult: 1.1, gravityMult: 0.55, hazardType: 'low_gravity',
     theme: 'cosmic',
     width: 5500,
     spawn:{x:60,y:GROUND_Y-60},
@@ -3646,12 +3684,12 @@ function buildLevels(){
     bgHue:'blue'
   });
 
-  // LEVEL 9: Hooligan Labyrinth & Boss Horde
+  // LEVEL 9: Hooligan Labyrinth & Boss Horde - EXTREME
   levels.push({
     name:'ეპ.9 — ბოსების არენა',
     diffRating: 'ძალიან რთული', diffStars: '⭐⭐⭐⭐', diffColor: '#ef4444',
-    gimmickTitle: '💀 ბოსების არენა', diffDesc: 'ძლიერი მტრები ყველგან არიან. მოემზადე გადამწყვეტი ბრძოლისთვის!',
-    zombieSpeedMult: 1.45, zombieHpMult: 2.2, gravityMult: 1.0, hazardType: 'none',
+    gimmickTitle: '💀 მრავალი ბოსი', diffDesc: 'მხოლოდ საუკეთესოთ გაკ გაკ გაკ!',
+    zombieSpeedMult: 1.35, zombieHpMult: 1.8, gravityMult: 1.0, hazardType: 'none',
     theme: 'industrial',
     width: 5600,
     spawn:{x:60,y:GROUND_Y-60},
@@ -4530,7 +4568,7 @@ function buildLevels(){
     lavas:[ rect(800, GROUND_Y, 1400, 90), rect(3100, GROUND_Y, 1300, 90) ],
     coins: Array.from({length:25}, (_,i)=>rect(900+i*240, GROUND_Y-200, 22, 22)),
     bells:[ rect(1200, GROUND_Y-300, 26, 30), rect(3700, GROUND_Y-330, 26, 30) ],
-    signs:[ {x:350, text:'🌤️ ღრუბლიდან ღრუბელზე გადახტომა!'} ],
+    signs:[ {x:350, text:'🌤️ ღრუბლიდან ღრუბელზე გა��ახტომა!'} ],
     flag: rect(5400, GROUND_Y-140, 30, 140),
     zombies:[ {x:2400, y:GROUND_Y-80, type:'titan'}, {x:4600, y:GROUND_Y-80, type:'mutant'} ],
     jumpboxes:[ rect(900, GROUND_Y-120, 42, 42, {hit:false, type:'fastener'}), rect(2500, GROUND_Y-120, 42, 42, {hit:false, type:'minigun'}) ]
@@ -5222,7 +5260,7 @@ function activateJumpbox(jb){
     shake(14);
     spawnZombie(player.x + 120, player.y - 100);
     spawnZombie(player.x - 120, player.y - 100);
-    toast("😱 ზომბების მოულოდნელი ხაფანგი! 🧟", 2000);
+    toast("😱 ზომბების მოულო���ნელი ხაფანგი! 🧟", 2000);
   } else if(jb.type === 'prank_reverse'){
     player.reverseControlsTimer = 6000;
     sfxHurt();
@@ -5703,7 +5741,7 @@ function updatePlayer(dt){
 
     const bBox = { x: bd.x - bd.r, y: bd.y - bd.r, w: bd.r * 2, h: bd.r * 2 };
     if(overlap(player, bBox) && player.invuln <= 0){
-      hurtPlayer("💥 გიგანტური მოგორავე ლოდის დარტყმა!");
+      hurtPlayer("💥 გიგანტური მოგორ���ვე ლოდის დარტყმა!");
       player.vx = -8;
       shake(18);
     }
@@ -6126,9 +6164,11 @@ function hurtPlayer(msg, cause='zombie'){
     const spawnY = Math.min(H - 60, Math.max(80, player.y + player.h/2));
     const deathX = player.x + player.w/2;
 
-    spawnParticles(deathX, spawnY, '#ff3d6e', 50, 3.2);
-    spawnParticles(deathX, spawnY, '#ffd23f', 40, 2.8);
-    spawnParticles(deathX, spawnY, '#ffffff', 30, 2.0);
+    // Enhanced death burst with multiple particle layers
+    spawnParticles(deathX, spawnY, '#ff3d6e', 60, 3.5);
+    spawnParticles(deathX, spawnY, '#ffd23f', 50, 3.0);
+    spawnParticles(deathX, spawnY, '#ffffff', 40, 2.5);
+    spawnParticles(deathX, spawnY, '#ff6600', 35, 2.8);
 
     state.deathCam = {
       active: true,
@@ -7646,30 +7686,43 @@ function drawJumpBox(jb){
 function drawSign(sign){
   const sx = sign.x - camX;
   if(sx<-150||sx>W+50) return;
-  const y = GROUND_Y-70;
+  const y = GROUND_Y-85;
+  // Improved sign with better appearance
   ctx.fillStyle='#8a5a2a';
-  ctx.fillRect(sx+18,y+20,8,50);
+  ctx.fillRect(sx+22,y+30,6,60); // Thicker pole
   ctx.fillStyle='#e8c77a';
-  ctx.fillRect(sx,y,64,28);
-  ctx.strokeStyle='#5c3b1a'; ctx.lineWidth=2;
-  ctx.strokeRect(sx,y,64,28);
+  ctx.fillRect(sx,y,90,45); // Larger sign
+  ctx.shadowColor='rgba(0,0,0,0.4)';
+  ctx.shadowOffsetX=2;
+  ctx.shadowOffsetY=2;
+  ctx.shadowBlur=3;
+  ctx.strokeStyle='#5c3b1a'; ctx.lineWidth=2.5;
+  ctx.strokeRect(sx,y,90,45);
   ctx.fillStyle='#2a1a08';
-  ctx.font='10px sans-serif';
+  ctx.font='bold 9px "Noto Sans Georgian", sans-serif';
   ctx.textAlign='center';
-  wrapText(sign.text, sx+32, y+12, 60, 11);
+  ctx.shadowColor='transparent';
+  wrapText(sign.text, sx+45, y+18, 82, 10.5);
 }
 
 function wrapText(text,cx,cy,maxW,lh){
+  // Better wrapping for Georgian and mixed text
   const words=text.split(' ');
   let line='', lines=[];
+  ctx.font='bold 9px "Noto Sans Georgian", sans-serif';
   for(const w of words){
     const test=line+w+' ';
-    if(ctx.measureText(test).width>maxW && line){ lines.push(line); line=w+' '; }
-    else line=test;
+    const measured = ctx.measureText(test).width;
+    if(measured>maxW && line){ 
+      lines.push(line.trim()); 
+      line=w+' '; 
+    } else {
+      line=test;
+    }
   }
-  lines.push(line);
+  if(line.trim()) lines.push(line.trim());
   const startY = cy - (lines.length-1)*lh/2;
-  lines.forEach((l,i)=>ctx.fillText(l.trim(), cx, startY+i*lh));
+  lines.forEach((l,i)=>ctx.fillText(l, cx, startY+i*lh));
 }
 
 function drawPushbox(b){
@@ -10880,9 +10933,26 @@ function drawHUD(){
   // Subscribe Meter Removed
   
   ctx.textAlign='left';
-  ctx.font='bold 15px sans-serif';
-  ctx.fillStyle='rgba(255,255,255,.9)';
-  ctx.fillText(level.name, 18, H-18);
+  // Level name with background panel for better readability
+  ctx.font='bold 12px "Noto Sans Georgian", sans-serif';
+  ctx.fillStyle='#fff';
+  const levelNameText = level.name || 'ლეველი';
+  const metrics = ctx.measureText(levelNameText);
+  const panelW = metrics.width + 16;
+  const panelH = 20;
+  const panelX = 12;
+  const panelY = H - 28;
+  
+  // Background panel
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+  ctx.fillRect(panelX, panelY, panelW, panelH);
+  ctx.strokeStyle = 'rgba(56, 198, 255, 0.5)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(panelX, panelY, panelW, panelH);
+  
+  // Text
+  ctx.fillStyle='#38c6ff';
+  ctx.fillText(levelNameText, 18, H-14);
 
   // In-Game HUD Buttons (Top-Right: Pause & Mute)
   ctx.save();
@@ -11937,7 +12007,7 @@ function drawSettings(){
     { key: 'screenShake', label: '📳 ეკრანის ვიბრაცია', options: ['full', 'reduced', 'off'], labels: ['სრული', 'შემცირებული', 'გამორთული'] },
     { key: 'bgmVolume', label: '🎵 მუსიკის ხმა', options: [0, 0.25, 0.5, 0.75, 1], labels: ['0%', '25%', '50%', '75%', '100%'] },
     { key: 'sfxVolume', label: '🔊 ეფექტების ხმა', options: [0, 0.25, 0.5, 0.75, 1], labels: ['0%', '25%', '50%', '75%', '100%'] },
-    { key: 'highJumpAssist', label: '🚀 მაღალი ხტომა', options: [false, true], labels: ['გამორთული', 'ჩართული'] },
+    { key: 'highJumpAssist', label: '🚀 მაღალი ხტომა', options: [false, true], labels: ['გამორთული', 'ჩარ���ული'] },
     { key: 'showFPS', label: '📊 FPS-ის ჩვენება', options: [false, true], labels: ['გამორთული', 'ჩართული'] }
   ];
 
@@ -12989,7 +13059,7 @@ function drawPauseOverlay(){
   ctx.textAlign='center';
   ctx.fillStyle='#fff';
   ctx.font='bold 44px sans-serif';
-  ctx.fillText('შეჩერებულია ⏸️', W/2, H/2 - 20);
+  ctx.fillText('შეჩერებულია ⏸��', W/2, H/2 - 20);
   
   ctx.font='bold 20px sans-serif';
   ctx.fillStyle='#ffd23f';
@@ -13171,7 +13241,7 @@ function drawLuckyWheel(){
 
       if(winner.type === 'coins_500'){
         state.coinsCollected = (state.coinsCollected || 0) + 500;
-        lw.prizeMsg = "🎉 ჯეკპოტი! +500 ოქროს მონეტა! 💰";
+        lw.prizeMsg = "🎉 ჯეკპოტი! +500 ოქროს მონეტა! ���";
       } else if(winner.type === 'laser'){
         state.coinsCollected = (state.coinsCollected || 0) + 150;
         lw.prizeMsg = "⚡ სუპერ ლაზერული იარაღი მიღებულია! 💥";
