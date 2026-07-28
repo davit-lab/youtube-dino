@@ -1,227 +1,3 @@
-<!DOCTYPE html>
-<html lang="ka">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>დინო: ხულიგანური პარკური</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;700;900&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --ink:#0b0e14;
-    --panel:#141826;
-    --blue:#38c6ff;
-    --blue-dark:#1a6fa8;
-    --pink:#ff3d6e;
-    --pink-dark:#c21f4a;
-    --yellow:#ffd23f;
-    --cream:#f4ecd8;
-    --green:#3fe07d;
-  }
-  *{box-sizing:border-box; user-select:none;}
-  html,body{
-    margin:0; padding:0; height:100%; overflow:hidden;
-    background: radial-gradient(ellipse at 50% 0%, #1c2438 0%, #06080d 80%);
-    font-family: 'Noto Sans Georgian', 'Arial', 'Trebuchet MS', sans-serif;
-    color: var(--cream);
-  }
-  #wrap{
-    position:relative; width:100%; height:100%;
-    display:flex; align-items:center; justify-content:center;
-  }
-  canvas{
-    background:#080b10;
-    image-rendering: pixelated;
-    border: 3px solid var(--blue-dark);
-    border-radius: 8px;
-    max-width: 98vw;
-    max-height: 94vh;
-  }
-  #hint{
-    position:absolute; bottom:6px; left:50%; transform:translateX(-50%);
-    font-size:12px; opacity:.75; letter-spacing:.5px; text-align:center;
-    pointer-events:none; text-shadow:0 1px 3px #000;
-  }
-  #topBarControls{
-    position:absolute; top:12px; right:18px;
-    display:flex; gap:10px; z-index:10;
-  }
-  .btn-ui{
-    background:rgba(20,24,38,0.85); border:1.5px solid var(--blue);
-    color:var(--cream); padding:6px 14px; border-radius:6px;
-    font-size:13px; font-weight:bold; cursor:pointer;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
-    transition: all 0.2s ease;
-  }
-  .btn-ui:hover{
-    background:var(--blue); color:#000; transform:scale(1.05);
-  }
-  .btn-ui.skip{
-    border-color:var(--yellow); color:var(--yellow);
-  }
-  .btn-ui.skip:hover{
-    background:var(--yellow); color:#000;
-  }
-
-  /* Promo Modal Overlay Styles */
-  #promoModal {
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    width: 380px; max-width: 92vw;
-    background: rgba(10, 16, 30, 0.96);
-    border: 3px solid var(--yellow);
-    border-radius: 16px;
-    padding: 24px;
-    box-shadow: 0 0 35px rgba(255, 210, 63, 0.6), 0 10px 50px rgba(0,0,0,0.95);
-    color: #fff;
-    text-align: center;
-    z-index: 250;
-    display: none;
-    flex-direction: column;
-    gap: 14px;
-    font-family: sans-serif;
-    backdrop-filter: blur(8px);
-  }
-  #promoModal h2 {
-    margin: 0; font-size: 22px; color: var(--yellow); text-shadow: 0 0 12px rgba(255, 210, 63, 0.7);
-  }
-  #promoInput {
-    width: 100%; padding: 12px; font-size: 18px; font-weight: bold; text-align: center;
-    border-radius: 10px; border: 2.5px solid var(--blue); background: #070c18; color: #fff;
-    outline: none; box-sizing: border-box; text-transform: uppercase; letter-spacing: 1.5px;
-  }
-  #promoInput:focus {
-    border-color: var(--yellow); box-shadow: 0 0 14px rgba(255, 210, 63, 0.6);
-  }
-  .promo-btn-group {
-    display: flex; gap: 10px; justify-content: center; margin-top: 4px;
-  }
-  .btn-promo-submit {
-    flex: 1; padding: 12px; font-size: 15px; font-weight: bold; border-radius: 8px;
-    border: none; background: var(--yellow); color: #000; cursor: pointer;
-    box-shadow: 0 4px 14px rgba(255, 210, 63, 0.5); transition: transform 0.1s;
-  }
-  .btn-promo-submit:active { transform: scale(0.95); }
-  .btn-promo-close {
-    padding: 12px 18px; font-size: 15px; font-weight: bold; border-radius: 8px;
-    border: 2px solid #555; background: rgba(255,255,255,0.05); color: #ccc; cursor: pointer;
-  }
-  .btn-promo-close:hover { background: rgba(255,255,255,0.15); color: #fff; }
-  .promo-quick-btn {
-    background: rgba(56, 198, 255, 0.15); border: 1.5px dashed var(--blue); color: var(--blue);
-    padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: bold; cursor: pointer;
-    transition: all 0.15s ease;
-  }
-  .promo-quick-btn:hover { background: var(--blue); color: #000; }
-  #mobileControls{
-    position:absolute; bottom:18px; left:0; right:0;
-    display:none; justify-content:space-between; align-items:flex-end;
-    padding:0 22px; pointer-events:none;
-    z-index:100;
-    user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
-  }
-  #mobileControls .ctrl-btn{
-    pointer-events:auto;
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    width:66px; height:66px; border-radius:50%;
-    border:2.5px solid var(--blue); background:rgba(12, 16, 28, 0.9);
-    color:var(--cream); font-size:22px; font-weight:bold;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.7), inset 0 1px 2px rgba(255,255,255,0.2);
-    touch-action: none;
-    -webkit-tap-highlight-color: transparent;
-    transition: transform 0.08s ease, background-color 0.08s ease, box-shadow 0.08s ease;
-  }
-  #mobileControls .ctrl-btn:active,
-  #mobileControls .ctrl-btn.active{
-    transform: scale(0.92);
-    background: rgba(56, 198, 255, 0.35);
-    box-shadow: 0 2px 6px rgba(0,0,0,0.9), 0 0 16px rgba(56, 198, 255, 0.6);
-  }
-  #mobileControls .left{
-    display:flex; gap:12px; align-items:center;
-  }
-  #mobileControls .right{
-    display:flex; gap:16px; align-items:flex-end;
-  }
-  /* Stagger Jump and Shoot to prevent accidental misclicks */
-  #mobileControls #btnJump {
-    width: 74px; height: 74px;
-    border-color: var(--pink); color: #fff;
-    background: rgba(255, 61, 110, 0.28);
-    transform: translateY(-10px);
-  }
-  #mobileControls #btnJump:active,
-  #mobileControls #btnJump.active {
-    background: var(--pink); color: #fff;
-    transform: translateY(-10px) scale(0.92);
-    box-shadow: 0 0 22px rgba(255, 61, 110, 0.9);
-  }
-  #mobileControls #btnShoot {
-    width: 68px; height: 68px;
-    border-color: var(--yellow); color: var(--yellow);
-    background: rgba(255, 210, 63, 0.22);
-  }
-  #mobileControls #btnShoot:active,
-  #mobileControls #btnShoot.active {
-    background: var(--yellow); color: #000;
-    transform: scale(0.92);
-    box-shadow: 0 0 22px rgba(255, 210, 63, 0.9);
-  }
-  .btn-icon {
-    font-size: 22px;
-    line-height: 1;
-  }
-  .btn-subtext {
-    font-size: 9px;
-    letter-spacing: 0.5px;
-    margin-top: 1px;
-    font-weight: 800;
-    text-transform: uppercase;
-    opacity: 0.9;
-  }
-  @media (max-width:860px){
-    #mobileControls{display:flex;}
-  }
-</style>
-</head>
-<body>
-<div id="wrap">
-
-  <div id="promoModal">
-    <h2>🎟️ პრომო კოდი (PROMO CODE)</h2>
-    <p style="font-size:13px; color:#cbd5e1; margin:0;">შეიყვანე ადმინ ან სატესტო პრომო კოდი (მაგ. <strong style="color:var(--yellow);">codezero</strong>)</p>
-    <input type="text" id="promoInput" placeholder="შეიყვანე კოდი..." autocomplete="off" onkeydown="if(event.key==='Enter') submitPromoCode()" />
-    
-    <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:2px;">
-      <button class="btn-ui" onclick="setPromoQuick('codezero')" style="font-size:12px; padding:5px 10px; border-color:var(--yellow); color:var(--yellow); background:rgba(255,210,63,0.15);">⚡ codezero</button>
-      <button class="btn-ui" onclick="setPromoQuick('godmode')" style="font-size:12px; padding:5px 10px; border-color:var(--blue); color:var(--blue); background:rgba(56,198,255,0.15);">🛡️ godmode</button>
-      <button class="btn-ui" onclick="setPromoQuick('pro')" style="font-size:12px; padding:5px 10px; border-color:#3fe07d; color:#3fe07d; background:rgba(63,224,125,0.15);">⭐ pro</button>
-    </div>
-
-    <div id="promoMsg" style="font-size:13px; font-weight:bold; min-height:20px; transition:all 0.2s;"></div>
-
-    <div class="promo-btn-group">
-      <button class="btn-promo-submit" onclick="submitPromoCode()">🚀 გააქტიურება (ACTIVATE)</button>
-      <button class="btn-promo-close" onclick="closePromoModal()">❌ დახურვა</button>
-    </div>
-  </div>
-
-  <canvas id="game" width="960" height="540"></canvas>
-
-  <div id="mobileControls">
-    <div class="left">
-      <button id="btnLeft" class="ctrl-btn" aria-label="გადაადგილება მარცხნივ"><span class="btn-icon">◀</span></button>
-      <button id="btnRight" class="ctrl-btn" aria-label="გადაადგილება მარჯვნივ"><span class="btn-icon">▶</span></button>
-    </div>
-    <div class="right">
-      <button id="btnDash" class="ctrl-btn" aria-label="დეში" style="border-color:var(--blue); background:rgba(56,198,255,0.22);"><span class="btn-icon">⚡</span><span class="btn-subtext">DASH</span></button>
-      <button id="btnShoot" class="ctrl-btn" aria-label="სროლა"><span class="btn-icon">🔫</span><span class="btn-subtext">სროლა</span></button>
-      <button id="btnJump" class="ctrl-btn" aria-label="ხტომა"><span class="btn-icon">⤴</span><span class="btn-subtext">ახტომა</span></button>
-    </div>
-  </div>
-</div>
-
-<script>
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const W = canvas.width, H = canvas.height;
@@ -252,7 +28,6 @@ function beep(freq, dur, type='square', vol=0.05, delay=0, freqEnd=null){
   }catch(e){}
 }
 
-function sfxClick(){ beep(300, 0.04, 'sine', 0.05, 0, 150); }
 function sfxJump(){ beep(420,0.12,'square',0.06,0,780); }
 function sfxCoin(){ beep(880,0.08,'square',0.06,0,1320); }
 function sfxBell(){ beep(660,0.1,'triangle',0.07); beep(990,0.15,'triangle',0.06,0.08); }
@@ -1095,8 +870,8 @@ let finalBoss = {
 };
 
 function initFinalBoss(levelIndex){
-  // Boss on levels 8, 12, 16, 20, 24 (index 7,11,15,19,23)
-  const bossLevels = [7, 11, 15, 19, 23];
+  // Boss on levels 4, 8, 12, 16, 20 (index 3,7,11,15,19)
+  const bossLevels = [3, 7, 11, 15, 19];
   const bossIdx = bossLevels.indexOf(levelIndex);
   if(bossIdx === -1){ finalBoss.active = false; return; }
   const td = FINAL_BOSS_TIERS[bossIdx];
@@ -2646,7 +2421,6 @@ const player = {
   dashTimer: 0,
   dashCooldown: 0,
   jumpCount: 0,
-  wingsTimer: 0,
   hasShield: false
 };
 
@@ -2654,17 +2428,17 @@ function resetPlayer(spawn){
   const activeSpawn = (level && level.activeCheckpoint) ? level.activeCheckpoint : spawn;
   player.x = activeSpawn ? activeSpawn.x : 100;
   player.y = activeSpawn ? activeSpawn.y : GROUND_Y - 50;
-  player.vx=0; player.vy=0; player.onGround=true; player.dead=false; player.invuln=120;
+  player.vx=0; player.vy=0; player.onGround=false; player.dead=false; player.invuln=90;
   player.slipping=0; player.crying=0;
   player.isFalling = false; player.fallTimer=0; player.fallRotation=0; player.deathTimer=0;
   player.gunRecoil = 0;
   player.weaponMode = (state.equippedSkin === 'lasha') ? 'guitar' : (state.equippedWeapon || (state.upgrades.shotgun ? 'shotgun' : 'pistol'));
-  player.fastenerTimer = 0; player.reverseControlsTimer = 0; player.wingsTimer = 0;
+  player.fastenerTimer = 0; player.reverseControlsTimer = 0;
   player.isBitten = false; player.bitePhase = 'hand'; player.biteProgress = 0; player.biteTimer = 0; player.bitingZombie = null;
   player.dashTimer = 0; player.dashCooldown = 0; player.jumpCount = 0;
   if(state.upgrades.shield && player.hasShield === undefined) player.hasShield = true;
   camX = Math.max(0, player.x - W/3);
-  camY = Math.min(0, player.y - H * 0.45);
+  camY = 0;
 }
 
 // ---------- Game Entities ----------
@@ -2804,12 +2578,6 @@ function boostBiteEscape(){
 
 function shoot(){
   if(state.mode!=='playing' || player.dead || player.isFalling || sponsorPopup.active) return;
-  if(level && level.noGuns){
-    sfxClick();
-    toast("🚫 ამ ცათამბჯენში იარაღი აკრძალულია! მხოლოდ სისწრაფე და პარკური! 🧗‍♂️", 1500);
-    addFloatingText(player.x, player.y - 30, "🚫 NO GUNS!", '#ff3d6e');
-    return;
-  }
   if(player.isBitten){
     boostBiteEscape();
     return;
@@ -3492,202 +3260,235 @@ function rect(x,y,w,h, extra={}){ return {x,y,w,h, ...extra}; }
 function buildLevels(){
   const levels = [];
 
-  // LEVEL 1: Welcome & Basic Controls Tutorial (Short, Safe, Welcoming)
+  // LEVEL 1: Tutorial & Jumpboxes
   levels.push({
-    name:'ეპ.1 — პირველი ნაბიჯები (სწავლება) 🏁',
-    diffRating: 'ძალიან მარტივი', diffStars: '⭐', diffColor: '#22c55e',
-    gimmickTitle: '🔰 სწავლება & ძირითადი მართვა',
-    diffDesc: 'კეთილი იყოს შენი მობრძანება! ისწავლე სიარული (A/D / ისრები), ხტომა (SPACE / W) და მონეტების შეგროვება.',
-    zombieSpeedMult: 0.3, zombieHpMult: 0.5, gravityMult: 1.0, hazardType: 'none',
-    width: 2400,
-    spawn:{x:80, y:GROUND_Y-60},
-    checkpoints: [
-      rect(1100, GROUND_Y - 70, 36, 70, {active: false, label: 'ჩექფოინთი 🚩'})
-    ],
-    theme: 'dusk_suburbs',
+    name:'ეპ.1 — საწყისი ქუჩა',
+    diffRating: 'მარტივი', diffStars: '⭐', diffColor: '#22c55e',
+    gimmickTitle: '🔰 სწავლება', diffDesc: 'პირველი ნაბიჯები: გაეცანი სამყაროს და მოერიდე ზომბებს.',
+    zombieSpeedMult: 0.8, zombieHpMult: 1.0, gravityMult: 1.0, hazardType: 'none',
+    width: 4400,
+    spawn:{x:60,y:GROUND_Y-60},
     plats: [
-      rect(0, GROUND_Y, 2400, 90),                      // 100% Solid Floor - No void pits!
-      rect(500, GROUND_Y - 45, 200, 24),                 // Safe step platform 1
-      rect(900, GROUND_Y - 50, 240, 24),                 // Safe step platform 2
-      rect(1400, GROUND_Y - 45, 200, 24)                 // Safe step platform 3
+      rect(0, GROUND_Y, 900, 90),
+      rect(1000, GROUND_Y, 500, 90),
+      rect(1620, GROUND_Y, 280, 90),
+      rect(1990, GROUND_Y-80, 220, 24),
+      rect(2320, GROUND_Y, 900, 90),
+      rect(3320, GROUND_Y-140, 260, 24),
+      rect(3680, GROUND_Y, 700, 90),
     ],
-    jumpboxes: [
-      rect(350, GROUND_Y - 130, 42, 42, {hit:false, type:'sponsor'}) // Free weapon box at start
-    ],
+    conveyors: [ rect(1000, GROUND_Y, 500, 10, {speed: 1.5}) ],
+    fakespikes: [ rect(430,GROUND_Y-24,90,24) ],
+    spikes: [ rect(400, GROUND_Y-24, 50, 24), rect(920,GROUND_Y-24,80,24), rect(1990, GROUND_Y-104, 50, 24), rect(2870,GROUND_Y-24,70,24) ],
+    waters: [ rect(900, GROUND_Y, 100, 90), rect(1500, GROUND_Y, 120, 90) ],
+    bananas: [ rect(1220,GROUND_Y-14,40,14) ],
     coins: [
-      ...Array.from({length: 6}, (_, i) => rect(250 + i * 40, GROUND_Y - 50, 22, 22)),
-      ...Array.from({length: 5}, (_, i) => rect(920 + i * 40, GROUND_Y - 95, 22, 22)),
-      ...Array.from({length: 8}, (_, i) => rect(1450 + i * 40, GROUND_Y - 50, 22, 22))
+      ...Array.from({length:6}, (_,i)=>rect(1040+i*60, GROUND_Y-140, 22,22)),
+      ...Array.from({length:5}, (_,i)=>rect(2400+i*70, GROUND_Y-120, 22,22))
     ],
-    signs: [
-      { x: 100, y: GROUND_Y - 60, text: '👋 კეთილი იყოს შენი მობრძანება! გამოიყენე A/D ან ისრები გადასაადგილებლად!' },
-      { x: 450, y: GROUND_Y - 60, text: '⬆️ დააჭირე SPACE, W ან UP - ნახტომისთვის!' },
-      { x: 800, y: GROUND_Y - 60, text: '📦 დაარტყი თავი ? ყუთს ქვემოდან საჩუქრის მისაღებად!' },
-      { x: 1600, y: GROUND_Y - 60, text: '🏁 მიაღწიე დროშას დონის დასასრულებლად!' }
+    bells: [ rect(2050, GROUND_Y-150, 26,30), rect(3380, GROUND_Y-190,26,30) ],
+    bushes: [ rect(1750, GROUND_Y-50, 50,50, {triggered:false}) ],
+    signs: [ 
+      {x:380, text:"უსაფრთხო გზა >"}, 
+      {x:1180,text:"კონვეიერი გიბიძგებს წინ!"}, 
+      {x:2800,text:"codezero.ge-საუკეთესო წიგნები"} 
     ],
-    zombies: [
-      { x: 1850, y: GROUND_Y - 54, type: 'slow' }
+    flag: rect(4260, GROUND_Y-140, 30,140),
+    zombies: [ {x:1200,y:GROUND_Y-54}, {x:2500,y:GROUND_Y-54}, {x:3800,y:GROUND_Y-54} ],
+    jumpboxes: [ 
+      rect(480, GROUND_Y-140, 42, 42, {hit:false, type:'coin'}),
+      rect(1480, GROUND_Y-140, 42, 42, {hit:false, type:'bell'}),
+      rect(2100, GROUND_Y-180, 42, 42, {hit:false, type:'triple'}),
+      rect(3000, GROUND_Y-140, 42, 42, {hit:false, type:'sponsor'}) 
     ],
-    flag: rect(2150, GROUND_Y - 140, 30, 140)
+    bgHue:'blue'
   });
 
-  // LEVEL 2: Cyber Alley & Water Pools (First Checkpoint)
+  // LEVEL 2: Cyber Alley & Moving Platforms
   levels.push({
-    name:'ეპ.2 — პლატფორმები & ჩექფოინთი 🚩',
-    diffRating: 'ძალიან მარტივი', diffStars: '⭐', diffColor: '#22c55e',
-    gimmickTitle: '💧 წყლის ტბორი & ჩექფოინთი',
-    diffDesc: 'გადახტი წყლის ტბორზე და შეეხე ჩექფოინთს პროგრესის შესანახად!',
-    zombieSpeedMult: 0.4, zombieHpMult: 0.6, gravityMult: 1.0, hazardType: 'none',
+    name:'ეპ.2 — კიბერ უბანი',
+    diffRating: 'საშუალო', diffStars: '⭐⭐', diffColor: '#38c6ff',
+    gimmickTitle: '⛓️ მბრუნავი ნაჯახები', diffDesc: 'მოერიდე მბრუნავ ნაჯახებს და მოძრავ პლატფორმებს!',
+    zombieSpeedMult: 1.1, zombieHpMult: 1.1, gravityMult: 1.0, hazardType: 'moving_platforms',
     theme: 'cyberpunk_alley',
-    width: 3200,
-    spawn:{x:60, y:GROUND_Y-60},
-    checkpoints: [
-      rect(1050, GROUND_Y - 70, 36, 70, {active: false, label: 'ჩექფოინთი 1 🚩'}),
-      rect(2000, GROUND_Y - 70, 36, 70, {active: false, label: 'ჩექფოინთი 2 🚩'})
-    ],
+    width: 4600,
+    spawn:{x:60,y:GROUND_Y-60},
     plats: [
-      rect(0, GROUND_Y, 1200, 90),
-      rect(1150, GROUND_Y - 35, 220, 24),               // Bridge over puddle
-      rect(1300, GROUND_Y, 1900, 90)
+      rect(0, GROUND_Y, 500, 90),
+      rect(620, GROUND_Y-40, 180, 24, {vx: 1.5, minX:620, maxX:880}),
+      rect(1100, GROUND_Y, 300, 90),
+      rect(1550, GROUND_Y-70, 180, 24),
+      rect(1850, GROUND_Y-160, 180, 24, {vy: 1.2, minY:GROUND_Y-220, maxY:GROUND_Y-100}),
+      rect(2150, GROUND_Y, 700, 90),
+      rect(2980, GROUND_Y-50, 200, 24),
+      rect(3300, GROUND_Y-140, 200, 24),
+      rect(3620, GROUND_Y, 900, 90),
     ],
-    waters: [ rect(1200, GROUND_Y + 10, 100, 80) ],    // Very small puddle with solid ground beneath
+    swingingAxes: [ {cx: 2300, cy: GROUND_Y-220, len: 140, speed: 0.003, range: 1.0} ],
+    fakespikes: [ rect(2200,GROUND_Y-24,90,24), rect(3900,GROUND_Y-24,90,24) ],
+    spikes: [ rect(540,GROUND_Y-24,70,24), rect(1550, GROUND_Y-94, 60, 24), rect(2500,GROUND_Y-24,80,24), rect(3300, GROUND_Y-164, 60, 24), rect(4200,GROUND_Y-24,80,24) ],
+    waters: [ rect(500, GROUND_Y, 120, 90), rect(800, GROUND_Y, 300, 90) ],
+    lavas: [ rect(1400, GROUND_Y, 150, 90), rect(2850, GROUND_Y, 130, 90) ],
+    bananas: [ rect(1180,GROUND_Y-14,40,14), rect(3660,GROUND_Y-14,40,14) ],
     coins: [
-      ...Array.from({length: 6}, (_, i) => rect(500 + i * 40, GROUND_Y - 50, 22, 22)),
-      ...Array.from({length: 6}, (_, i) => rect(1400 + i * 40, GROUND_Y - 50, 22, 22)),
-      ...Array.from({length: 6}, (_, i) => rect(2200 + i * 40, GROUND_Y - 50, 22, 22))
+      ...Array.from({length:5}, (_,i)=>rect(2200+i*70, GROUND_Y-120,22,22)),
+      ...Array.from({length:4}, (_,i)=>rect(3320+i*50, GROUND_Y-190,22,22))
     ],
-    jumpboxes: [
-      rect(600, GROUND_Y - 130, 42, 42, {hit:false, type:'heart'}),
-      rect(1600, GROUND_Y - 130, 42, 42, {hit:false, type:'sponsor'})
+    bells: [ rect(1870, GROUND_Y-210,26,30), rect(3000, GROUND_Y-100,26,30) ],
+    bushes: [ rect(1250, GROUND_Y-50,50,50,{triggered:false}), rect(3450, GROUND_Y-50,50,50,{triggered:false}) ],
+    signs: [ {x:600,text:"მოძრავი პლატფორმა!"}, {x:2160,text:"0% შანსი გადარჩენის"}, {x:3920,text:"ბოსი წინ არის!"} ],
+    flag: rect(4450, GROUND_Y-140,30,140),
+    zombies: [ {x:1150,y:GROUND_Y-54}, {x:2200,y:GROUND_Y-54}, {x:3700,y:GROUND_Y-80, type:'boss'} ],
+    jumpboxes: [ 
+      rect(1200, GROUND_Y-140, 42, 42, {hit:false, type:'heart'}),
+      rect(2300, GROUND_Y-140, 42, 42, {hit:false, type:'sponsor'}),
+      rect(3100, GROUND_Y-140, 42, 42, {hit:false, type:'jumpscare'})
     ],
-    zombies: [
-      { x: 1500, y: GROUND_Y - 54, type: 'slow' },
-      { x: 2500, y: GROUND_Y - 54, type: 'slow' }
-    ],
-    signs: [
-      { x: 120, y: GROUND_Y - 60, text: '💧 გამოიყენე ხიდი წყლის გადასალახად!' },
-      { x: 980, y: GROUND_Y - 60, text: '🚩 ჩექფოინთი! შეეხე დროშას, რომ წაგებისას აქედან განახლდე.' }
-    ],
-    flag: rect(2950, GROUND_Y - 140, 30, 140)
+    bgHue:'pink'
   });
 
-  // LEVEL 3: Lucky Blocks & Weapons Tutorial
+  // LEVEL 3: CodeZero Horror Library
   levels.push({
-    name:'ეპ.3 — საიდუმლო ყუთები & იარაღი 📦',
-    diffRating: 'მარტივი', diffStars: '⭐', diffColor: '#22c55e',
-    gimmickTitle: '📦 იღბლიანი ყუთები & სროლა',
-    diffDesc: 'თავით დაარტყი ? ყუთებს იარაღისა და სიცოცხლის მისაღებად, შემდეგ ესროლე ზომბებს!',
-    zombieSpeedMult: 0.5, zombieHpMult: 0.8, gravityMult: 1.0, hazardType: 'none',
-    theme: 'horror_ruins',
-    width: 3600,
-    spawn:{x:60, y:GROUND_Y-60},
-    checkpoints: [
-      rect(1100, GROUND_Y - 70, 36, 70, {active: false, label: 'ჩექფოინთი 1 🚩'}),
-      rect(2100, GROUND_Y - 70, 36, 70, {active: false, label: 'ჩექფოინთი 2 🚩'})
-    ],
+    name:'ეპ.3 — დაწყევლილი ბიბლიოთეკა 📚💀',
+    diffRating: 'საშუალო+', diffStars: '⭐⭐⭐', diffColor: '#eab308',
+    gimmickTitle: '🌫️ ბნელი ნისლი', diffDesc: 'ნისლი ხილვადობას ზღუდავს. იყავი ფხიზლად!',
+    zombieSpeedMult: 1.2, zombieHpMult: 1.3, gravityMult: 1.0, hazardType: 'dense_fog',
+    width: 4800,
+    spawn:{x:60,y:GROUND_Y-60},
     plats: [
-      rect(0, GROUND_Y, 3600, 90)                       // Solid floor throughout
+      rect(0, GROUND_Y, 700, 90),
+      rect(800, GROUND_Y-50, 220, 24),
+      rect(1120, GROUND_Y-120, 200, 24),
+      rect(1420, GROUND_Y, 400, 90),
+      rect(1900, GROUND_Y-60, 220, 24, {vx: 2, minX:1900, maxX:2200}),
+      rect(2500, GROUND_Y, 600, 90),
+      rect(3200, GROUND_Y-80, 240, 24),
+      rect(3550, GROUND_Y-160, 240, 24),
+      rect(3900, GROUND_Y, 800, 90),
     ],
+    fakespikes: [ rect(1500,GROUND_Y-24,90,24), rect(2700,GROUND_Y-24,90,24) ],
+    spikes: [ rect(740,GROUND_Y-24,50,24), rect(1120, GROUND_Y-144, 60, 24), rect(2900,GROUND_Y-24,90,24), rect(3550, GROUND_Y-184, 60, 24) ],
+    waters: [ rect(700, GROUND_Y, 100, 90), rect(2120, GROUND_Y, 380, 90) ],
+    lavas: [ rect(1320, GROUND_Y, 100, 90) ],
+    bananas: [ rect(1450,GROUND_Y-14,40,14) ],
     coins: [
-      ...Array.from({length: 6}, (_, i) => rect(600 + i * 45, GROUND_Y - 50, 22, 22)),
-      ...Array.from({length: 6}, (_, i) => rect(1600 + i * 45, GROUND_Y - 50, 22, 22)),
-      ...Array.from({length: 6}, (_, i) => rect(2700 + i * 45, GROUND_Y - 50, 22, 22))
+      ...Array.from({length:6}, (_,i)=>rect(1440+i*50, GROUND_Y-100,22,22)),
+      ...Array.from({length:6}, (_,i)=>rect(2520+i*60, GROUND_Y-120,22,22))
     ],
-    jumpboxes: [
-      rect(400, GROUND_Y - 130, 42, 42, {hit:false, type:'sponsor'}),
-      rect(1300, GROUND_Y - 130, 42, 42, {hit:false, type:'heart'}),
-      rect(2200, GROUND_Y - 130, 42, 42, {hit:false, type:'triple'})
+    bells: [ rect(1180, GROUND_Y-170,26,30), rect(3620, GROUND_Y-210,26,30) ],
+    bushes: [ rect(1600, GROUND_Y-50,50,50,{triggered:false}), rect(2800, GROUND_Y-50,50,50,{triggered:false}) ],
+    signs: [ 
+      {x:300,text:"CODEZERO.GE - ისწავლე პროგრამირება!"}, 
+      {x:2550,text:"საუკეთესო მიზნები = გადარჩენა"},
     ],
-    zombies: [
-      { x: 1600, y: GROUND_Y - 54, type: 'slow' },
-      { x: 2600, y: GROUND_Y - 54, type: 'slow' }
+    flag: rect(4650, GROUND_Y-140,30,140),
+    zombies: [ 
+      {x:1500,y:GROUND_Y-54}, 
+      {x:2600,y:GROUND_Y-54, type:'boss'}, 
+      {x:4100,y:GROUND_Y-54} 
     ],
-    signs: [
-      { x: 120, y: GROUND_Y - 60, text: '📦 დაარტყი თავი ? ყუთს ქვემოდან! მიიღებ იარაღს ან სიცოცხლეს.' },
-      { x: 500, y: GROUND_Y - 60, text: '🔫 დააჭირე F, X ან მაუსის კლიკს ზომბების მოსაკლავად!' }
+    jumpboxes: [ 
+      rect(900, GROUND_Y-140, 42, 42, {hit:false, type:'sponsor'}),
+      rect(1600, GROUND_Y-140, 42, 42, {hit:false, type:'triple'}),
+      rect(2700, GROUND_Y-140, 42, 42, {hit:false, type:'sponsor'}),
+      rect(3300, GROUND_Y-140, 42, 42, {hit:false, type:'heart'})
     ],
-    flag: rect(3350, GROUND_Y - 140, 30, 140)
+    bgHue:'pink'
   });
 
-  // LEVEL 4: Moving Platforms & Trampolines
+  // LEVEL 4: Extreme Parkour & Horror Jumpscares
   levels.push({
-    name:'ეპ.4 — მოძრავი პლატფორმები & ბატუტი ⚙️',
-    diffRating: 'მარტივი', diffStars: '⭐', diffColor: '#22c55e',
-    gimmickTitle: '⚙️ მოძრავი პლატფორმები & ბატუტი',
-    diffDesc: 'ისწავლე მოძრავ პლატფორმაზე დგომა და ბატუტით მაღალ ადგილებში ასვლა!',
-    zombieSpeedMult: 0.5, zombieHpMult: 0.8, gravityMult: 1.0, hazardType: 'moving_platforms',
+    name:'ეპ.4 — პარკურის მოედანი 💥',
+    diffRating: 'რთული', diffStars: '⭐⭐⭐', diffColor: '#f97316',
+    gimmickTitle: '🦘 მძიმე გრავიტაცია', diffDesc: 'აქ ხტომა უფრო რთულია. გამოიჩინე პარკურის უნარები!',
+    zombieSpeedMult: 1.35, zombieHpMult: 1.2, gravityMult: 1.25, hazardType: 'heavy_gravity',
     theme: 'parkour_rooftops',
-    width: 3800,
-    spawn:{x:60, y:GROUND_Y-60},
-    checkpoints: [
-      rect(750, GROUND_Y - 70, 36, 70, {active: false, label: 'ჩექფოინთი 1 🚩'}),
-      rect(1750, GROUND_Y - 70, 36, 70, {active: false, label: 'ჩექფოინთი 2 🚩'})
-    ],
+    width: 5000,
+    spawn:{x:60,y:GROUND_Y-60},
     plats: [
-      rect(0, GROUND_Y, 3800, 90),                      // Complete floor - 100% safe!
-      rect(800, GROUND_Y - 50, 200, 24, {vx: 1.0, minX: 800, maxX: 1050}), // Moving platform above floor
-      rect(2200, GROUND_Y - 80, 240, 24)
+      rect(0, GROUND_Y, 600, 90),
+      rect(700, GROUND_Y-60, 160, 24),
+      rect(950, GROUND_Y-140, 160, 24),
+      rect(1200, GROUND_Y-60, 160, 24),
+      rect(1450, GROUND_Y, 500, 90),
+      rect(2050, GROUND_Y-80, 200, 24, {vy: 2, minY:GROUND_Y-240, maxY:GROUND_Y-40}),
+      rect(2350, GROUND_Y-160, 200, 24),
+      rect(2650, GROUND_Y, 600, 90),
+      rect(3350, GROUND_Y-90, 220, 24),
+      rect(3700, GROUND_Y-170, 220, 24),
+      rect(4050, GROUND_Y, 900, 90),
     ],
-    trampolines: [
-      rect(1800, GROUND_Y - 18, 60, 18)                 // Trampoline spring
-    ],
+    conveyors: [ rect(2650, GROUND_Y, 600, 10, {speed: -1.8}) ],
+    swingingAxes: [ {cx: 1600, cy: GROUND_Y-200, len: 120, speed: 0.004, range: 1.2} ],
+    spikes: [ rect(640,GROUND_Y-24,50,24), rect(950, GROUND_Y-164, 60, 24), rect(1800,GROUND_Y-24,80,24), rect(2350, GROUND_Y-184, 60, 24), rect(3150,GROUND_Y-24,90,24) ],
+    lavas: [ rect(600, GROUND_Y, 100, 90), rect(860, GROUND_Y, 90, 90), rect(1110, GROUND_Y, 90, 90), rect(1950, GROUND_Y, 100, 90), rect(3250, GROUND_Y, 100, 90) ],
+    bananas: [ rect(1480,GROUND_Y-14,40,14), rect(4100,GROUND_Y-14,40,14) ],
     coins: [
-      ...Array.from({length: 8}, (_, i) => rect(1800 + i * 35, GROUND_Y - 150, 22, 22)),
-      ...Array.from({length: 8}, (_, i) => rect(2600 + i * 45, GROUND_Y - 50, 22, 22))
+      ...Array.from({length:7}, (_,i)=>rect(1480+i*55, GROUND_Y-110,22,22)),
+      ...Array.from({length:6}, (_,i)=>rect(2680+i*60, GROUND_Y-120,22,22))
     ],
-    jumpboxes: [
-      rect(500, GROUND_Y - 130, 42, 42, {hit:false, type:'sponsor'}),
-      rect(1600, GROUND_Y - 130, 42, 42, {hit:false, type:'heart'})
+    bells: [ rect(1000, GROUND_Y-190,26,30), rect(2400, GROUND_Y-210,26,30), rect(3750, GROUND_Y-220,26,30) ],
+    bushes: [ rect(1700, GROUND_Y-50,50,50,{triggered:false}), rect(2900, GROUND_Y-50,50,50,{triggered:false}) ],
+    signs: [ {x:800,text:"არ ჩავარდე!"}, {x:2700,text:"უკან გიბიძგებს!"} ],
+    flag: rect(4850, GROUND_Y-140,30,140),
+    zombies: [ 
+      {x:1600,y:GROUND_Y-54}, 
+      {x:2800,y:GROUND_Y-54}, 
+      {x:4200,y:GROUND_Y-80, type:'boss'},
+      {x:4400,y:GROUND_Y-54} 
     ],
-    zombies: [
-      { x: 1400, y: GROUND_Y - 54, type: 'slow' },
-      { x: 2750, y: GROUND_Y - 54, type: 'slow' }
+    jumpboxes: [ 
+      rect(1000, GROUND_Y-180, 42, 42, {hit:false, type:'bell'}),
+      rect(1600, GROUND_Y-110, 42, 42, {hit:false, type:'sponsor'}),
+      rect(2800, GROUND_Y-110, 42, 42, {hit:false, type:'jumpscare'}),
+      rect(3800, GROUND_Y-220, 42, 42, {hit:false, type:'triple'})
     ],
-    signs: [
-      { x: 100, y: GROUND_Y - 60, text: '⚙️ მოძრავი პლატფორმები ნელა გადაგიყვანს!' },
-      { x: 1680, y: GROUND_Y - 60, text: '🦘 მწვანე ბატუტზე დახტომა მაღლა აგგიყვანს!' }
-    ],
-    flag: rect(3550, GROUND_Y - 140, 30, 140)
+    bgHue:'blue'
   });
 
-  // LEVEL 5: First Hazard Challenge & Mini-Boss
+  // LEVEL 5: Ultimate Boss Arena
   levels.push({
-    name:'ეპ.5 — პირველი დაბრკოლებები & მწვერვალი 🏆',
-    diffRating: 'მარტივი+', diffStars: '⭐⭐', diffColor: '#38c6ff',
-    gimmickTitle: '⚠️ ეკლები & მინი-ბოსი',
-    diffDesc: 'პირველი ნამდვილი გამოცდა! გადაახტი ეკლებს და დაამარცხე მინი-ბოსი!',
-    zombieSpeedMult: 0.6, zombieHpMult: 0.8, gravityMult: 1.0, hazardType: 'none',
+    name:'ეპ.5 — გიგანტების ბუდე 🏆',
+    diffRating: 'ძალიან რთული', diffStars: '⭐⭐⭐⭐', diffColor: '#ef4444',
+    gimmickTitle: '👹 ორმაგი ბოსი', diffDesc: 'ორი გიგანტური მტერი ერთად. შეძლებ მათ დამარცხებას?',
+    zombieSpeedMult: 1.4, zombieHpMult: 2.0, gravityMult: 1.0, hazardType: 'boss_duo',
     theme: 'lava_fortress',
-    width: 4000,
-    spawn:{x:60, y:GROUND_Y-60},
-    checkpoints: [
-      rect(900, GROUND_Y - 70, 36, 70, {active: false, label: 'ჩექფოინთი 1 🚩'}),
-      rect(2200, GROUND_Y - 70, 36, 70, {active: false, label: 'ჩექფოინთი 2 🚩'})
-    ],
+    width: 5200,
+    spawn:{x:60,y:GROUND_Y-60},
     plats: [
-      rect(0, GROUND_Y, 4000, 90)                       // Solid floor
+      rect(0, GROUND_Y, 800, 90),
+      rect(900, GROUND_Y-50, 220, 24),
+      rect(1200, GROUND_Y-130, 220, 24),
+      rect(1500, GROUND_Y, 500, 90),
+      rect(2100, GROUND_Y-70, 200, 24, {vx: 2.5, minX:2100, maxX:2450}),
+      rect(2700, GROUND_Y, 700, 90),
+      rect(3500, GROUND_Y-80, 250, 24),
+      rect(3850, GROUND_Y-160, 250, 24),
+      rect(4200, GROUND_Y, 950, 90),
     ],
-    spikes: [
-      rect(1000, GROUND_Y - 24, 40, 24)                 // Tiny single spike set
-    ],
+    firejets: [ {x: 3000, y: GROUND_Y, flameH: 150, period: 2500, offset: 0} ],
+    swingingAxes: [ {cx: 4000, cy: GROUND_Y-250, len: 180, speed: 0.005, range: 1.5} ],
+    spikes: [ rect(840,GROUND_Y-24,50,24), rect(1200, GROUND_Y-154, 60, 24), rect(1900,GROUND_Y-24,80,24), rect(3300,GROUND_Y-24,80,24), rect(3850, GROUND_Y-184, 60, 24) ],
+    lavas: [ rect(800, GROUND_Y, 100, 90), rect(2000, GROUND_Y, 100, 90), rect(3400, GROUND_Y, 100, 90) ],
+    bananas: [ rect(1550,GROUND_Y-14,40,14), rect(2800,GROUND_Y-14,40,14) ],
     coins: [
-      ...Array.from({length: 6}, (_, i) => rect(1100 + i * 45, GROUND_Y - 50, 22, 22)),
-      ...Array.from({length: 8}, (_, i) => rect(2800 + i * 45, GROUND_Y - 50, 22, 22))
+      ...Array.from({length:8}, (_,i)=>rect(1530+i*50, GROUND_Y-110,22,22)),
+      ...Array.from({length:8}, (_,i)=>rect(2730+i*55, GROUND_Y-120,22,22))
     ],
-    jumpboxes: [
-      rect(600, GROUND_Y - 130, 42, 42, {hit:false, type:'sponsor'}),
-      rect(1800, GROUND_Y - 130, 42, 42, {hit:false, type:'heart'}),
-      rect(2600, GROUND_Y - 130, 42, 42, {hit:false, type:'triple'})
+    bells: [ rect(1260, GROUND_Y-180,26,30), rect(3920, GROUND_Y-210,26,30) ],
+    bushes: [ rect(1700, GROUND_Y-50, 50, 50, {triggered:false}) ],
+    signs: [ {x:400, text:"ბოლო ბრძოლა!"}, {x:2400, text:"ორმაგი საფრთხე!"} ],
+    flag: rect(5050, GROUND_Y-140, 30, 140),
+    zombies: [ 
+      {x:1800,y:GROUND_Y-80, type:'boss'}, 
+      {x:4500,y:GROUND_Y-80, type:'boss'} 
     ],
-    zombies: [
-      { x: 1500, y: GROUND_Y - 54, type: 'slow' },
-      { x: 3200, y: GROUND_Y - 54, type: 'slow' }
+    jumpboxes: [ 
+      rect(1300, GROUND_Y-180, 42, 42, {hit:false, type:'heart'}),
+      rect(2800, GROUND_Y-180, 42, 42, {hit:false, type:'sponsor'}),
+      rect(4000, GROUND_Y-220, 42, 42, {hit:false, type:'triple'})
     ],
-    signs: [
-      { x: 100, y: GROUND_Y - 60, text: '⚠️ ეკლებს არ შეეხო! გადაახტი მათ.' },
-      { x: 2500, y: GROUND_Y - 60, text: '🏆 გილოცავ! შენ წარმატებით გაიარე სწავლების 5 დონე!' }
-    ],
-    flag: rect(3750, GROUND_Y - 140, 30, 140)
+    bgHue:'pink'
   });
 
   // LEVEL 6: Industrial Corridor & Conveyors
@@ -4148,152 +3949,53 @@ function buildLevels(){
     bgHue:'pink'
   });
 
-  // LEVEL 15: Decaying Skyscraper Vertical Zombie Escape
+  // LEVEL 15: Disco Glitch Inferno
   levels.push({
-    name:'ეპ.15 — ზომბი აპოკალიფსის ცათამბჯენი 🏙️🧟',
-    diffRating: 'საშუალო+', diffStars: '⭐⭐⭐', diffColor: '#38c6ff',
-    gimmickTitle: '🏙️ ვერტიკალური გაქცევა & 🪽 ოქროს ფრთები',
-    diffDesc: 'დაშლილი ცათამბჯენი ზომბების შემოსევით! გამოიყენე WALL JUMP, ოქროს ფრთები (WINGS) და SWING HOOK-ები სახურავზე გადასარჩენად!',
-    zombieSpeedMult: 1.0, zombieHpMult: 1.0, gravityMult: 1.0, hazardType: 'vertical_escape',
-    noGuns: true,
-    isVerticalLevel: true,
-    isCustomLayout: true,
-    theme: 'decaying_skyscraper',
-    width: 3400,
-    height: 4000,
-    spawn:{ x: 100, y: GROUND_Y - 60 },
-    risingHordeY: GROUND_Y + 600,
-    risingHordeSpeed: 0.28,
-
-    // Flying Wings Powerups (Soaring Flight Pickups across all 3 zones):
-    wings: [
-      rect(220, GROUND_Y - 110, 34, 34),                    // Lobby Entrance Wings (Instant Flight!)
-      rect(1250, -820, 34, 34),                             // Zone 2 Mid-Skyscraper Wings
-      rect(1700, -2420, 34, 34)                             // Zone 3 High-Altitude Wings
-    ],
-
-    // Platform Slabs & Walls across 3 Zones:
+    name:'ეპ.15 — გლიჩ-ინფერნო და ცეკვის ქაოსი 💃🌀',
+    diffRating: 'INSANE', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#ec4899',
+    gimmickTitle: '💃 დისკო-ხულიგნური ქაოსი', diffDesc: 'სტრობო განათება, იძულებითი ცეკვის პრანკები და მოულოდნელი მახეები.',
+    zombieSpeedMult: 1.7, zombieHpMult: 1.6, gravityMult: 1.0, hazardType: 'disco_strobe',
+    width: 6400,
+    spawn:{x:60,y:GROUND_Y-60},
     plats: [
-      // ZONE 1: Lobby & Basement (Y: GROUND_Y=500 down to Y: -500)
-      rect(0, GROUND_Y, 800, 90),                            // Entrance Lobby Floor
-      rect(800, GROUND_Y - 450, 40, 450),                     // Wall-Jump Shaft Left Wall
-      rect(960, GROUND_Y - 450, 40, 450),                     // Wall-Jump Shaft Right Wall
-      rect(1000, GROUND_Y, 400, 90),                          // Elevator Shaft Base Floor
-      rect(1150, GROUND_Y - 260, 220, 22, {oneWay: true}),     // Lobby One-Way Ledge 1
-      rect(1420, GROUND_Y - 420, 240, 22, {oneWay: true}),     // Lobby One-Way Ledge 2
-      rect(1200, GROUND_Y - 580, 500, 30),                     // Zone 1 Ceiling / Floor 5
-
-      // ZONE 2: Mid-Floor Construction & Office (Y: -500 down to Y: -1800)
-      rect(800, -200, 260, 24),                              // Broken Office Platform 1
-      rect(1200, -380, 220, 24),                             // Steel Beam Ledge
-      rect(1800, -560, 280, 24),                             // Steel Beam Ledge across Swing Abyss
-      rect(850, -780, 320, 24),                              // Office Cubicle Floor
-      rect(1300, -980, 260, 24),                             // Concrete Office Slab
-      rect(1700, -1180, 220, 24, {vx: 2.5, minX: 1600, maxX: 2000}), // Shifting Office Floor
-      rect(2200, -1380, 380, 30),                            // Zone 2 Upper Safe Room Floor
-      rect(1100, -1600, 420, 30),                            // Zone 2 Exit Landing Deck
-
-      // ZONE 3: Rooftop & Crane Escape (Y: -1800 down to Y: -3200)
-      rect(600, -1820, 40, 600),                             // Rooftop Glass Tower Left Wall
-      rect(760, -1820, 40, 600),                             // Rooftop Glass Tower Right Wall
-      rect(800, -2100, 280, 24),                             // Rooftop Scaffolding 1
-      rect(1200, -2350, 220, 24, {vx: 3.0, minX: 1100, maxX: 1500}), // Shifting Rooftop Scaffolding
-      rect(1600, -2600, 320, 24),                            // Construction Crane Base Slab
-      rect(1800, -2900, 700, 28),                            // Main Crane Gantry Walkway
-      rect(2750, -2880, 450, 40)                             // Final Rescue Helicopter Landing Deck
+      rect(0, GROUND_Y, 850, 90),
+      rect(950, GROUND_Y-80, 220, 24),
+      rect(1250, GROUND_Y-160, 220, 24),
+      rect(1550, GROUND_Y, 850, 90),
+      rect(2500, GROUND_Y-80, 250, 24, {vy: 3.5, minY:GROUND_Y-240, maxY:GROUND_Y-40}),
+      rect(3200, GROUND_Y, 900, 90),
+      rect(4200, GROUND_Y-100, 250, 24),
+      rect(4550, GROUND_Y-180, 250, 24),
+      rect(4900, GROUND_Y, 1400, 90),
     ],
-
-    // Crumbling Floor Blocks in Zone 2 & 3:
-    crumblingPlats: [
-      rect(1500, -280, 140, 22),                             // Zone 2 Crumbling Office Floor 1
-      rect(1650, -380, 140, 22),                             // Zone 2 Crumbling Office Floor 2
-      rect(1500, -880, 150, 22),                             // Zone 2 High-Risk Shortcut Ledge
-      rect(2500, -2900, 180, 24)                             // Zone 3 Crumbling Crane Tip
-    ],
-
-    // Trampolines (Bouncy Jumping Pads):
-    trampolines: [
-      rect(1100, GROUND_Y - 18, 60, 18),                    // Elevator Shaft Launch Pad -> Floor 3
-      rect(1250, -400, 52, 18),                              // Zone 2 Swing Launch Pad
-      rect(1620, -2620, 56, 18)                              // Zone 3 Crane Launch Pad
-    ],
-
-    // Swinging Ropes / Steel Hooks (Building Swinging Traversal):
-    swingPoints: [
-      { x: 1550, y: -480, radius: 190, len: 150 },          // Zone 2 Swing Hook #1 over Elevator Abyss
-      { x: 2000, y: -1080, radius: 210, len: 160 }           // Zone 2 Swing Hook #2 over Construction Abyss
-    ],
-
-    // Steam Vents (Rising Steam Bursts):
-    steamVents: [
-      { x: 1080, y: -220, w: 40, h: 120, period: 2200, offset: 0 },
-      { x: 1450, y: -800, w: 40, h: 120, period: 2200, offset: 1100 },
-      { x: 1900, y: -1400, w: 40, h: 120, period: 2000, offset: 500 }
-    ],
-
-    // Hazards (Toxic Acid, Electrical Sparks, Spikes):
-    lavas: [
-      rect(500, GROUND_Y, 160, 90, {isAcid: true}),          // Lobby Toxic Leak
-      rect(1420, -200, 180, 40, {isAcid: true})              // Zone 2 Broken Elevator Pit Acid
-    ],
-    electroOrbs: [
-      rect(1280, -420, 28, 28),
-      rect(1820, -820, 28, 28),
-      rect(1350, -2400, 28, 28)
-    ],
-    spikes: [
-      rect(1020, -224, 70, 24),
-      rect(1320, -1004, 80, 24)
-    ],
-    popspikes: [
-      rect(900, -804, 120, 24, {period: 1800, offset: 0})
-    ],
-
-    // Strategic Collectibles (Coins & Rare Diamonds):
+    fakespikes: [ rect(1700,GROUND_Y-24,100,24), rect(3400,GROUND_Y-24,100,24) ],
+    spikes: [ rect(890,GROUND_Y-24,60,24), rect(1250, GROUND_Y-184, 60, 24), rect(2420,GROUND_Y-24,80,24), rect(4120,GROUND_Y-24,80,24), rect(4550, GROUND_Y-204, 60, 24) ],
+    lavas: [ rect(850, GROUND_Y, 100, 90), rect(2400, GROUND_Y, 100, 90), rect(4100, GROUND_Y, 100, 90) ],
+    bananas: [ rect(1650,GROUND_Y-14,40,14), rect(3300,GROUND_Y-14,40,14) ],
     coins: [
-      ...Array.from({length: 8}, (_, i) => rect(830 + i * 18, GROUND_Y - 200 - i * 30, 20, 20)),
-      ...Array.from({length: 6}, (_, i) => rect(1250 + i * 35, -440, 22, 22)),
-      ...Array.from({length: 8}, (_, i) => rect(1850 + i * 30, -1220, 22, 22)),
-      ...Array.from({length: 10}, (_, i) => rect(1850 + i * 40, -2950, 22, 22))
+      ...Array.from({length:10}, (_,i)=>rect(1650+i*55, GROUND_Y-110,22,22)),
+      ...Array.from({length:10}, (_,i)=>rect(3300+i*60, GROUND_Y-120,22,22))
     ],
-    energyCrystals: [
-      rect(880, GROUND_Y - 480, 26, 30),                     // Zone 1 Wall Jump Top Diamond
-      rect(1550, -940, 28, 32),                              // Zone 2 High-Risk Ledge Diamond
-      rect(2600, -2960, 28, 32)                              // Zone 3 Crane Tip Diamond
+    bells: [ rect(1300, GROUND_Y-210,26,30), rect(4600, GROUND_Y-230,26,30) ],
+    bushes: [ rect(1850, GROUND_Y-50,50,50,{triggered:false}), rect(3500, GROUND_Y-50,50,50,{triggered:false}) ],
+    signs: [ 
+      {x:500,text:"დისკო ტაიმი დაიწყო! 🕺"}, 
+      {x:3300,text:"სიფრთხილე! არეული კონტროლები!"} 
     ],
-    goldTrophies: [
-      rect(2500, -1430, 30, 34)                              // Zone 2 Shortcut Trophy (+500 Coins)
+    flag: rect(6200, GROUND_Y-140,30,140),
+    zombies: [ 
+      {x:1700,y:GROUND_Y-54}, 
+      {x:3300,y:GROUND_Y-80, type:'boss'}, 
+      {x:5000,y:GROUND_Y-80, type:'boss'},
+      {x:5300,y:GROUND_Y-54} 
     ],
-
-    // Checkpoints:
-    checkpoints: [
-      rect(2250, -1450, 36, 70, {active: false, label: 'ზონა 2 — ოფისის უსაფრთხო ოთახი 🚩'}),
-      rect(1650, -2670, 36, 70, {active: false, label: 'ზონა 3 — სახურავის ამწის პოსტი 🚩'})
+    jumpboxes: [ 
+      rect(1000, GROUND_Y-130, 42, 42, {hit:false, type:'prank_dance'}),
+      rect(1750, GROUND_Y-110, 42, 42, {hit:false, type:'prank_reverse'}),
+      rect(3350, GROUND_Y-110, 42, 42, {hit:false, type:'minigun'}),
+      rect(4600, GROUND_Y-230, 42, 42, {hit:false, type:'sponsor'})
     ],
-
-    // Zombies (Progressive Foot-Sloggers -> Mutants):
-    zombies: [
-      { x: 350, y: GROUND_Y - 54, type: 'slow' },
-      { x: 600, y: GROUND_Y - 54, type: 'foot_slogger' },
-      { x: 880, y: -254, type: 'foot_slogger' },
-      { x: 1350, y: -434, type: 'runner' },
-      { x: 920, y: -834, type: 'mutant' },
-      { x: 1800, y: -1234, type: 'mutant' },
-      { x: 1200, y: -1654, type: 'titan' }
-    ],
-
-    // Guidance Signs:
-    signs: [
-      { x: 120, y: GROUND_Y - 60, text: '🚨 ცათამბჯენის ევაკუაცია! აიღე ოქროს ფრთები (WINGS) და იფრინე (SPACE / W)! 🪽🚀' },
-      { x: 810, y: GROUND_Y - 140, text: '🚫 იარაღი აკრძალულია! გამოიყენე WALL JUMP (კედლიდან ახტომა) & ფრენა! 🧗‍♂️🪽' },
-      { x: 1110, y: GROUND_Y - 60, text: '🚀 ლიფტის შახტის ბატუტი 2-ე ზონაში აგისროლებს!' },
-      { x: 1220, y: -420, text: '🎯 SWING HOOK: გადახტი რკინის კავისკენ და ისვინგე აბისზე!' },
-      { x: 1650, y: -2640, text: '💨 ფინალური ზონა 3: ამწის ბოლოდან გადახტი ევაკუაციის ვერტმფრენზე! 🚁' }
-    ],
-
-    // Helipad Rescue & Victory Flag:
-    heliPad: { x: 2750, y: -2880, w: 450, h: 40 },
-    flag: rect(3080, -3020, 30, 140)
+    bgHue:'blue'
   });
 
   // LEVEL 16: Cosmic Base
@@ -5155,57 +4857,23 @@ function buildLevels(){
     flag: rect(6800, GROUND_Y-140, 30, 140)
   });
 
-  // LEVEL 44: Disco Glitch Inferno & Absolute Legend Finale
   levels.push({
-    name:'ეპ.44 — გლიჩ-ინფერნო და აბსოლუტური ფინალი 💃🌀',
-    diffRating: 'INSANE', diffStars: '👑👑👑👑👑', diffColor: '#ec4899',
-    gimmickTitle: '💃 დისკო-ხულიგნური ქაოსი', diffDesc: 'სტრობო განათება, იძულებითი ცეკვის პრანკები და აბსოლუტური ფინალური გამოცდა.',
-    zombieSpeedMult: 1.8, zombieHpMult: 3.5, gravityMult: 1.0, hazardType: 'disco_strobe',
-    theme: 'glitch_cyberverse',
-    width: 8000,
-    spawn:{x:60,y:GROUND_Y-60},
-    plats: [
-      rect(0, GROUND_Y, 850, 90),
-      rect(950, GROUND_Y-80, 220, 24),
-      rect(1250, GROUND_Y-160, 220, 24),
-      rect(1550, GROUND_Y, 850, 90),
-      rect(2500, GROUND_Y-80, 250, 24, {vy: 3.5, minY:GROUND_Y-240, maxY:GROUND_Y-40}),
-      rect(3200, GROUND_Y, 900, 90),
-      rect(4200, GROUND_Y-100, 250, 24),
-      rect(4550, GROUND_Y-180, 250, 24),
-      rect(4900, GROUND_Y, 2800, 90),
-    ],
-    fakespikes: [ rect(1700,GROUND_Y-24,100,24), rect(3400,GROUND_Y-24,100,24) ],
-    spikes: [ rect(890,GROUND_Y-24,60,24), rect(1250, GROUND_Y-184, 60, 24), rect(2420,GROUND_Y-24,80,24), rect(4120,GROUND_Y-24,80,24), rect(4550, GROUND_Y-204, 60, 24) ],
-    lavas: [ rect(850, GROUND_Y, 100, 90), rect(2400, GROUND_Y, 100, 90), rect(4100, GROUND_Y, 100, 90) ],
-    bananas: [ rect(1650,GROUND_Y-14,40,14), rect(3300,GROUND_Y-14,40,14) ],
-    coins: [
-      ...Array.from({length:10}, (_,i)=>rect(1650+i*55, GROUND_Y-110,22,22)),
-      ...Array.from({length:10}, (_,i)=>rect(3300+i*60, GROUND_Y-120,22,22))
-    ],
-    bells: [ rect(1300, GROUND_Y-210,26,30), rect(4600, GROUND_Y-230,26,30) ],
-    bushes: [ rect(1850, GROUND_Y-50,50,50,{triggered:false}), rect(3500, GROUND_Y-50,50,50,{triggered:false}) ],
-    signs: [ 
-      {x:500,text:"🎉 44-ე აბსოლუტური ფინალური ლეველი! CODEZERO.GE"}, 
-      {x:3300,text:"👑 შენ ხარ თამაშის აბსოლუტური ჩემპიონი!"} 
-    ],
-    flag: rect(7800, GROUND_Y-140,30,140),
-    zombies: [ 
-      {x:1700,y:GROUND_Y-54}, 
-      {x:3300,y:GROUND_Y-80, type:'boss'}, 
-      {x:5000,y:GROUND_Y-80, type:'boss'},
-      {x:5300,y:GROUND_Y-54} 
-    ],
-    jumpboxes: [ 
-      rect(1000, GROUND_Y-130, 42, 42, {hit:false, type:'prank_dance'}),
-      rect(1750, GROUND_Y-110, 42, 42, {hit:false, type:'prank_reverse'}),
-      rect(3350, GROUND_Y-110, 42, 42, {hit:false, type:'minigun'}),
-      rect(4600, GROUND_Y-230, 42, 42, {hit:false, type:'sponsor'})
+    name:'ეპ.44 — CODEZERO ლეგენდა',
+    diffRating:'აბსოლუტური', diffStars:'👑👑👑👑👑', diffColor:'#ffd23f',
+    gimmickTitle:'🎉 ფინალი',
+    diffDesc:'შენ ხარ ლეგენდა! გაიარე ბოლო გამოცდა.',
+    zombieSpeedMult: 2.2, zombieHpMult: 4.0, gravityMult: 1.0, hazardType: 'none',
+    width: 8000, spawn:{x:60, y:GROUND_Y-60},
+    plats: [ rect(0, GROUND_Y, 2000, 90) ],
+    flag: rect(7800, GROUND_Y-140, 30, 140),
+    signs: [
+      {x:600, text:'🎉 44-ე აბსოლუტური ფინალური ლეველი! CODEZERO.GE'},
+      {x:2500, text:'👑 შენ ხარ თამაშის აბსოლუტური ჩემპიონი!'}
     ]
   });
 
   const levelThemes = [
-    'dusk_suburbs',       // Ep 1: Welcome & Basic Controls Tutorial
+    'dusk_suburbs',       // Ep 1: Sunset Suburbs
     'cyberpunk_alley',    // Ep 2: Neon Cyberpunk Alleyway
     'horror_ruins',       // Ep 3: CodeZero Horror Library Ruins
     'desert_canyon',      // Ep 4: Golden Desert Canyon
@@ -5219,7 +4887,7 @@ function buildLevels(){
     'toxic_sewers',       // Ep 12: Toxic Sewers & Slime Pipes
     'prehistoric_jungle', // Ep 13: Prehistoric Dinosaur Jungle
     'gothic_cemetery',    // Ep 14: Spooky Graveyard at Midnight
-    'decaying_skyscraper',// Ep 15: Decaying Skyscraper Zombie Outbreak (Vertical Escape & Golden Wings)
+    'neon_synthwave',     // Ep 15: Synthwave Retro Grid Sun
     'alien_hive',         // Ep 16: Alien Hive Mothership
     'haunted_mansion',    // Ep 17: Haunted Abandoned Mansion
     'industrial_foundry', // Ep 18: Molten Steel Foundry
@@ -5249,7 +4917,7 @@ function buildLevels(){
     'pro_void_multiverse',  // Ep 41: PRO OBBY CodeZero Multiverse
     'airplane_sky',         // Ep 42: PRO OBBY Extreme Airplane Dogfight II
     'pro_infernal_abyss',   // Ep 43: PRO OBBY Hooligan Championship Arena
-    'glitch_cyberverse'     // Ep 44: Disco Glitch Inferno & Absolute Legend Finale
+    'pro_codezero_hall'     // Ep 44: PRO OBBY CODEZERO Absolute Legend Finale
   ];
 
   levels.forEach((lvl, idx) => {
@@ -5313,9 +4981,6 @@ function buildLevels(){
     if(!lvl.boulders) lvl.boulders = [];
     if(!lvl.boosters) lvl.boosters = [];
     if(!lvl.gravityRunes) lvl.gravityRunes = [];
-    if(!lvl.wings) lvl.wings = [];
-
-    if(lvl.isCustomLayout) return;
 
     const targetW = lvl.width;
     let currX = (lvl.plats.length > 0) ? Math.max(...lvl.plats.map(p => p.x + p.w)) : 4000;
@@ -5695,8 +5360,7 @@ function updatePlayer(dt){
       });
     }
 
-    const pitThresholdY = (level && level.isVerticalLevel) ? ((level.risingHordeY || GROUND_Y + 500) + 150) : (GROUND_Y + 180);
-    if(player.fallTimer > 1200 || player.y > pitThresholdY){
+    if(player.fallTimer > 750 || player.y > GROUND_Y + 180){
       sfxDeathCustom();
       hurtPlayer("ადიოს მუჩაჩოოსსსს! 💀", "pit");
     }
@@ -5848,20 +5512,7 @@ function updatePlayer(dt){
     }
   }
 
-  // Wings / Golden Angel Wings flight timer & soaring controls
-  if(player.wingsTimer > 0){
-    player.wingsTimer -= dt;
-    if(keys['Space']||keys['ArrowUp']||keys['KeyW']){
-      player.vy = Math.max(-13.5, player.vy - 1.15); // Powerful continuous soaring flight
-      player.onGround = false;
-      if(Math.random() < 0.4){
-        spawnParticles(player.x + player.w/2 + (Math.random()-0.5)*20, player.y + player.h - 4, '#ffd23f', 2, 1.8);
-        spawnParticles(player.x + player.w/2 + (Math.random()-0.5)*20, player.y + player.h - 4, '#ffffff', 2, 1.5);
-      }
-    }
-  }
-
-  // Jump, Double Jump & Wall Jump
+  // Jump & Double Jump
   if(keys['Space']||keys['ArrowUp']||keys['KeyW']){
     if(player.onGround && !player.jumpKeyPressed){
       player.vy = jumpPower;
@@ -5877,26 +5528,6 @@ function updatePlayer(dt){
       sfxJump();
       spawnParticles(player.x+player.w/2, player.y+player.h, '#38c6ff', 18, 2.5);
       toast("🚀 DOUBLE JUMP!", 600);
-    } else if(!player.onGround && !player.jumpKeyPressed){
-      // Wall Jump
-      let wallDir = 0;
-      for(const p of (level.plats || [])){
-        if(player.y + player.h > p.y + 4 && player.y < p.y + p.h - 4){
-          if(Math.abs((player.x + player.w) - p.x) < 14) wallDir = -1;
-          else if(Math.abs(player.x - (p.x + p.w)) < 14) wallDir = 1;
-        }
-      }
-      if(wallDir !== 0){
-        player.vy = -14.8;
-        player.vx = wallDir * 11.5;
-        player.facing = wallDir;
-        player.jumpCount = 1;
-        player.jumpKeyPressed = true;
-        sfxJump();
-        spawnParticles(player.x + (wallDir === -1 ? player.w : 0), player.y + player.h/2, '#38c6ff', 20, 2.5);
-        toast("🧗‍♂️ WALL JUMP!", 600);
-        addFloatingText(player.x, player.y - 25, "🧗‍♂️ WALL JUMP!", '#38c6ff');
-      }
     }
   } else {
     player.jumpKeyPressed = false;
@@ -5922,19 +5553,6 @@ function updatePlayer(dt){
     if(p.vy){
       p.y += p.vy;
       if(p.y <= p.minY || p.y >= p.maxY) p.vy *= -1;
-    }
-
-    if(p.oneWay){
-      if(overlap(player, p)){
-        const prevBottom = player.y - player.vy + player.h;
-        if(player.vy >= 0 && prevBottom <= p.y + 8){
-          player.y = p.y - player.h;
-          player.vy = 0;
-          player.onGround = true;
-          if(p.vx) player.x += p.vx;
-        }
-      }
-      continue;
     }
 
     if(overlap(player,p)){
@@ -6278,8 +5896,7 @@ function updatePlayer(dt){
   }
 
   // Trigger "ადიოს მუჩაჩოოსსსს" when falling off world into pit
-  const maxFallLimitY = (level && level.isVerticalLevel) ? (level.risingHordeY || GROUND_Y + 500) : (GROUND_Y + 25);
-  if(player.y > maxFallLimitY && !player.isFalling && !player.onGround){
+  if(player.y > GROUND_Y + 25 && !player.isFalling && !player.onGround){
     player.isFalling = true;
     player.fallTimer = 0;
     player.fallRotation = 0;
@@ -6395,22 +6012,6 @@ function updatePlayer(dt){
     }
   }
 
-  // Golden Wings (🪽) - Soaring Flight Power-up!
-  for(const w of (level.wings || [])){
-    if(!w.taken && overlap(player, w)){
-      w.taken = true;
-      sfxWin();
-      sfxBell();
-      player.wingsTimer = 15000; // 15 seconds of soaring flight power!
-      player.vy = -12;
-      shake(12);
-      spawnParticles(w.x + w.w/2, w.y + w.h/2, '#ffd23f', 28, 3.2);
-      spawnParticles(w.x + w.w/2, w.y + w.h/2, '#ffffff', 22, 2.6);
-      toast("🪽 ოქროს ფრთები! (HOLD SPACE / UP TO FLY!) 🚀✨", 3200);
-      addFloatingText(w.x, w.y - 15, "🪽 GOLDEN WINGS OF FLIGHT! 🚀", '#ffd23f');
-    }
-  }
-
   // Bells
   for(const b of (level.bells || [])){
     if(!b.taken && overlap(player,b)){
@@ -6451,76 +6052,12 @@ function updatePlayer(dt){
     }
   }
 
-  // Building Swinging Traversal (Ropes / Steel Hooks)
-  if(level && level.swingPoints){
-    for(const sp of level.swingPoints){
-      const px = player.x + player.w/2;
-      const py = player.y + player.h/2;
-      const dist = Math.hypot(px - sp.x, py - sp.y);
-      if(dist < (sp.radius || 190) && !player.onGround && player.vy > -3){
-        if(player.isSwinging !== sp){
-          player.isSwinging = sp;
-          sfxJump();
-          toast("🎯 SWINGING HOOK LATCHED!", 700);
-          addFloatingText(player.x, player.y - 30, "🎯 HOOK LATCHED!", '#38c6ff');
-        }
-      }
-      if(player.isSwinging === sp){
-        const angle = Math.atan2(px - sp.x, py - sp.y);
-        sp.swingAngle = (sp.swingAngle || angle) + 0.05 * player.facing;
-        const len = sp.len || 150;
-        player.x = sp.x + Math.sin(sp.swingAngle) * len - player.w/2;
-        player.y = sp.y + Math.cos(sp.swingAngle) * len - player.h/2;
-        if(keys['Space']||keys['ArrowUp']||keys['KeyW']){
-          player.isSwinging = null;
-          player.vy = -16.5;
-          player.vx = player.facing * 16.0;
-          player.jumpCount = 1;
-          player.jumpKeyPressed = true;
-          sfxJump();
-          shake(10);
-          spawnParticles(player.x + player.w/2, player.y + player.h/2, '#38c6ff', 25, 3.0);
-          toast("🚀 MASSIVE SWING LAUNCH! 💥", 1000);
-          addFloatingText(player.x, player.y - 30, "🚀 SWING LAUNCH!", '#ffd23f');
-        }
-      }
-    }
-  }
-
-  // Steam Vents
-  if(level && level.steamVents){
-    for(const sv of level.steamVents){
-      const cycle = (state.time + (sv.offset || 0)) % (sv.period || 2200);
-      if(cycle < 1100){
-        const steamRect = { x: sv.x, y: sv.y - (sv.h || 120), w: sv.w || 40, h: sv.h || 120 };
-        if(overlap(player, steamRect)){
-          player.vy = -15.5;
-          sfxJump();
-          spawnParticles(player.x + player.w/2, player.y + player.h, '#e2e8f0', 12, 2.0);
-          addFloatingText(player.x, player.y - 20, "💨 STEAM VENT BOOST!", '#cbd5e1');
-        }
-      }
-    }
-  }
-
-  // Continuous Chase Dynamic: Escalating Rising Horde / Collapse
-  if(level && level.risingHordeSpeed && state.mode === 'playing' && !player.dead){
-    if(level.risingHordeY === undefined) level.risingHordeY = GROUND_Y + 120;
-    level.risingHordeY -= (level.risingHordeSpeed || 0.88) * (dt * 0.06);
-    if(player.y + player.h >= level.risingHordeY && player.invuln <= 0){
-      spawnParticles(player.x + player.w/2, player.y + player.h, '#ef4444', 30, 3.0);
-      sfxHurt();
-      shake(22);
-      hurtPlayer("🔥 ზომბების ორდომ და ნანგრევებმა მოგაკითხა! 🧟‍♂️💀", "pit");
-    }
-  }
-
-  // Checkpoint Interaction (Only when safely standing on solid ground away from hazards)
-  if(level && level.checkpoints && state.levelIndex !== 0){
+  // Checkpoint Interaction
+  if(level && level.checkpoints){
     for(const cp of level.checkpoints){
-      if(!cp.active && player.onGround && !player.isFalling && player.vy >= 0 && overlap(player, cp)){
+      if(!cp.active && overlap(player, cp)){
         cp.active = true;
-        level.activeCheckpoint = { x: cp.x + cp.w/2 - player.w/2, y: cp.y + cp.h - player.h - 2 };
+        level.activeCheckpoint = { x: cp.x + cp.w/2 - player.w/2, y: cp.y + cp.h - player.h };
         trackQuestProgress('checkpoints', 1);
         sfxWin();
         shake(12);
@@ -6542,13 +6079,6 @@ function updatePlayer(dt){
   player.animT += dt;
 
   camX = Math.max(0, Math.min(level.width - W, player.x - W*0.38));
-  if(player.wingsTimer > 0 || (level && level.isVerticalLevel) || player.y < GROUND_Y - 220){
-    let targetCamY = Math.min(0, player.y - H * 0.45);
-    camY += (targetCamY - camY) * 0.14;
-  } else if(!player.isFalling){
-    let targetCamY = 0;
-    camY += (targetCamY - camY) * 0.14;
-  }
   
   updateZombies(dt);
   updateBullets();
@@ -6688,7 +6218,6 @@ function loadLevel(idx){
   (level.energyCrystals || []).forEach(c=>c.taken=false);
   (level.electroOrbs || []).forEach(o=>o.taken=false);
   (level.goldTrophies || []).forEach(t=>t.taken=false);
-  (level.wings || []).forEach(w=>w.taken=false);
   (level.bells || []).forEach(b=>b.taken=false);
   (level.bananas || []).forEach(b=>b.used=false);
   (level.fakespikes || []).forEach(f=>f.hit=false);
@@ -6803,55 +6332,6 @@ function drawBackground(theme){
   }
 
   switch(theme){
-    case 'decaying_skyscraper': {
-      // Decaying Skyscraper Storm & Fire Background
-      const g = ctx.createLinearGradient(0, 0, 0, H);
-      g.addColorStop(0, '#0a0314');
-      g.addColorStop(0.4, '#1b0922');
-      g.addColorStop(0.8, '#2a0a18');
-      g.addColorStop(1, '#3d0c0c');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, W, H);
-
-      // Distant Lightning Flashes in Storm
-      if(Math.random() < 0.03){
-        ctx.fillStyle = 'rgba(180, 210, 255, 0.25)';
-        ctx.fillRect(0, 0, W, H);
-      }
-
-      // Parallax Distant Tower Framework Silhouettes
-      ctx.save();
-      ctx.fillStyle = 'rgba(20, 10, 28, 0.7)';
-      for(let i = -1; i < 8; i++){
-        const bx = (i * 240 - camX * 0.1) % (W + 240) - 80;
-        const h = 320 + (i % 3) * 60;
-        ctx.fillRect(bx, H - h, 140, h);
-        // Broken illuminated windows
-        ctx.fillStyle = (i % 2 === 0) ? '#ff3d3d' : '#f59e0b';
-        ctx.globalAlpha = 0.35;
-        for(let wy = H - h + 20; wy < H - 40; wy += 35){
-          ctx.fillRect(bx + 15, wy, 25, 18);
-          ctx.fillRect(bx + 80, wy, 25, 18);
-        }
-        ctx.globalAlpha = 1.0;
-        ctx.fillStyle = 'rgba(20, 10, 28, 0.7)';
-      }
-      ctx.restore();
-
-      // Flashing Emergency Beacon Light at Top Center
-      ctx.save();
-      const beaconX = W * 0.5;
-      const beaconGlow = Math.sin(state.time * 0.008) * 0.5 + 0.5;
-      const bGrad = ctx.createRadialGradient(beaconX, 60, 5, beaconX, 60, 180);
-      bGrad.addColorStop(0, `rgba(239, 68, 68, ${0.4 + beaconGlow * 0.4})`);
-      bGrad.addColorStop(1, 'rgba(239, 68, 68, 0)');
-      ctx.fillStyle = bGrad;
-      ctx.beginPath(); ctx.arc(beaconX, 60, 180, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
-
-      break;
-    }
-
     case 'dusk_suburbs': {
       // 1. Sunset Suburbs
       const g = ctx.createLinearGradient(0,0,0,H);
@@ -7835,49 +7315,12 @@ function drawGround(theme){
     const sx = p.x - camX;
     if(sx + p.w < -20 || sx > W + 20) continue;
 
-    // Check for neighbor to right to eliminate 1px anti-alias grid seams
+    // Check for neighbor to right to eliminate seams
     let extraW = 0;
-    const nextP = plats.find(o => Math.abs(o.x - (p.x + p.w)) < 4 && Math.abs(o.y - p.y) < 3);
-    if(nextP) extraW = 3;
+    const nextP = plats.find(o => Math.abs(o.x - (p.x + p.w)) < 2 && Math.abs(o.y - p.y) < 1);
+    if(nextP) extraW = 2; // Overlap slightly to kill the 1px anti-alias line
 
     switch(theme){
-      case 'decaying_skyscraper': {
-        // Concrete floor slab with steel girders and yellow hazard stripes
-        const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
-        g.addColorStop(0, '#334155');
-        g.addColorStop(0.3, '#1e293b');
-        g.addColorStop(1, '#0f172a');
-        ctx.fillStyle = g;
-        ctx.fillRect(Math.floor(sx), Math.floor(p.y), Math.ceil(p.w + extraW), Math.ceil(p.h));
-
-        // Steel Top Border
-        ctx.fillStyle = '#64748b';
-        ctx.fillRect(Math.floor(sx), Math.floor(p.y), Math.ceil(p.w + extraW), 4);
-
-        // Yellow-Black Hazard Stripes along platform top
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(sx, p.y + 4, p.w + extraW, 6);
-        ctx.clip();
-        for(let i = -20; i < p.w + extraW + 20; i += 16){
-          ctx.fillStyle = (i / 16) % 2 === 0 ? '#f59e0b' : '#0f172a';
-          ctx.beginPath();
-          ctx.moveTo(sx + i, p.y + 4);
-          ctx.lineTo(sx + i + 10, p.y + 4);
-          ctx.lineTo(sx + i + 4, p.y + 10);
-          ctx.lineTo(sx + i - 6, p.y + 10);
-          ctx.fill();
-        }
-        ctx.restore();
-
-        // Rivets
-        ctx.fillStyle = '#94a3b8';
-        for(let i = 12; i < p.w - 10; i += 40){
-          ctx.beginPath(); ctx.arc(sx + i, p.y + p.h - 8, 2.5, 0, Math.PI*2); ctx.fill();
-        }
-        break;
-      }
-
       case 'dusk_suburbs':
       case 'prehistoric_jungle': {
         const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
@@ -7886,16 +7329,15 @@ function drawGround(theme){
         g.addColorStop(0.15, '#7b5a3a');
         g.addColorStop(1, '#422e1d');
         ctx.fillStyle = g;
-        ctx.fillRect(Math.floor(sx), Math.floor(p.y), Math.ceil(p.w + extraW), Math.ceil(p.h));
+        ctx.fillRect(sx, p.y, p.w + extraW, p.h);
 
-        // Smooth wind-animated grass blades
+        // Grass blades
         ctx.fillStyle = '#6ee693';
-        for(let i = 4; i < p.w - 2; i += 14){
-          const sway = Math.sin(state.time * 0.003 + (p.x + i) * 0.02) * 3.8;
+        for(let i = 4; i < p.w - 2; i += 18){
           ctx.beginPath();
-          ctx.moveTo(sx + i, p.y + 1);
-          ctx.lineTo(sx + i + 3 + sway, p.y - 7);
-          ctx.lineTo(sx + i + 7, p.y + 1);
+          ctx.moveTo(sx + i, p.y);
+          ctx.lineTo(sx + i + 4, p.y - 7);
+          ctx.lineTo(sx + i + 8, p.y);
           ctx.fill();
         }
         break;
@@ -9245,241 +8687,6 @@ function drawFlag(f){
   ctx.fillText('FINISH', sx+f.w/2+24, f.y+19);
 }
 
-function drawWingItem(w){
-  if(w.taken) return;
-  const sx = w.x - camX;
-  if(sx + (w.w||34) < -50 || sx > W + 50) return;
-
-  ctx.save();
-  const floatY = w.y + Math.sin(state.time * 0.005 + w.x) * 6;
-
-  // Golden Aura Glow
-  ctx.shadowColor = '#ffd23f';
-  ctx.shadowBlur = 18;
-
-  // Wing Left
-  ctx.fillStyle = '#f59e0b';
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 1.8;
-  ctx.beginPath();
-  ctx.moveTo(sx + w.w/2, floatY + w.h/2);
-  ctx.bezierCurveTo(sx - 16, floatY - 14, sx - 24, floatY + 4, sx + w.w/2, floatY + w.h/2 + 6);
-  ctx.fill(); ctx.stroke();
-
-  // Wing Right
-  ctx.beginPath();
-  ctx.moveTo(sx + w.w/2, floatY + w.h/2);
-  ctx.bezierCurveTo(sx + w.w + 16, floatY - 14, sx + w.w + 24, floatY + 4, sx + w.w/2, floatY + w.h/2 + 6);
-  ctx.fill(); ctx.stroke();
-
-  // Center Golden Gem
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath(); ctx.arc(sx + w.w/2, floatY + w.h/2, 6, 0, Math.PI*2); ctx.fill();
-
-  // Floating Label
-  ctx.fillStyle = '#ffd23f';
-  ctx.font = 'bold 11px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText("🪽 GOLDEN WINGS", sx + w.w/2, floatY - 10);
-
-  ctx.restore();
-}
-
-function drawSteamVent(sv){
-  const sx = sv.x - camX;
-  if(sx + (sv.w||40) < -50 || sx > W + 50) return;
-  const cycle = (state.time + (sv.offset || 0)) % (sv.period || 2200);
-  const isActive = cycle < 1100;
-
-  ctx.save();
-  ctx.fillStyle = '#475569';
-  ctx.fillRect(sx, sv.y - 12, sv.w || 40, 12);
-  ctx.fillStyle = '#f59e0b';
-  ctx.fillRect(sx + 4, sv.y - 10, (sv.w || 40) - 8, 3);
-
-  if(isActive){
-    const steamH = sv.h || 120;
-    const g = ctx.createLinearGradient(0, sv.y - steamH, 0, sv.y);
-    g.addColorStop(0, 'rgba(255, 255, 255, 0)');
-    g.addColorStop(0.4, 'rgba(226, 232, 240, 0.75)');
-    g.addColorStop(1, 'rgba(203, 213, 225, 0.9)');
-    ctx.fillStyle = g;
-    ctx.fillRect(sx - 8, sv.y - steamH, (sv.w || 40) + 16, steamH);
-
-    for(let i = 0; i < 3; i++){
-      const bx = sx + (sv.w || 40) / 2 + (Math.random() - 0.5) * 16;
-      const by = sv.y - Math.random() * steamH;
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-      ctx.beginPath();
-      ctx.arc(bx, by, 6 + Math.random() * 6, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-  ctx.restore();
-}
-
-function drawSwingPoint(sp){
-  const sx = sp.x - camX;
-  if(sx < -200 || sx > W + 200) return;
-
-  ctx.save();
-  ctx.fillStyle = '#64748b';
-  ctx.fillRect(sx - 24, sp.y - 16, 48, 16);
-  ctx.fillStyle = '#f59e0b';
-  ctx.fillRect(sx - 20, sp.y - 12, 40, 4);
-
-  const playerInSwing = player.isSwinging === sp;
-  const targetX = playerInSwing ? (player.x + player.w/2 - camX) : sx + Math.sin(state.time * 0.002) * 20;
-  const targetY = playerInSwing ? (player.y + player.h/2) : sp.y + (sp.len || 150);
-
-  ctx.strokeStyle = playerInSwing ? '#00f0ff' : '#ffd23f';
-  ctx.lineWidth = playerInSwing ? 3.5 : 2.5;
-  ctx.beginPath();
-  ctx.moveTo(sx, sp.y);
-  ctx.lineTo(targetX, targetY);
-  ctx.stroke();
-
-  ctx.fillStyle = playerInSwing ? '#00f0ff' : '#ffd23f';
-  ctx.beginPath(); ctx.arc(sx, sp.y, 8, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath(); ctx.arc(sx, sp.y, 4, 0, Math.PI*2); ctx.fill();
-
-  ctx.strokeStyle = '#38c6ff';
-  ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.arc(targetX, targetY, 10, 0, Math.PI*2); ctx.stroke();
-
-  if(!playerInSwing && Math.hypot((player.x + player.w/2 - camX) - sx, player.y + player.h/2 - sp.y) < (sp.radius || 200)){
-    ctx.fillStyle = '#38c6ff';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText("🎯 CATCH & SWING (SPACE)", sx, sp.y - 24);
-  }
-  ctx.restore();
-}
-
-function drawRisingHorde(){
-  if(!level || level.risingHordeY === undefined) return;
-
-  const ry = level.risingHordeY;
-  const screenY = ry - camY;
-  if(screenY > H + 200) return;
-
-  ctx.save();
-  const g = ctx.createLinearGradient(0, ry, 0, ry + 400);
-  g.addColorStop(0, 'rgba(239, 68, 68, 0.85)');
-  g.addColorStop(0.15, 'rgba(185, 28, 28, 0.9)');
-  g.addColorStop(0.4, 'rgba(120, 11, 11, 0.95)');
-  g.addColorStop(1, '#110202');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, ry, W, 800);
-
-  ctx.fillStyle = '#fca5a5';
-  for(let x = 0; x < W; x += 40){
-    const waveY = ry + Math.sin(state.time * 0.005 + x * 0.02) * 8;
-    ctx.beginPath();
-    ctx.arc(x + 20, waveY, 12, 0, Math.PI, true);
-    ctx.fill();
-  }
-
-  ctx.fillStyle = '#450a0a';
-  for(let x = 30; x < W; x += 65){
-    const armH = 35 + Math.sin(state.time * 0.007 + x) * 15;
-    ctx.fillRect(x, ry - armH, 8, armH);
-    ctx.beginPath();
-    ctx.arc(x + 4, ry - armH, 7, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  ctx.strokeStyle = '#ef4444';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(0, ry);
-  ctx.lineTo(W, ry);
-  ctx.stroke();
-
-  ctx.restore();
-}
-
-function drawHeliPad(hp){
-  if(!hp) return;
-  const sx = hp.x - camX;
-  if(sx + hp.w < -100 || sx > W + 100) return;
-
-  ctx.save();
-  const g = ctx.createLinearGradient(0, hp.y, 0, hp.y + hp.h);
-  g.addColorStop(0, '#475569');
-  g.addColorStop(0.4, '#334155');
-  g.addColorStop(1, '#1e293b');
-  ctx.fillStyle = g;
-  ctx.fillRect(sx, hp.y, hp.w, hp.h);
-
-  ctx.strokeStyle = '#f59e0b';
-  ctx.lineWidth = 4;
-  ctx.strokeRect(sx + 4, hp.y + 4, hp.w - 8, hp.h - 8);
-
-  const cx = sx + hp.w / 2;
-  const cy = hp.y + 20;
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.arc(cx, cy, 22, 0, Math.PI*2); ctx.stroke();
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 20px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText("H", cx, cy);
-
-  const heliX = cx + 40;
-  const heliY = hp.y - 55;
-
-  ctx.fillStyle = '#1e293b';
-  ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(heliX - 60, heliY - 20, 120, 40, 16); else ctx.fillRect(heliX - 60, heliY - 20, 120, 40); ctx.fill();
-  ctx.strokeStyle = '#38c6ff'; ctx.lineWidth = 2; ctx.stroke();
-
-  ctx.fillStyle = 'rgba(56, 198, 255, 0.6)';
-  ctx.beginPath(); ctx.arc(heliX + 35, heliY - 2, 16, -Math.PI*0.5, Math.PI*0.5); ctx.fill();
-
-  ctx.fillStyle = '#334155';
-  ctx.fillRect(heliX - 110, heliY - 6, 60, 12);
-
-  const tailAngle = state.time * 0.03;
-  ctx.strokeStyle = '#cbd5e1';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(heliX - 110, heliY - Math.sin(tailAngle)*18);
-  ctx.lineTo(heliX - 110, heliY + Math.sin(tailAngle)*18);
-  ctx.stroke();
-
-  const mainRotorWidth = 180;
-  const bladeFlicker = Math.sin(state.time * 0.05) * mainRotorWidth;
-  ctx.strokeStyle = 'rgba(203, 213, 225, 0.85)';
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(heliX - bladeFlicker/2, heliY - 32);
-  ctx.lineTo(heliX + bladeFlicker/2, heliY - 32);
-  ctx.stroke();
-
-  ctx.fillStyle = '#94a3b8';
-  ctx.fillRect(heliX - 4, heliY - 32, 8, 12);
-
-  const searchAngle = Math.sin(state.time * 0.002) * 0.4;
-  const beamGrad = ctx.createRadialGradient(heliX + 30, heliY + 10, 10, heliX + Math.sin(searchAngle)*120, heliY + 180, 120);
-  beamGrad.addColorStop(0, 'rgba(56, 198, 255, 0.4)');
-  beamGrad.addColorStop(1, 'rgba(56, 198, 255, 0)');
-  ctx.fillStyle = beamGrad;
-  ctx.beginPath();
-  ctx.moveTo(heliX + 30, heliY + 10);
-  ctx.lineTo(heliX + Math.sin(searchAngle)*120 - 60, heliY + 180);
-  ctx.lineTo(heliX + Math.sin(searchAngle)*120 + 60, heliY + 180);
-  ctx.fill();
-
-  if(Math.floor(state.time / 200) % 2 === 0){
-    ctx.fillStyle = '#ef4444';
-    ctx.beginPath(); ctx.arc(heliX - 55, heliY - 22, 6, 0, Math.PI*2); ctx.fill();
-  }
-
-  ctx.restore();
-}
-
 function drawZombie(z){
   const sx = z.x - camX;
   if(sx+z.w < -60 || sx > W + 60) return;
@@ -10689,51 +9896,6 @@ function drawPlayer(){
     ctx.restore();
   }
 
-  // Golden Wings rendering on player character
-  if(player.wingsTimer > 0){
-    ctx.save();
-    const flap = Math.sin(state.time * 0.018) * 0.4;
-    ctx.shadowColor = '#ffd23f';
-    ctx.shadowBlur = 18;
-    ctx.fillStyle = '#f59e0b';
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 2.2;
-
-    // Left Wing
-    ctx.save();
-    ctx.translate(-8, -12);
-    ctx.rotate(-0.5 - flap);
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.bezierCurveTo(-28, -26, -38, -6, -20, 16);
-    ctx.bezierCurveTo(-14, 22, -6, 10, 0, 0);
-    ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#fef08a';
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.bezierCurveTo(-18, -16, -24, -4, -12, 10);
-    ctx.fill();
-    ctx.restore();
-
-    // Right Wing
-    ctx.save();
-    ctx.translate(8, -12);
-    ctx.rotate(0.5 + flap);
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.bezierCurveTo(28, -26, 38, -6, 20, 16);
-    ctx.bezierCurveTo(14, 22, 6, 10, 0, 0);
-    ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#fef08a';
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.bezierCurveTo(18, -16, 24, -4, 12, 10);
-    ctx.fill();
-    ctx.restore();
-
-    ctx.restore();
-  }
-
   // Ghost: translucent ethereal aura
   if(skin === 'ghost'){
     ctx.save();
@@ -11533,10 +10695,7 @@ function drawHUD(){
   const barX = (W - barW) / 2;
   const barY = 10;
   const levelWidth = (level && level.width) ? level.width : 10000;
-  const totalVert = (GROUND_Y - 60) - (level && level.flag ? level.flag.y : -3000);
-  const curVert = (GROUND_Y - 60) - player.y;
-  const vertProgress = Math.min(1, Math.max(0, curVert / Math.max(1, totalVert)));
-  const progress = (level && level.isVerticalLevel) ? vertProgress : Math.min(1, Math.max(0, player.x / levelWidth));
+  const progress = Math.min(1, Math.max(0, player.x / levelWidth));
 
   // Bar Background
   ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
@@ -11572,54 +10731,7 @@ function drawHUD(){
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 10px sans-serif';
   ctx.textAlign = 'center';
-  if(level && level.isVerticalLevel){
-    const currentFloor = Math.min(25, Math.max(1, Math.floor(progress * 25) + 1));
-    ctx.fillText(`VERTICAL ESCAPE: ${Math.floor(progress * 100)}% (FLOOR ${currentFloor} / 25)`, W/2, barY + barH + 12);
-  } else {
-    ctx.fillText(`PROGRESS: ${Math.floor(progress * 100)}%`, W/2, barY + barH + 12);
-  }
-
-  // NO GUNS Banner
-  if(level && level.noGuns){
-    ctx.save();
-    ctx.fillStyle = 'rgba(239, 68, 68, 0.85)';
-    ctx.strokeStyle = '#fca5a5';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(W/2 - 130, 32, 260, 22, 6); else ctx.fillRect(W/2 - 130, 32, 260, 22); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText("🚫 NO GUNS — SPEED & PARKOUR!", W/2, 47);
-    ctx.restore();
-  }
-
-  // RISING HORDE Distance Meter
-  if(level && level.risingHordeY !== undefined){
-    const distM = Math.round((level.risingHordeY - (player.y + player.h)) / 10);
-    ctx.save();
-    ctx.fillStyle = distM < 25 ? 'rgba(239, 68, 68, 0.9)' : 'rgba(245, 158, 11, 0.85)';
-    ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(14, 115, 210, 24, 6); else ctx.fillRect(14, 115, 210, 24); ctx.fill();
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(`🔥 HORDE: ${distM > 0 ? distM + 'm BELOW' : '⚠️ OVERTAKING!'}`, 22, 131);
-    ctx.restore();
-  }
-
-  // GOLDEN WINGS Active Flight Banner
-  if(player.wingsTimer > 0){
-    const secLeft = (player.wingsTimer / 1000).toFixed(1);
-    ctx.save();
-    ctx.fillStyle = 'rgba(245, 158, 11, 0.9)';
-    ctx.strokeStyle = '#fef08a';
-    ctx.lineWidth = 1.8;
-    ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(14, 144, 210, 24, 6); else ctx.fillRect(14, 144, 210, 24); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(`🪽 WINGS FLIGHT: ${secLeft}s (SPACE TO FLY)`, 22, 160);
-    ctx.restore();
-  }
+  ctx.fillText(`PROGRESS: ${Math.floor(progress * 100)}%`, W/2, barY + barH + 12);
 
   // 2. Left Side (Score & Health)
   ctx.textAlign='left';
@@ -14524,10 +13636,6 @@ function loop(now){
       if(level.spikes) level.spikes.forEach(drawSpike);
       if(level.popspikes) level.popspikes.forEach(drawPopSpike);
       if(level.trampolines) level.trampolines.forEach(drawTrampoline);
-      if(level.swingPoints) level.swingPoints.forEach(drawSwingPoint);
-      if(level.steamVents) level.steamVents.forEach(drawSteamVent);
-      if(level.heliPad) drawHeliPad(level.heliPad);
-      drawRisingHorde();
       if(level.boosters) level.boosters.forEach(drawBooster);
       if(level.gravityRunes) level.gravityRunes.forEach(drawGravityRune);
       if(level.boulders) level.boulders.forEach(drawBoulder);
@@ -14543,7 +13651,6 @@ function loop(now){
       if(level.energyCrystals) level.energyCrystals.forEach(drawEnergyCrystal);
       if(level.electroOrbs) level.electroOrbs.forEach(drawElectroOrb);
       if(level.goldTrophies) level.goldTrophies.forEach(drawGoldTrophy);
-      if(level.wings) level.wings.forEach(drawWingItem);
       if(level.traps) level.traps.forEach(drawTrap);
       if(level.bells) level.bells.forEach(drawBell);
       if(level.bushes) level.bushes.forEach(drawBush);
@@ -14642,6 +13749,3 @@ function loop(now){
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
-</script>
-</body>
-</html>
