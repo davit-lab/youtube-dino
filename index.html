@@ -2605,7 +2605,7 @@ const player = {
 
 function resetPlayer(spawn){
   player.x = spawn ? spawn.x : 100;
-  player.y = activeSpawn ? activeSpawn.y : GROUND_Y - 50;
+  player.y = spawn ? spawn.y : GROUND_Y - 50;
   player.vx=0; player.vy=0; player.onGround=true; player.dead=false; player.invuln=120;
   player.slipping=0; player.crying=0;
   player.isFalling = false; player.fallTimer=0; player.fallRotation=0; player.deathTimer=0;
