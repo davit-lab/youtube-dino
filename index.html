@@ -861,7 +861,7 @@ const DAILY_QUESTS_LIST = [
   { id: 'coins_25', title: '🪙 მონეტებზე ნადირობა', desc: 'შეაგროვე 25 მონეტა', target: 25, reward: 150, type: 'coins' },
   { id: 'zombies_15', title: '🧟 ზომბების რისხვა', desc: 'მოკალი 15 ზომბი', target: 15, reward: 200, type: 'zombies' },
   { id: 'crystals_3', title: '💎 კრისტალების ძიება', desc: 'იპოვე 3 ენერგო კრისტალი', target: 3, reward: 250, type: 'crystals' },
-  { id: 'checkpoints_2', title: '🚩 ჩექფოინთების ოსტატი', desc: 'მონიშნე 2 ჩექფოინთი', target: 2, reward: 180, type: 'checkpoints' },
+
   { id: 'trophies_2', title: '🏆 ოქროს კოლექციონერი', desc: 'მოიპოვე 2 ოქროს თასი', target: 2, reward: 300, type: 'trophies' },
   { id: 'level_win_1', title: '🚀 გამარჯვება', desc: 'გაიარე ნებისმიერი დონე', target: 1, reward: 250, type: 'level_win' }
 ];
@@ -1756,7 +1756,6 @@ function drawAirplaneLevel(){
   if(level.bells) level.bells.forEach(drawBell);
   if(level.jumpboxes) level.jumpboxes.forEach(drawJumpBox);
   if(level.signs) level.signs.forEach(drawSign);
-  if(level.checkpoints) level.checkpoints.forEach(drawCheckpoint);
   drawFlag(level.flag);
 
   // Ground Turrets (Anti-Aircraft)
@@ -2605,8 +2604,7 @@ const player = {
 };
 
 function resetPlayer(spawn){
-  const activeSpawn = (level && level.activeCheckpoint) ? level.activeCheckpoint : spawn;
-  player.x = activeSpawn ? activeSpawn.x : 100;
+  player.x = spawn ? spawn.x : 100;
   player.y = activeSpawn ? activeSpawn.y : GROUND_Y - 50;
   player.vx=0; player.vy=0; player.onGround=true; player.dead=false; player.invuln=120;
   player.slipping=0; player.crying=0;
@@ -3455,9 +3453,6 @@ function buildLevels(){
     zombieSpeedMult: 0.3, zombieHpMult: 0.5, gravityMult: 1.0, hazardType: 'none',
     width: 2400,
     spawn:{x:80, y:GROUND_Y-60},
-    checkpoints: [
-      rect(1100, GROUND_Y - 70, 36, 70, {active: false, label: 'ჩექფოინთი 🚩'})
-    ],
     theme: 'dusk_suburbs',
     plats: [
       rect(0, GROUND_Y, 2400, 90),                      // 100% Solid Floor - No void pits!
@@ -3482,8 +3477,7 @@ function buildLevels(){
     flag: rect(2150, GROUND_Y - 140, 30, 140)
   });
 
-  // LEVEL 2: Cyber Alley & Water Pools (First Checkpoint)
-  levels.push({
+    levels.push({
     name:'ეპ.2 — პლატფორმები & ჩექფოინთი 🚩',
     diffRating: 'ძალიან მარტივი', diffStars: '⭐', diffColor: '#22c55e',
     gimmickTitle: '💧 წყლის ტბორი & ჩექფოინთი',
@@ -3492,10 +3486,6 @@ function buildLevels(){
     theme: 'cyberpunk_alley',
     width: 3200,
     spawn:{x:60, y:GROUND_Y-60},
-    checkpoints: [
-      rect(1050, GROUND_Y - 70, 36, 70, {active: false, label: 'ჩექფოინთი 1 🚩'}),
-      rect(2000, GROUND_Y - 70, 36, 70, {active: false, label: 'ჩექფოინთი 2 🚩'})
-    ],
     plats: [
       rect(0, GROUND_Y, 1200, 90),
       rect(1150, GROUND_Y - 35, 220, 24),               // Bridge over puddle
@@ -3531,10 +3521,6 @@ function buildLevels(){
     theme: 'horror_ruins',
     width: 3600,
     spawn:{x:60, y:GROUND_Y-60},
-    checkpoints: [
-      rect(1100, GROUND_Y - 70, 36, 70, {active: false, label: 'ჩექფოინთი 1 🚩'}),
-      rect(2100, GROUND_Y - 70, 36, 70, {active: false, label: 'ჩექფოინთი 2 🚩'})
-    ],
     plats: [
       rect(0, GROUND_Y, 3600, 90)                       // Solid floor throughout
     ],
@@ -3568,10 +3554,6 @@ function buildLevels(){
     theme: 'parkour_rooftops',
     width: 3800,
     spawn:{x:60, y:GROUND_Y-60},
-    checkpoints: [
-      rect(750, GROUND_Y - 70, 36, 70, {active: false, label: 'ჩექფოინთი 1 🚩'}),
-      rect(1750, GROUND_Y - 70, 36, 70, {active: false, label: 'ჩექფოინთი 2 🚩'})
-    ],
     plats: [
       rect(0, GROUND_Y, 3800, 90),                      // Complete floor - 100% safe!
       rect(800, GROUND_Y - 50, 200, 24, {vx: 1.0, minX: 800, maxX: 1050}), // Moving platform above floor
@@ -3608,10 +3590,6 @@ function buildLevels(){
     theme: 'lava_fortress',
     width: 4000,
     spawn:{x:60, y:GROUND_Y-60},
-    checkpoints: [
-      rect(900, GROUND_Y - 70, 36, 70, {active: false, label: 'ჩექფოინთი 1 🚩'}),
-      rect(2200, GROUND_Y - 70, 36, 70, {active: false, label: 'ჩექფოინთი 2 🚩'})
-    ],
     plats: [
       rect(0, GROUND_Y, 4000, 90)                       // Solid floor
     ],
@@ -4201,12 +4179,6 @@ function buildLevels(){
     ],
     goldTrophies: [
       rect(2500, -1430, 30, 34)                              // Zone 2 Shortcut Trophy (+500 Coins)
-    ],
-
-    // Checkpoints:
-    checkpoints: [
-      rect(2250, -1450, 36, 70, {active: false, label: 'ზონა 2 — ოფისის უსაფრთხო ოთახი 🚩'}),
-      rect(1650, -2670, 36, 70, {active: false, label: 'ზონა 3 — სახურავის ამწის პოსტი 🚩'})
     ],
 
     // Zombies (Progressive Foot-Sloggers -> Mutants):
@@ -5238,7 +5210,6 @@ function buildLevels(){
     if(!lvl.energyCrystals) lvl.energyCrystals = [];
     if(!lvl.electroOrbs) lvl.electroOrbs = [];
     if(!lvl.goldTrophies) lvl.goldTrophies = [];
-    if(!lvl.checkpoints) lvl.checkpoints = [];
     if(!lvl.trampolines) lvl.trampolines = [];
     if(!lvl.boulders) lvl.boulders = [];
     if(!lvl.boosters) lvl.boosters = [];
@@ -5251,23 +5222,9 @@ function buildLevels(){
     let currX = (lvl.plats.length > 0) ? Math.max(...lvl.plats.map(p => p.x + p.w)) : 4000;
 
     let segmentIndex = 0;
-    let addedCp1 = false, addedCp2 = false, addedCp3 = false;
     while(currX < targetW - 600){
       const segType = Math.floor(Math.random() * 6);
       segmentIndex++;
-
-      if(!addedCp1 && currX >= targetW * 0.28){
-        addedCp1 = true;
-        lvl.checkpoints.push(rect(currX + 80, GROUND_Y - 70, 36, 70, { active: false, label: 'ჩექფოინთი 1 🚩' }));
-      }
-      if(!addedCp2 && currX >= targetW * 0.65){
-        addedCp2 = true;
-        lvl.checkpoints.push(rect(currX + 150, GROUND_Y - 70, 36, 70, { active: false, label: 'ჩექფოინთი 2 🚩' }));
-      }
-      if(!addedCp3 && currX >= targetW * 0.82){
-        addedCp3 = true;
-        lvl.checkpoints.push(rect(currX + 80, GROUND_Y - 70, 36, 70, { active: false, label: 'ჩექფოინთი 3 🚩' }));
-      }
 
       // Add Lucky Mystery Box to every segment
       if(segmentIndex % 2 === 0){
@@ -6443,23 +6400,6 @@ function updatePlayer(dt){
     }
   }
 
-  // Checkpoint Interaction (Only when safely standing on solid ground away from hazards)
-  if(level && level.checkpoints && state.levelIndex !== 0){
-    for(const cp of level.checkpoints){
-      if(!cp.active && player.onGround && !player.isFalling && player.vy >= 0 && overlap(player, cp)){
-        cp.active = true;
-        level.activeCheckpoint = { x: cp.x + cp.w/2 - player.w/2, y: cp.y + cp.h - player.h - 2 };
-        trackQuestProgress('checkpoints', 1);
-        sfxWin();
-        shake(12);
-        spawnParticles(cp.x + cp.w/2, cp.y + cp.h/2, '#22c55e', 30, 2.2);
-        spawnParticles(cp.x + cp.w/2, cp.y + cp.h/2, '#ffd23f', 20, 1.8);
-        addFloatingText(cp.x, cp.y - 30, "🚩 ჩექფოინთი გააქტიურდა! ✅", '#22c55e');
-        toast("🚩 ჩექფოინთი შენახულია! დაღუპვისას აქედან განაგრძობ! ✅", 2800);
-      }
-    }
-  }
-
   // Flag -> level clear
   if(overlap(player, level.flag)){
     levelClear();
@@ -6602,10 +6542,6 @@ function loadLevel(idx){
   if(state.deathCam) state.deathCam.active = false;
   level = LEVELS[idx];
   
-  // Reset active checkpoint for new level
-  level.activeCheckpoint = null;
-  if(level.checkpoints) level.checkpoints.forEach(cp => cp.active = false);
-
   // Reset session counters
   state.coinsCollectedInLevel = 0;
   state.zombiesKilledInLevel = 0;
@@ -9061,99 +8997,6 @@ function drawBush(b){
   ctx.arc(sx+b.w*0.6,b.y+b.h*0.5,b.w*0.4,0,2*Math.PI);
   ctx.arc(sx+b.w*0.85,b.y+b.h*0.65,b.w*0.3,0,2*Math.PI);
   ctx.fill();
-}
-
-function drawCheckpoint(cp){
-  const sx = cp.x - camX;
-  if(sx + (cp.w || 36) < -60 || sx > W + 60) return;
-
-  const isActive = cp.active;
-  const poleX = sx + 8;
-  const poleY = cp.y;
-  const poleH = cp.h || 70;
-
-  ctx.save();
-
-  // Base stand
-  ctx.fillStyle = isActive ? '#15803d' : '#334155';
-  ctx.beginPath();
-  if(ctx.roundRect) ctx.roundRect(sx - 6, poleY + poleH - 12, 28, 12, 3);
-  else ctx.fillRect(sx - 6, poleY + poleH - 12, 28, 12);
-  ctx.fill();
-
-  if(isActive){
-    // Glowing ring pulse around base
-    ctx.shadowColor = '#22c55e';
-    ctx.shadowBlur = 18;
-    ctx.strokeStyle = '#4ade80';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.ellipse(sx + 8, poleY + poleH - 6, 22, 6, 0, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Spawn green ambient particles
-    if(Math.random() < 0.25){
-      particles.push({
-        x: cp.x + Math.random() * 20 - 5,
-        y: cp.y + poleH - 10,
-        vx: (Math.random() - 0.5) * 1.5,
-        vy: -1 - Math.random() * 2,
-        life: 30, maxLife: 30,
-        color: '#4ade80', size: 2 + Math.random() * 3
-      });
-    }
-  }
-
-  // Metallic Steel Pole
-  const poleGrad = ctx.createLinearGradient(poleX, poleY, poleX + 5, poleY);
-  poleGrad.addColorStop(0, '#64748b');
-  poleGrad.addColorStop(0.5, '#f8fafc');
-  poleGrad.addColorStop(1, '#334155');
-  ctx.fillStyle = poleGrad;
-  ctx.fillRect(poleX, poleY, 5, poleH);
-
-  // Gold or Silver Ball on top
-  ctx.fillStyle = isActive ? '#f59e0b' : '#94a3b8';
-  ctx.beginPath();
-  ctx.arc(poleX + 2.5, poleY - 4, 6, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Waving Banner Flag
-  const wave = Math.sin(state.time * 0.008 + cp.x) * 4;
-  ctx.shadowColor = isActive ? '#22c55e' : '#3b82f6';
-  ctx.shadowBlur = isActive ? 16 : 6;
-
-  ctx.fillStyle = isActive ? '#16a34a' : '#2563eb';
-  ctx.beginPath();
-  ctx.moveTo(poleX + 5, poleY);
-  ctx.lineTo(poleX + 48 + wave, poleY + 10);
-  ctx.lineTo(poleX + 42, poleY + 24);
-  ctx.lineTo(poleX + 50 + wave, poleY + 38);
-  ctx.lineTo(poleX + 5, poleY + 38);
-  ctx.closePath();
-  ctx.fill();
-
-  // Flag Border
-  ctx.strokeStyle = isActive ? '#facc15' : '#60a5fa';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-
-  // Flag Icon
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 12px sans-serif';
-  ctx.textAlign = 'left';
-  ctx.shadowBlur = 0;
-  ctx.fillText(isActive ? '✅' : '🚩', poleX + 10, poleY + 24);
-
-  // Hovering Label
-  ctx.font = 'bold 11px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillStyle = isActive ? '#4ade80' : '#93c5fd';
-  ctx.shadowColor = isActive ? '#15803d' : '#1e3a8a';
-  ctx.shadowBlur = 8;
-  ctx.fillText(isActive ? '✅ ჩექფოინთი! (SAVED)' : '🚩 ჩექფოინთი', poleX + 2.5, poleY - 14);
-
-  ctx.restore();
 }
 
 function drawFlag(f){
@@ -14405,7 +14248,6 @@ function loop(now){
       if(level.bells) level.bells.forEach(drawBell);
       if(level.bushes) level.bushes.forEach(drawBush);
       if(level.jumpboxes) level.jumpboxes.forEach(drawJumpBox);
-      if(level.checkpoints) level.checkpoints.forEach(drawCheckpoint);
       drawFlag(level.flag);
       drawGodzilla();
       drawFinalBoss();
