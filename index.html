@@ -3451,30 +3451,22 @@ function buildLevels(){
     gimmickTitle: '🔰 სწავლება & ძირითადი მართვა',
     diffDesc: 'კეთილი იყოს შენი მობრძანება! ისწავლე სიარული (A/D / ისრები), ხტომა (SPACE / W) და მონეტების შეგროვება.',
     zombieSpeedMult: 0.3, zombieHpMult: 0.5, gravityMult: 1.0, hazardType: 'none',
-    width: 2400,
+    width: 2000,
     spawn:{x:80, y:GROUND_Y-60},
     theme: 'dusk_suburbs',
     plats: [
-      rect(0, GROUND_Y, 2400, 90),                      // 100% Solid Floor - No void pits!
-      rect(500, GROUND_Y - 45, 200, 24),                 // Safe step platform 1
-      rect(900, GROUND_Y - 50, 240, 24),                 // Safe step platform 2
-      rect(1400, GROUND_Y - 45, 200, 24)                 // Safe step platform 3
+      rect(0, GROUND_Y, 2000, 90)
     ],
     coins: [
-      ...Array.from({length: 6}, (_, i) => rect(250 + i * 40, GROUND_Y - 50, 22, 22)),
-      ...Array.from({length: 5}, (_, i) => rect(920 + i * 40, GROUND_Y - 95, 22, 22)),
-      ...Array.from({length: 8}, (_, i) => rect(1450 + i * 40, GROUND_Y - 50, 22, 22))
+      ...Array.from({length: 5}, (_, i) => rect(300 + i * 50, GROUND_Y - 50, 22, 22)),
+      ...Array.from({length: 5}, (_, i) => rect(1000 + i * 50, GROUND_Y - 50, 22, 22))
     ],
     signs: [
       { x: 100, y: GROUND_Y - 60, text: '👋 კეთილი იყოს შენი მობრძანება! გამოიყენე A/D ან ისრები გადასაადგილებლად!' },
-      { x: 450, y: GROUND_Y - 60, text: '⬆️ დააჭირე SPACE, W ან UP - ნახტომისთვის!' },
-      { x: 800, y: GROUND_Y - 60, text: '📦 დაარტყი თავი ? ყუთს ქვემოდან საჩუქრის მისაღებად!' },
-      { x: 1600, y: GROUND_Y - 60, text: '🏁 მიაღწიე დროშას დონის დასასრულებლად!' }
+      { x: 700, y: GROUND_Y - 60, text: '⬆️ დააჭირე SPACE, W ან UP - ნახტომისთვის!' },
+      { x: 1400, y: GROUND_Y - 60, text: '🏁 მიაღწიე დროშას დონის დასასრულებლად!' }
     ],
-    zombies: [
-      { x: 1850, y: GROUND_Y - 54, type: 'slow' }
-    ],
-    flag: rect(2150, GROUND_Y - 140, 30, 140)
+    flag: rect(1850, GROUND_Y - 140, 30, 140)
   });
 
     levels.push({
