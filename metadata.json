@@ -1,0 +1,8 @@
+{
+  "name": "გეოდინო: ხულიგანური პარკური",
+  "description": "Geodino: Hooligan Parkour - Georgia action platformer game",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
