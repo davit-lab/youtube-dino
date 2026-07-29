@@ -566,7 +566,6 @@ window.addEventListener('keydown', e=>{
   if(e.code==='KeyP') togglePause();
   if(e.code==='KeyR') restartLevel();
   if(e.code==='KeyK'||e.code==='KeyF') shoot();
-  if(e.code==='Escape' && sponsorPopup.active){ closeSponsorPopup(); }
   if(e.code==='Escape' && state.previewModal && state.previewModal.active){ closePreviewModal(); }
   if(e.code==='Space'||e.code==='Enter'){
     if(state.mode==='menu') handleMenuClick(W/2, H/2);
@@ -579,10 +578,6 @@ window.addEventListener('keyup', e=>{ keys[e.code]=false; });
 // Touch/click listener for mobile and desktop screens to start game
 window.addEventListener('touchstart', (e)=>{ 
   if(e.target && e.target.closest && (e.target.closest('#topBarControls') || e.target.closest('#promoModal'))) return;
-  if(sponsorPopup.active){
-    closeSponsorPopup();
-    return;
-  }
 }, { passive: true });
 
 function bindHold(id, downFn, upFn, options = {}){
@@ -668,7 +663,7 @@ canvas.addEventListener('touchstart', (e)=>{
     touchStartY = e.touches[0].clientY;
     isTouchDragging = true;
   }
-  if(state.mode === 'shop' || state.mode === 'levelselect' || state.mode === 'menu' || state.mode === 'gameover' || state.mode === 'win' || sponsorPopup.active){
+  if(state.mode === 'shop' || state.mode === 'levelselect' || state.mode === 'menu' || state.mode === 'gameover' || state.mode === 'win'){
     if(e.cancelable) e.preventDefault();
     handleCanvasPointer(e);
   }
@@ -693,16 +688,6 @@ function handleCanvasPointer(e){
   const clientY = (e.touches && e.touches.length > 0) ? e.touches[0].clientY : e.clientY;
   const mx = (clientX - rect.left) * (W / rect.width);
   const my = (clientY - rect.top) * (H / rect.height);
-
-  if(sponsorPopup.active){
-    const bw = 160, bh = 36;
-    const bx = sponsorPopup.x + sponsorPopup.w/2 - bw/2;
-    const by = sponsorPopup.y + sponsorPopup.h - 50;
-    if(mx >= bx && mx <= bx+bw && my >= by && my <= by+bh){
-      closeSponsorPopup();
-    }
-    return;
-  }
 
   if(state.mode === 'shop'){
     handleShopClick(mx, my);
@@ -1357,18 +1342,6 @@ let nukeSeq = {
   exploded: false,
   flash: 0,
   smokeParticles: []
-};
-
-const sponsorPopup = {
-  active: false,
-  timer: 0,
-  x: W/2 - 240,
-  y: H/2 - 150,
-  w: 480,
-  h: 300,
-  glitchText: '',
-  btnShakeX: 0,
-  btnShakeY: 0
 };
 
 // ---------- Airplane Level System ----------
@@ -2474,25 +2447,6 @@ function drawWeatherHUD(){
   // Weather HUD text hidden per request
 }
 
-function triggerSponsorPopup(){
-  sponsorPopup.active = true;
-  sponsorPopup.timer = 0;
-  sponsorPopup.x = W/2 - 240;
-  sponsorPopup.y = H/2 - 150;
-  sfxCodeZero();
-  sfxDemonic();
-  shake(18);
-  triggerFlash('255,0,60', 0.6);
-  toast("⚠️ სპონსორის მოულოდნელი თავდასხმა! ⚠️", 2000);
-}
-
-function closeSponsorPopup(){
-  if(!sponsorPopup.active) return;
-  sponsorPopup.active = false;
-  sfxPrankGood();
-  toast("წიგნი შეძენილია! გააგრძელე პარკური! 📚", 1500);
-}
-
 // ---------- Promocode System ----------
 function openPromoCodePrompt(){
   const modal = document.getElementById('promoModal');
@@ -2803,7 +2757,7 @@ function boostBiteEscape(){
 }
 
 function shoot(){
-  if(state.mode!=='playing' || player.dead || player.isFalling || sponsorPopup.active) return;
+  if(state.mode!=='playing' || player.dead || player.isFalling) return;
   if(level && level.noGuns){
     sfxClick();
     toast("🚫 ამ ცათამბჯენში იარაღი აკრძალულია! მხოლოდ სისწრაფე და პარკური! 🧗‍♂️", 1500);
@@ -3511,9 +3465,6 @@ function buildLevels(){
       rect(900, GROUND_Y - 50, 240, 24),                 // Safe step platform 2
       rect(1400, GROUND_Y - 45, 200, 24)                 // Safe step platform 3
     ],
-    jumpboxes: [
-      rect(350, GROUND_Y - 130, 42, 42, {hit:false, type:'sponsor'}) // Free weapon box at start
-    ],
     coins: [
       ...Array.from({length: 6}, (_, i) => rect(250 + i * 40, GROUND_Y - 50, 22, 22)),
       ...Array.from({length: 5}, (_, i) => rect(920 + i * 40, GROUND_Y - 95, 22, 22)),
@@ -3557,8 +3508,7 @@ function buildLevels(){
       ...Array.from({length: 6}, (_, i) => rect(2200 + i * 40, GROUND_Y - 50, 22, 22))
     ],
     jumpboxes: [
-      rect(600, GROUND_Y - 130, 42, 42, {hit:false, type:'heart'}),
-      rect(1600, GROUND_Y - 130, 42, 42, {hit:false, type:'sponsor'})
+      rect(600, GROUND_Y - 130, 42, 42, {hit:false, type:'heart'})
     ],
     zombies: [
       { x: 1500, y: GROUND_Y - 54, type: 'slow' },
@@ -3594,7 +3544,6 @@ function buildLevels(){
       ...Array.from({length: 6}, (_, i) => rect(2700 + i * 45, GROUND_Y - 50, 22, 22))
     ],
     jumpboxes: [
-      rect(400, GROUND_Y - 130, 42, 42, {hit:false, type:'sponsor'}),
       rect(1300, GROUND_Y - 130, 42, 42, {hit:false, type:'heart'}),
       rect(2200, GROUND_Y - 130, 42, 42, {hit:false, type:'triple'})
     ],
@@ -3636,7 +3585,6 @@ function buildLevels(){
       ...Array.from({length: 8}, (_, i) => rect(2600 + i * 45, GROUND_Y - 50, 22, 22))
     ],
     jumpboxes: [
-      rect(500, GROUND_Y - 130, 42, 42, {hit:false, type:'sponsor'}),
       rect(1600, GROUND_Y - 130, 42, 42, {hit:false, type:'heart'})
     ],
     zombies: [
@@ -3675,7 +3623,6 @@ function buildLevels(){
       ...Array.from({length: 8}, (_, i) => rect(2800 + i * 45, GROUND_Y - 50, 22, 22))
     ],
     jumpboxes: [
-      rect(600, GROUND_Y - 130, 42, 42, {hit:false, type:'sponsor'}),
       rect(1800, GROUND_Y - 130, 42, 42, {hit:false, type:'heart'}),
       rect(2600, GROUND_Y - 130, 42, 42, {hit:false, type:'triple'})
     ],
@@ -3738,7 +3685,6 @@ function buildLevels(){
       rect(500, GROUND_Y-120, 42, 42, {hit:false, type:'fastener'}),
       rect(1450, GROUND_Y-110, 42, 42, {hit:false, type:'shotgun'}),
       rect(2750, GROUND_Y-110, 42, 42, {hit:false, type:'prank_zombie'}),
-      rect(3800, GROUND_Y-230, 42, 42, {hit:false, type:'sponsor'})
     ],
     bgHue:'blue'
   });
@@ -3789,7 +3735,6 @@ function buildLevels(){
       rect(950, GROUND_Y-120, 42, 42, {hit:false, type:'minigun'}),
       rect(1650, GROUND_Y-110, 42, 42, {hit:false, type:'prank_bomb'}),
       rect(2950, GROUND_Y-110, 42, 42, {hit:false, type:'fastener'}),
-      rect(4100, GROUND_Y-230, 42, 42, {hit:false, type:'sponsor'})
     ],
     bgHue:'pink'
   });
@@ -3839,7 +3784,6 @@ function buildLevels(){
     jumpboxes: [ 
       rect(900, GROUND_Y-120, 42, 42, {hit:false, type:'plasma'}),
       rect(1550, GROUND_Y-110, 42, 42, {hit:false, type:'prank_reverse'}),
-      rect(2950, GROUND_Y-110, 42, 42, {hit:false, type:'sponsor'}),
       rect(4030, GROUND_Y-220, 42, 42, {hit:false, type:'heart'})
     ],
     bgHue:'blue'
@@ -3891,7 +3835,6 @@ function buildLevels(){
       rect(950, GROUND_Y-110, 42, 42, {hit:false, type:'plasma'}),
       rect(1650, GROUND_Y-110, 42, 42, {hit:false, type:'fastener'}),
       rect(3050, GROUND_Y-110, 42, 42, {hit:false, type:'prank_zombie'}),
-      rect(4200, GROUND_Y-230, 42, 42, {hit:false, type:'sponsor'})
     ],
     bgHue:'pink'
   });
@@ -3943,7 +3886,6 @@ function buildLevels(){
       rect(1000, GROUND_Y-120, 42, 42, {hit:false, type:'fastener'}),
       rect(1750, GROUND_Y-110, 42, 42, {hit:false, type:'plasma'}),
       rect(3350, GROUND_Y-110, 42, 42, {hit:false, type:'minigun'}),
-      rect(4600, GROUND_Y-230, 42, 42, {hit:false, type:'sponsor'})
     ],
     bgHue:'blue'
   });
@@ -3993,7 +3935,6 @@ function buildLevels(){
       rect(1050, GROUND_Y-130, 42, 42, {hit:false, type:'flamethrower'}),
       rect(1800, GROUND_Y-110, 42, 42, {hit:false, type:'prank_dance'}),
       rect(3250, GROUND_Y-110, 42, 42, {hit:false, type:'fastener'}),
-      rect(4500, GROUND_Y-240, 42, 42, {hit:false, type:'sponsor'})
     ],
     bgHue:'blue'
   });
@@ -4043,7 +3984,6 @@ function buildLevels(){
       rect(950, GROUND_Y-130, 42, 42, {hit:false, type:'plasma'}),
       rect(1700, GROUND_Y-110, 42, 42, {hit:false, type:'prank_reverse'}),
       rect(3250, GROUND_Y-110, 42, 42, {hit:false, type:'fastener'}),
-      rect(4400, GROUND_Y-230, 42, 42, {hit:false, type:'sponsor'})
     ],
     bgHue:'pink'
   });
@@ -4092,7 +4032,6 @@ function buildLevels(){
       rect(1000, GROUND_Y-120, 42, 42, {hit:false, type:'shotgun'}),
       rect(1750, GROUND_Y-110, 42, 42, {hit:false, type:'prank_jumpscare_giant'}),
       rect(3300, GROUND_Y-110, 42, 42, {hit:false, type:'plasma'}),
-      rect(4500, GROUND_Y-230, 42, 42, {hit:false, type:'sponsor'})
     ],
     bgHue:'blue'
   });
@@ -4143,7 +4082,6 @@ function buildLevels(){
       rect(1050, GROUND_Y-130, 42, 42, {hit:false, type:'flamethrower'}),
       rect(1800, GROUND_Y-110, 42, 42, {hit:false, type:'prank_bomb'}),
       rect(3350, GROUND_Y-110, 42, 42, {hit:false, type:'prank_zombie'}),
-      rect(4600, GROUND_Y-230, 42, 42, {hit:false, type:'sponsor'})
     ],
     bgHue:'pink'
   });
@@ -4342,7 +4280,6 @@ function buildLevels(){
       rect(1050, GROUND_Y-130, 42, 42, {hit:false, type:'plasma'}),
       rect(1850, GROUND_Y-110, 42, 42, {hit:false, type:'fastener'}),
       rect(3450, GROUND_Y-110, 42, 42, {hit:false, type:'prank_jumpscare_giant'}),
-      rect(4700, GROUND_Y-230, 42, 42, {hit:false, type:'sponsor'})
     ],
     bgHue:'pink'
   });
@@ -4392,7 +4329,6 @@ function buildLevels(){
       rect(1100, GROUND_Y-130, 42, 42, {hit:false, type:'flamethrower'}),
       rect(1900, GROUND_Y-110, 42, 42, {hit:false, type:'fastener'}),
       rect(3550, GROUND_Y-110, 42, 42, {hit:false, type:'prank_dance'}),
-      rect(4850, GROUND_Y-230, 42, 42, {hit:false, type:'sponsor'})
     ],
     bgHue:'blue'
   });
@@ -4446,7 +4382,6 @@ function buildLevels(){
       rect(1050, GROUND_Y-130, 42, 42, {hit:false, type:'prank_jumpscare_giant'}),
       rect(1850, GROUND_Y-110, 42, 42, {hit:false, type:'plasma'}),
       rect(3550, GROUND_Y-110, 42, 42, {hit:false, type:'prank_zombie'}),
-      rect(4850, GROUND_Y-230, 42, 42, {hit:false, type:'sponsor'})
     ],
     bgHue:'pink'
   });
@@ -4496,7 +4431,6 @@ function buildLevels(){
       rect(1150, GROUND_Y-130, 42, 42, {hit:false, type:'fastener'}),
       rect(2000, GROUND_Y-110, 42, 42, {hit:false, type:'flamethrower'}),
       rect(3850, GROUND_Y-110, 42, 42, {hit:false, type:'plasma'}),
-      rect(5200, GROUND_Y-230, 42, 42, {hit:false, type:'sponsor'})
     ],
     bgHue:'blue'
   });
@@ -4549,7 +4483,6 @@ function buildLevels(){
       rect(1250, GROUND_Y-130, 42, 42, {hit:false, type:'fastener'}),
       rect(2150, GROUND_Y-110, 42, 42, {hit:false, type:'flamethrower'}),
       rect(4250, GROUND_Y-110, 42, 42, {hit:false, type:'plasma'}),
-      rect(5630, GROUND_Y-230, 42, 42, {hit:false, type:'sponsor'})
     ],
     bgHue:'pink'
   });
@@ -4601,7 +4534,6 @@ function buildLevels(){
       rect(1900, GROUND_Y-110, 42, 42, {hit:false, type:'flamethrower'}),
       rect(3300, GROUND_Y-110, 42, 42, {hit:false, type:'plasma'}),
       rect(5200, GROUND_Y-120, 42, 42, {hit:false, type:'fastener'}),
-      rect(7100, GROUND_Y-230, 42, 42, {hit:false, type:'sponsor'})
     ],
     bgHue:'pink'
   });
@@ -4798,7 +4730,7 @@ function buildLevels(){
     signs:[ {x:350, text:'☠️ შხამიანი ჩონჩხი მომწამვლელია!'} ],
     flag: rect(5500, GROUND_Y-140, 30, 140),
     zombies:[ {x:1700, y:GROUND_Y-80, type:'mutant'}, {x:3200, y:GROUND_Y-80, type:'titan'}, {x:4700, y:GROUND_Y-80, type:'mutant'} ],
-    jumpboxes:[ rect(1200, GROUND_Y-120, 42, 42, {hit:false, type:'plasma'}), rect(2800, GROUND_Y-120, 42, 42, {hit:false, type:'sponsor'}) ]
+    jumpboxes:[ rect(1200, GROUND_Y-120, 42, 42, {hit:false, type:'plasma'}) ]
   });
 
   // LEVEL 29: Sky Jump
@@ -5200,7 +5132,6 @@ function buildLevels(){
       rect(1000, GROUND_Y-130, 42, 42, {hit:false, type:'prank_dance'}),
       rect(1750, GROUND_Y-110, 42, 42, {hit:false, type:'prank_reverse'}),
       rect(3350, GROUND_Y-110, 42, 42, {hit:false, type:'minigun'}),
-      rect(4600, GROUND_Y-230, 42, 42, {hit:false, type:'sponsor'})
     ]
   });
 
@@ -5271,7 +5202,6 @@ function buildLevels(){
         rect(6200, 140, 42, 42, {hit:false, type:'tank'}),
         rect(8200, 160, 42, 42, {hit:false, type:'flamethrower'}),
         rect(10200, 130, 42, 42, {hit:false, type:'plasma'}),
-        rect(12200, 170, 42, 42, {hit:false, type:'sponsor'})
       ];
       return;
     }
@@ -5579,8 +5509,6 @@ function activateJumpbox(jb){
   } else if(jb.type === 'prank_jumpscare_giant'){
     doJumpscare('demon');
     toast("👻 საშინელი სულის გაღვიძება! 👻", 2000);
-  } else if(jb.type === 'sponsor'){
-    triggerSponsorPopup();
   } else if(jb.type === 'jumpscare'){
     doJumpscare('demon');
   } else if(jb.type === 'lucky_mystery'){
@@ -8173,8 +8101,7 @@ function drawJumpBox(jb){
     let bgColor = '#d4a83f';
     let icon = '?';
 
-    if(jb.type === 'sponsor') { bgColor = '#b8355a'; icon = '📢'; }
-    else if(jb.type === 'tank') { bgColor = '#2d4536'; icon = '🚀'; }
+    if(jb.type === 'tank') { bgColor = '#2d4536'; icon = '🚀'; }
     else if(jb.type === 'fastener') { bgColor = '#2a6b94'; icon = '⚡'; }
     else if(jb.type === 'plasma') { bgColor = '#008080'; icon = '⚛'; }
     else if(jb.type === 'flamethrower') { bgColor = '#b84500'; icon = '🔥'; }
@@ -11098,76 +11025,6 @@ function drawJumpscare(){
   
   state.jumpscareTimer--;
   if(state.jumpscareTimer<=0) state.jumpscareActive=false;
-}
-
-function drawSponsorPopup(){
-  if(!sponsorPopup.active) return;
-  sponsorPopup.timer += 16;
-
-  ctx.save();
-  // Dark Glitch Overlay
-  ctx.fillStyle = 'rgba(10,0,15,0.85)';
-  ctx.fillRect(0,0,W,H);
-
-  const sp = sponsorPopup;
-  sp.w = 520;
-  sp.h = 320;
-  sp.x = W/2 - sp.w/2;
-  sp.y = H/2 - sp.h/2;
-
-  const gx = (Math.random()-0.5)*4;
-  const gy = (Math.random()-0.5)*4;
-
-  // Window Frame
-  ctx.fillStyle = '#101426';
-  ctx.beginPath();
-  if(ctx.roundRect) ctx.roundRect(sp.x + gx, sp.y + gy, sp.w, sp.h, 12);
-  else ctx.fillRect(sp.x + gx, sp.y + gy, sp.w, sp.h);
-  ctx.fill();
-
-  ctx.strokeStyle = '#ff3d6e';
-  ctx.lineWidth = 4;
-  ctx.stroke();
-
-  // Header Title
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#ffd23f';
-  ctx.font = 'bold 28px sans-serif';
-  ctx.fillText('⚡ CODEZERO.GE — პროგრამირების აკადემია ⚡', sp.x + sp.w/2, sp.y + 48);
-
-  // Subtitle
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 18px sans-serif';
-  ctx.fillText('საუკეთესო პროგრამირების ელექტრონული წიგნები!', sp.x + sp.w/2, sp.y + 92);
-
-  ctx.fillStyle = '#38c6ff';
-  ctx.font = 'bold 15px sans-serif';
-  ctx.fillText('ისწავლე C++, Python & React სანამ ზომბი შეგჭამს! 💻🧟', sp.x + sp.w/2, sp.y + 132);
-
-  ctx.fillStyle = '#ff3d6e';
-  ctx.font = 'bold 13px sans-serif';
-  ctx.fillText('🔥 სპეციალური ფასდაკლება გეოდინოს არხის მაყურებლებს! 🔥', sp.x + sp.w/2, sp.y + 172);
-
-  // Interactive Close Button
-  const bw = 240, bh = 42;
-  const bx = sp.x + sp.w/2 - bw/2;
-  const by = sp.y + sp.h - 64;
-
-  ctx.fillStyle = '#ff3d6e';
-  ctx.beginPath();
-  if(ctx.roundRect) ctx.roundRect(bx, by, bw, bh, 8);
-  else ctx.fillRect(bx, by, bw, bh);
-  ctx.fill();
-
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 16px sans-serif';
-  ctx.fillText('✕ დახურვა (Esc / K)', sp.x + sp.w/2, by + 26);
-
-  ctx.restore();
 }
 
 function drawCityBuildings(){
@@ -14564,7 +14421,6 @@ function loop(now){
     drawWeatherOverlay();
     drawNukeSequence();
     drawJumpscare();
-    drawSponsorPopup();
     if(state.deathCam && state.deathCam.active){
       drawDeathCamOverlay();
     }
