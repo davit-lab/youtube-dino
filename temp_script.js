@@ -8420,13 +8420,17 @@ function shake(amount){
     if(state.settings.screenShake === 'off') return;
     if(state.settings.screenShake === 'reduced') amount *= 0.35;
   }
+  // Hard ceiling so even the biggest explosion/boss shakes never shove the
+  // gameplay frame off-screen; the render clamps the actual offset too.
+  amount = Math.min(amount, 22);
   state.shake = Math.max(state.shake, amount);
 }
 
-// Firing-induced camera kick: visibly reduced on purpose so shots don't shake
-// the whole screen off. Hits/explosions keep their heavier shakes via shake().
+// Firing no longer kicks the camera at all — gun recoil alone gives feedback,
+// so sustained shooting never pushes the game out of frame.
 function shakeGun(amount){
-  shake(Math.round(Math.min(amount, 9) * 0.45));
+  const s = Math.round(Math.min(amount, 3) * 0.15);
+  if(s > 0) shake(s);
 }
 
 function triggerDash(){
@@ -19811,10 +19815,11 @@ function loop(now){
 
   ctx.save();
   if(state.shake>0){
-    const sx = (Math.random()-0.5)*state.shake;
-    const sy = (Math.random()-0.5)*state.shake;
+    const amp = Math.min(8, state.shake);
+    const sx = (Math.random()-0.5)*amp;
+    const sy = (Math.random()-0.5)*amp;
     ctx.translate(sx,sy);
-    state.shake *= 0.86;
+    state.shake *= 0.82;
     if(state.shake<0.5) state.shake=0;
   }
 
