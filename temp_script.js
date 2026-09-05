@@ -17656,7 +17656,7 @@ function drawPreviewModal() {
 
   ctx.save();
   // 1. Dark, tactile obsidian overlay (No floating AI dots)
-  ctx.fillStyle = 'rgba(8, 12, 20, 0.92)';
+  ctx.fillStyle = 'rgba(5, 8, 16, 0.94)';
   ctx.fillRect(0, 0, W, H);
 
   // Subtle background grid accent lines
@@ -17673,28 +17673,43 @@ function drawPreviewModal() {
   const mxPos = W / 2 - mw / 2, myPos = H / 2 - mh / 2;
 
   // 2. Main Modal Container Frame
-  ctx.fillStyle = '#0b1120';
+  const mGrad = ctx.createLinearGradient(mxPos, myPos, mxPos + mw, myPos + mh);
+  mGrad.addColorStop(0, '#0e1730');
+  mGrad.addColorStop(1, '#0a0f1e');
+  ctx.fillStyle = mGrad;
   ctx.beginPath();
-  if (ctx.roundRect) ctx.roundRect(mxPos, myPos, mw, mh, 12);
+  if (ctx.roundRect) ctx.roundRect(mxPos, myPos, mw, mh, 16);
   else ctx.fillRect(mxPos, myPos, mw, mh);
   ctx.fill();
 
-  ctx.strokeStyle = '#1e293b';
+  ctx.save();
+  ctx.shadowColor = 'rgba(56, 198, 255, 0.35)';
+  ctx.shadowBlur = 26;
+  ctx.strokeStyle = 'rgba(56, 198, 255, 0.5)';
   ctx.lineWidth = 2;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(mxPos + 0.5, myPos + 0.5, mw - 1, mh - 1, 16);
+  else ctx.strokeRect(mxPos, myPos, mw, mh);
   ctx.stroke();
+  ctx.restore();
 
   // Top Header Bar
-  ctx.fillStyle = '#111827';
+  const hGrad = ctx.createLinearGradient(mxPos, myPos, mxPos + mw, myPos);
+  hGrad.addColorStop(0, 'rgba(56, 198, 255, 0.16)');
+  hGrad.addColorStop(0.5, 'rgba(56, 198, 255, 0.04)');
+  hGrad.addColorStop(1, 'rgba(255, 61, 110, 0.14)');
+  ctx.fillStyle = hGrad;
   ctx.beginPath();
-  if (ctx.roundRect) ctx.roundRect(mxPos, myPos, mw, 50, [12, 12, 0, 0]);
+  if (ctx.roundRect) ctx.roundRect(mxPos, myPos, mw, 50, [16, 16, 0, 0]);
   else ctx.fillRect(mxPos, myPos, mw, 50);
   ctx.fill();
-  ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.strokeStyle = 'rgba(56, 198, 255, 0.25)'; ctx.lineWidth = 1; ctx.stroke();
 
   // Category Path Breadcrumb Header
   ctx.textAlign = 'left';
   ctx.font = 'bold 13px sans-serif';
-  ctx.fillStyle = '#64748b';
+  const catColor = type === 'skins' ? '#ff3d6e' : (type === 'weapons' ? '#38c6ff' : '#ffd23f');
+  ctx.fillStyle = catColor;
   const catPath = type === 'skins' ? 'ARMORY / SKINS /' : (type === 'weapons' ? 'ARMORY / WEAPONS /' : 'ARMORY / ABILITIES /');
   ctx.fillText(catPath, mxPos + 20, myPos + 30);
 
@@ -17710,11 +17725,11 @@ function drawPreviewModal() {
   if (ctx.roundRect) ctx.roundRect(cxBtn, cyBtn, closeW, closeH, 6);
   else ctx.fillRect(cxBtn, cyBtn, closeW, closeH);
   ctx.fill();
-  ctx.strokeStyle = '#334155'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.strokeStyle = 'rgba(255, 61, 110, 0.6)'; ctx.lineWidth = 1; ctx.stroke();
 
   ctx.textAlign = 'center';
   ctx.font = 'bold 14px sans-serif';
-  ctx.fillStyle = '#94a3b8';
+  ctx.fillStyle = '#ff5c85';
   ctx.fillText('✕', cxBtn + closeW / 2, cyBtn + 20);
 
   // 3. Showcase Vault Stage (Left Panel)
@@ -17726,6 +17741,15 @@ function drawPreviewModal() {
   else ctx.fillRect(stageX, stageY, stageW, stageH);
   ctx.fill();
   ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1.5; ctx.stroke();
+
+  // Ambient stage glow behind showcase item
+  ctx.save();
+  const stageGlow = ctx.createRadialGradient(stageX + stageW/2, stageY + stageH * 0.42, 10, stageX + stageW/2, stageY + stageH * 0.42, 170);
+  stageGlow.addColorStop(0, type === 'skins' ? 'rgba(255, 61, 110, 0.10)' : 'rgba(56, 198, 255, 0.12)');
+  stageGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = stageGlow;
+  ctx.fillRect(stageX, stageY, stageW, stageH);
+  ctx.restore();
 
   // Floor Grid Lines in Showcase Vault
   ctx.save();
@@ -17964,10 +17988,11 @@ function drawPreviewModal() {
     const bStartX = panelX, bY = specY + 6, bW = 390, blockNum = 8;
     const blockWidth = (bW - (blockNum - 1) * 4) / blockNum;
 
+    const barCol = type === 'skins' ? '#ff3d6e' : (type === 'upgrades' ? '#ffd23f' : '#38c6ff');
     for (let i = 0; i < blockNum; i++) {
       const bx = bStartX + i * (blockWidth + 4);
       const isFilled = i < sp.score;
-      ctx.fillStyle = isFilled ? '#38c6ff' : '#1e293b';
+      ctx.fillStyle = isFilled ? barCol : '#1e293b';
       ctx.fillRect(bx, bY, blockWidth, 10);
     }
 
@@ -17977,12 +18002,16 @@ function drawPreviewModal() {
 
   // Price & Wallet Box
   const priceY = panelY + 308;
-  ctx.fillStyle = '#0f172a';
+  const pwGrad = ctx.createLinearGradient(panelX, priceY, panelX + 390, priceY);
+  pwGrad.addColorStop(0, 'rgba(255, 210, 63, 0.10)');
+  pwGrad.addColorStop(0.5, 'rgba(13, 20, 36, 0.85)');
+  pwGrad.addColorStop(1, 'rgba(56, 198, 255, 0.10)');
+  ctx.fillStyle = pwGrad;
   ctx.beginPath();
-  if (ctx.roundRect) ctx.roundRect(panelX, priceY, 390, 48, 8);
+  if (ctx.roundRect) ctx.roundRect(panelX, priceY, 390, 48, 10);
   else ctx.fillRect(panelX, priceY, 390, 48);
   ctx.fill();
-  ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)'; ctx.lineWidth = 1; ctx.stroke();
 
   ctx.font = 'bold 15px sans-serif';
   ctx.fillStyle = '#ffd23f';
@@ -18016,10 +18045,12 @@ function drawPreviewModal() {
 
   if (isEquipped) {
     ctx.fillStyle = 'rgba(34, 197, 94, 0.15)';
+    ctx.shadowColor = 'rgba(34, 197, 94, 0.7)'; ctx.shadowBlur = 14;
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(actionX, actionY, actionW, actionH, 8);
     else ctx.fillRect(actionX, actionY, actionW, actionH);
     ctx.fill();
+    ctx.shadowBlur = 0;
     ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 1.5; ctx.stroke();
 
     ctx.fillStyle = '#22c55e';
@@ -18027,20 +18058,25 @@ function drawPreviewModal() {
 
   } else if (isBought) {
     ctx.fillStyle = '#38c6ff';
+    ctx.shadowColor = '#38c6ff'; ctx.shadowBlur = 12;
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(actionX, actionY, actionW, actionH, 8);
     else ctx.fillRect(actionX, actionY, actionW, actionH);
     ctx.fill();
+    ctx.shadowBlur = 0;
 
     ctx.fillStyle = '#000000';
     ctx.fillText('🎯 აღჭურვა', actionX + actionW / 2, actionY + 30);
 
   } else {
     ctx.fillStyle = canAfford ? '#ffd23f' : '#1e293b';
+    ctx.shadowColor = canAfford ? '#ffd23f' : 'transparent';
+    ctx.shadowBlur = canAfford ? 14 : 0;
     ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(actionX, actionY, actionW, actionH, 8);
     else ctx.fillRect(actionX, actionY, actionW, actionH);
     ctx.fill();
+    ctx.shadowBlur = 0;
     ctx.strokeStyle = canAfford ? '#ffffff' : '#334155'; ctx.lineWidth = 1; ctx.stroke();
 
     ctx.fillStyle = canAfford ? '#000000' : '#64748b';
@@ -18126,8 +18162,17 @@ function drawSettings(){
 
 function drawShop(){
   drawBackground('pink');
-  ctx.fillStyle = 'rgba(6, 10, 22, 0.88)';
+  ctx.fillStyle = 'rgba(5, 8, 18, 0.9)';
   ctx.fillRect(0, 0, W, H);
+
+  // Radial vignette for depth
+  ctx.save();
+  const vg = ctx.createRadialGradient(W/2, H/2 - 40, 80, W/2, H/2, Math.max(W, H) * 0.75);
+  vg.addColorStop(0, 'rgba(56,198,255,0.06)');
+  vg.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
 
   // Smooth scroll interpolation
   state.shopScrollY = state.shopScrollY || 0;
@@ -18136,122 +18181,166 @@ function drawShop(){
 
   ctx.textAlign = 'center';
 
-  // Title Header
+  // ---------- Header ----------
+  const sweep = (Math.sin(state.time * 0.004) + 1) * 0.5;
+
   ctx.save();
-  ctx.font = '900 30px sans-serif';
-  ctx.shadowColor = '#ffd23f';
-  ctx.shadowBlur = 15;
+  ctx.font = '900 24px sans-serif';
   ctx.fillStyle = '#ffd23f';
-  ctx.fillText('🛍️ აღჭურვილობის, სკინებისა და იარაღების მაღაზია (SHOP)', W/2, 38);
+  ctx.shadowColor = '#ffd23f';
+  ctx.shadowBlur = 16;
+  ctx.fillText('🛒 ARSENAL SHOP', W/2, 30);
+  ctx.restore();
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillStyle = '#7dd3fc';
+  ctx.fillText('SKILLS  •  SKINS  •  WEAPONS   —   იარაღებისა და სკინების მაღაზია', W/2, 48);
+
+  // Animated header underline
+  ctx.save();
+  const ulY = 56, ulW = 220;
+  ctx.strokeStyle = 'rgba(56,198,255,0.28)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(W/2 - ulW, ulY); ctx.lineTo(W/2 + ulW, ulY); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255, 210, 63, ' + (0.5 + sweep * 0.5) + ')';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(W/2 - ulW * 0.6, ulY); ctx.lineTo(W/2 + ulW * 0.6, ulY); ctx.stroke();
   ctx.restore();
 
-  // Currency Panel: dino coins | exchange | shop coins
-  const coinPanelY = 52, coinPanelH = 27;
+  // ---------- Currency Bar ----------
+  const coinPanelY = 68, coinPanelH = 38;
   const coinCanExchange = (state.coinsCollected || 0) >= COIN_EXCHANGE_RATE;
+  const px0 = W/2 - 310;
 
-  const dinBox = { x: W/2 - 305, y: coinPanelY, w: 190, h: coinPanelH };
   ctx.save();
+  ctx.fillStyle = 'rgba(13, 20, 36, 0.85)';
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(px0, coinPanelY, 620, coinPanelH, 14);
+  else ctx.fillRect(px0, coinPanelY, 620, coinPanelH);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(56,198,255,0.25)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(px0+0.5, coinPanelY+0.5, 619, coinPanelH-1, 14);
+  else ctx.strokeRect(px0, coinPanelY, 620, coinPanelH);
+  ctx.stroke();
+
   ctx.textAlign = 'center';
+  ctx.font = 'bold 14px sans-serif';
+
+  // dino chip
+  const dinBox = { x: px0+8, y: coinPanelY+5, w: 184, h: coinPanelH-10 };
   ctx.fillStyle = 'rgba(255, 210, 63, 0.12)';
   ctx.beginPath();
-  if(ctx.roundRect) ctx.roundRect(dinBox.x, dinBox.y, dinBox.w, dinBox.h, 7);
+  if(ctx.roundRect) ctx.roundRect(dinBox.x, dinBox.y, dinBox.w, dinBox.h, 9);
   else ctx.fillRect(dinBox.x, dinBox.y, dinBox.w, dinBox.h);
   ctx.fill();
-  ctx.strokeStyle = '#ffd23f';
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(255,210,63,0.5)';
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  if(ctx.roundRect) ctx.roundRect(dinBox.x + 0.5, dinBox.y + 0.5, dinBox.w - 1, dinBox.h - 1, 7);
+  if(ctx.roundRect) ctx.roundRect(dinBox.x+0.5, dinBox.y+0.5, dinBox.w-1, dinBox.h-1, 9);
   else ctx.strokeRect(dinBox.x, dinBox.y, dinBox.w, dinBox.h);
   ctx.stroke();
-  ctx.font = 'bold 14px sans-serif';
   ctx.fillStyle = '#ffd23f';
-  ctx.fillText(`🪙 დინო: ${state.coinsCollected || 0}`, dinBox.x + dinBox.w/2, dinBox.y + 19);
+  ctx.fillText('🪙 ' + (state.coinsCollected || 0), dinBox.x + dinBox.w/2, dinBox.y + dinBox.h/2 + 5);
 
-  const shopBox = { x: W/2 + 115, y: coinPanelY, w: 190, h: coinPanelH };
-  ctx.fillStyle = 'rgba(56, 198, 255, 0.12)';
+  // exchange button
+  const exBtn = { x: px0+202, y: coinPanelY+5, w: 216, h: coinPanelH-10 };
+  ctx.fillStyle = coinCanExchange ? 'rgba(56,198,255,0.22)' : 'rgba(30,41,59,0.9)';
   ctx.beginPath();
-  if(ctx.roundRect) ctx.roundRect(shopBox.x, shopBox.y, shopBox.w, shopBox.h, 7);
-  else ctx.fillRect(shopBox.x, shopBox.y, shopBox.w, shopBox.h);
-  ctx.fill();
-  ctx.strokeStyle = '#38c6ff';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  if(ctx.roundRect) ctx.roundRect(shopBox.x + 0.5, shopBox.y + 0.5, shopBox.w - 1, shopBox.h - 1, 7);
-  else ctx.strokeRect(shopBox.x, shopBox.y, shopBox.w, shopBox.h);
-  ctx.stroke();
-  ctx.fillStyle = '#38c6ff';
-  ctx.fillText(`💰 შოპ-კოინი: ${state.shopCoins || 0}`, shopBox.x + shopBox.w/2, shopBox.y + 19);
-  ctx.restore();
-
-  // Exchange Button (center)
-  const exBtn = { x: W/2 - 85, y: coinPanelY, w: 170, h: coinPanelH };
-  ctx.save();
-  ctx.fillStyle = coinCanExchange ? 'rgba(56, 198, 255, 0.25)' : 'rgba(30, 41, 59, 0.85)';
-  ctx.beginPath();
-  if(ctx.roundRect) ctx.roundRect(exBtn.x, exBtn.y, exBtn.w, exBtn.h, 7);
+  if(ctx.roundRect) ctx.roundRect(exBtn.x, exBtn.y, exBtn.w, exBtn.h, 9);
   else ctx.fillRect(exBtn.x, exBtn.y, exBtn.w, exBtn.h);
   ctx.fill();
   ctx.strokeStyle = coinCanExchange ? '#38c6ff' : '#334155';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  if(ctx.roundRect) ctx.roundRect(exBtn.x + 0.5, exBtn.y + 0.5, exBtn.w - 1, exBtn.h - 1, 7);
+  if(ctx.roundRect) ctx.roundRect(exBtn.x+0.5, exBtn.y+0.5, exBtn.w-1, exBtn.h-1, 9);
   else ctx.strokeRect(exBtn.x, exBtn.y, exBtn.w, exBtn.h);
   ctx.stroke();
-  ctx.textAlign = 'center';
-  ctx.font = 'bold 13px sans-serif';
+  if(coinCanExchange) ctx.shadowColor = '#38c6ff';
+  ctx.shadowBlur = coinCanExchange ? 8 : 0;
   ctx.fillStyle = coinCanExchange ? '#ffffff' : '#94a3b8';
-  ctx.fillText(`💱 გაცვალე ${COIN_EXCHANGE_RATE}🪙 → 1💰`, exBtn.x + exBtn.w/2, exBtn.y + 19);
+  ctx.fillText('💱 ' + COIN_EXCHANGE_RATE + '🪙 → 1💰', exBtn.x + exBtn.w/2, exBtn.y + exBtn.h/2 + 5);
+  ctx.shadowBlur = 0;
+
+  // shop coins chip
+  const shopBox = { x: px0+428, y: coinPanelY+5, w: 184, h: coinPanelH-10 };
+  ctx.fillStyle = 'rgba(56,198,255,0.12)';
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(shopBox.x, shopBox.y, shopBox.w, shopBox.h, 9);
+  else ctx.fillRect(shopBox.x, shopBox.y, shopBox.w, shopBox.h);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(56,198,255,0.5)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(shopBox.x+0.5, shopBox.y+0.5, shopBox.w-1, shopBox.h-1, 9);
+  else ctx.strokeRect(shopBox.x, shopBox.y, shopBox.w, shopBox.h);
+  ctx.stroke();
+  ctx.fillStyle = '#38c6ff';
+  ctx.fillText('💰 ' + (state.shopCoins || 0), shopBox.x + shopBox.w/2, shopBox.y + shopBox.h/2 + 5);
   ctx.restore();
 
-  ctx.textAlign = 'left';
+  ctx.textAlign = 'center';
 
-  // Tabs (Upgrades, Skins, Weapons)
+  // ---------- Tabs ----------
   const shopTabs = [
     { id: 'upgrades', label: '⚡ უნარები' },
     { id: 'skins', label: '👕 სკინები' },
     { id: 'weapons', label: '🔫 იარაღები' }
   ];
-
-  const tabY = 82, tabW = 210, tabH = 38;
-  const tabStartX = W/2 - (3 * tabW + 2 * 16)/2;
+  const tabY = 118, tabW = 190, tabH = 40, tabGap = 12;
+  const tabStartX = W/2 - (3 * tabW + 2 * tabGap) / 2;
+  const activeTab = state.shopTab || 'upgrades';
 
   shopTabs.forEach((tab, idx) => {
-    const tx = tabStartX + idx * (tabW + 16);
-    const isActive = (state.shopTab || 'upgrades') === tab.id;
+    const tx = tabStartX + idx * (tabW + tabGap);
+    const isActive = activeTab === tab.id;
 
     ctx.save();
-    ctx.fillStyle = isActive ? '#ffd23f' : 'rgba(20, 30, 50, 0.85)';
+    if(isActive){
+      const grd = ctx.createLinearGradient(tx, 0, tx, tabY + tabH);
+      grd.addColorStop(0, '#38c6ff');
+      grd.addColorStop(1, '#0ea5e9');
+      ctx.fillStyle = grd;
+      ctx.shadowColor = '#38c6ff';
+      ctx.shadowBlur = 12;
+    } else {
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+    }
     ctx.beginPath();
-    if(ctx.roundRect) ctx.roundRect(tx, tabY, tabW, tabH, 8);
+    if(ctx.roundRect) ctx.roundRect(tx, tabY, tabW, tabH, 10);
     else ctx.fillRect(tx, tabY, tabW, tabH);
     ctx.fill();
+    ctx.shadowBlur = 0;
 
-    ctx.strokeStyle = isActive ? '#ffffff' : '#38c6ff';
-    ctx.lineWidth = isActive ? 2.5 : 1.5;
+    ctx.strokeStyle = isActive ? '#ffffff' : 'rgba(56,198,255,0.35)';
+    ctx.lineWidth = isActive ? 2 : 1.5;
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(tx+0.5, tabY+0.5, tabW-1, tabH-1, 10);
+    else ctx.strokeRect(tx, tabY, tabW, tabH);
     ctx.stroke();
 
     ctx.font = 'bold 15px sans-serif';
-    ctx.fillStyle = isActive ? '#000000' : '#ffffff';
-    ctx.fillText(tab.label, tx + tabW/2, tabY + 24);
+    ctx.fillStyle = isActive ? '#04121f' : '#cbd5e1';
+    ctx.fillText(tab.label, tx + tabW/2, tabY + 27);
     ctx.restore();
   });
 
-  // Determine current items list
+  // ---------- Grid ----------
   let currentItems = shopUpgrades;
-  if(state.shopTab === 'skins') currentItems = shopSkins;
-  if(state.shopTab === 'weapons') currentItems = shopWeapons;
+  const isWeaponTab = activeTab === 'weapons';
+  if(activeTab === 'skins') currentItems = shopSkins;
+  if(isWeaponTab) currentItems = shopWeapons;
 
-  // Calculate layout bounds and scrolling limits
   const cols = 3;
-  const cardW = 280, cardH = 145;
-  const cardGap = 18;
+  const cardW = 300, cardH = 158, cardGap = 20;
   const startX = W/2 - (cols * cardW + (cols - 1) * cardGap) / 2;
-  const startY = 135;
+  const startY = 170;
+  const rowH = cardH + 14;
 
   const totalRows = Math.ceil(currentItems.length / cols);
-  const totalContentH = startY + totalRows * (cardH + 14) + 20;
-  const viewportTop = 125;
-  const viewportBottom = H - 65;
+  const totalContentH = startY + totalRows * rowH + 20;
+  const viewportTop = 164;
+  const viewportBottom = H - 70;
   const viewportH = viewportBottom - viewportTop;
   const maxScrollY = Math.max(0, totalContentH - viewportBottom);
 
@@ -18263,7 +18352,6 @@ function drawShop(){
   ctx.beginPath();
   ctx.rect(0, viewportTop, W, viewportH);
   ctx.clip();
-
   ctx.save();
   ctx.translate(0, -Math.round(state.shopScrollY));
 
@@ -18271,111 +18359,164 @@ function drawShop(){
     const col = idx % cols;
     const row = Math.floor(idx / cols);
     const cx = startX + col * (cardW + cardGap);
-    const cy = startY + row * (cardH + 14);
+    const cy = startY + row * rowH;
 
     let isBought = false;
     let isEquipped = false;
-
-    if(state.shopTab === 'upgrades'){
+    if(activeTab === 'upgrades'){
       isBought = state.upgrades[item.id];
-    } else if(state.shopTab === 'skins'){
+    } else if(activeTab === 'skins'){
       isBought = (state.unlockedSkins || []).includes(item.id);
       isEquipped = state.equippedSkin === item.id;
-    } else if(state.shopTab === 'weapons'){
+    } else {
       isBought = (state.unlockedWeapons || []).includes(item.id);
       isEquipped = state.equippedWeapon === item.id;
     }
-
     const canAfford = (state.shopCoins || 0) >= item.cost;
 
+    const accent = isEquipped ? '#3fe07d' : (isBought ? '#38c6ff' : (canAfford ? '#ffd23f' : '#334155'));
+    const fillA = isEquipped ? 'rgba(14, 34, 28, 0.96)' : (isBought ? 'rgba(12, 26, 42, 0.96)' : (canAfford ? 'rgba(24, 20, 10, 0.95)' : 'rgba(13, 16, 24, 0.95)'));
+
     ctx.save();
-    ctx.fillStyle = isEquipped ? 'rgba(25, 65, 45, 0.94)' : (isBought ? 'rgba(25, 45, 35, 0.92)' : 'rgba(18, 24, 40, 0.92)');
+
+    ctx.shadowColor = accent + '66';
+    ctx.shadowBlur = isEquipped ? 14 : 8;
+    ctx.fillStyle = fillA;
     ctx.beginPath();
-    if(ctx.roundRect) ctx.roundRect(cx, cy, cardW, cardH, 10);
+    if(ctx.roundRect) ctx.roundRect(cx, cy, cardW, cardH, 12);
     else ctx.fillRect(cx, cy, cardW, cardH);
     ctx.fill();
+    ctx.shadowBlur = 0;
 
-    ctx.strokeStyle = isEquipped ? '#3fe07d' : (isBought ? '#38c6ff' : (canAfford ? '#ffd23f' : '#ff3d6e'));
-    ctx.lineWidth = isEquipped ? 3 : 2;
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = isEquipped ? 2.5 : 1.5;
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(cx+0.5, cy+0.5, cardW-1, cardH-1, 12);
+    else ctx.strokeRect(cx, cy, cardW, cardH);
     ctx.stroke();
+
+    // left accent tick
+    ctx.fillStyle = accent;
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(cx + 4, cy + 8, 4, cardH - 16, 3);
+    else ctx.fillRect(cx + 4, cy + 8, 4, cardH - 16);
+    ctx.fill();
+
+    // top inner highlight
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx + 14, cy + 2); ctx.lineTo(cx + cardW - 14, cy + 2); ctx.stroke();
 
     // Title
     ctx.textAlign = 'left';
     ctx.font = 'bold 14px sans-serif';
-    ctx.fillStyle = isEquipped ? '#3fe07d' : (isBought ? '#38c6ff' : '#ffffff');
-    ctx.fillText(`${item.icon} ${item.title}`, cx + 12, cy + 26);
+    ctx.fillStyle = isEquipped ? '#3fe07d' : (isBought ? '#67e8f9' : (canAfford ? '#fde68a' : '#d1d5db'));
+    const titleText = item.title.replace(item.icon, '').replace(/^\s+/, '');
+    ctx.fillText(titleText, cx + 18, cy + 24);
 
-    // Description
-    ctx.font = '11px sans-serif';
-    ctx.fillStyle = '#aaaaaa';
+    // State chip (top right)
+    const chipLabel = isEquipped ? '✓ EQUIPPED' : (isBought ? 'OWNED' : (item.cost === 0 ? 'FREE' : (canAfford ? 'AFFORD' : 'LOCKED')));
+    const chipCol = isEquipped ? '#3fe07d' : (isBought ? '#38c6ff' : (item.cost === 0 ? '#ffd23f' : (canAfford ? '#ffd23f' : '#64748b')));
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillStyle = chipCol;
+    ctx.fillText(chipLabel, cx + cardW - 16, cy + 24);
     ctx.textAlign = 'left';
-    const maxDescW = cardW - 24;
+
+    // Hero zone
+    const heroTop = cy + 32, heroH = 58;
+    if(isWeaponTab && png3PreviewReady(item.id)){
+      const pv = png3Img(item.id, 'preview');
+      const a = png3Aspect(pv);
+      let ih = 52, iw = ih * a;
+      if(iw > cardW - 44){ iw = cardW - 44; ih = iw / a; }
+      ctx.drawImage(pv, cx + cardW/2 - iw/2, heroTop + (heroH - ih)/2, iw, ih);
+    } else {
+      ctx.textAlign = 'center';
+      ctx.font = '34px sans-serif';
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = accent;
+      ctx.shadowBlur = 14;
+      ctx.fillText(item.icon, cx + cardW/2, heroTop + heroH/2 + 13);
+      ctx.shadowBlur = 0;
+      ctx.textAlign = 'left';
+    }
+
+    // Description (2 lines max)
+    ctx.font = '11px sans-serif';
+    ctx.fillStyle = '#94a3b8';
+    const maxDescW = cardW - 30;
     const words = item.desc.split(' ');
-    let line = '';
-    let descY = cy + 46;
+    let line = '', descY = cy + 100;
     for (let n = 0; n < words.length; n++) {
-      const testLine = line + words[n] + ' ';
-      const metrics = ctx.measureText(testLine);
-      if (metrics.width > maxDescW && n > 0) {
-        ctx.fillText(line, cx + 12, descY);
-        line = words[n] + ' ';
-        descY += 15;
-        if (descY > cy + 85) break;
+      const testLine = (line ? line + ' ' : '') + words[n] + ' ';
+      if (ctx.measureText(testLine).width > maxDescW && line) {
+        ctx.fillText(line, cx + 18, descY); line = words[n] + ' '; descY += 14;
+        if (descY > cy + 118) break;
       } else {
         line = testLine;
       }
     }
-    if (descY <= cy + 85) {
-      ctx.fillText(line, cx + 12, descY);
-    }
+    if (descY <= cy + 118) ctx.fillText(line, cx + 18, descY);
 
-    // Preview Button (Left Bottom)
-    const prevW = 95, prevH = 30;
-    const prevBx = cx + 12, prevBy = cy + cardH - prevH - 10;
-    ctx.fillStyle = 'rgba(56, 198, 255, 0.22)';
+    // Bottom row
+    const btnH = 28;
+    const preBtn = { x: cx + 12, y: cy + cardH - btnH - 10, w: 82, h: btnH };
+    ctx.fillStyle = 'rgba(56,198,255,0.12)';
     ctx.beginPath();
-    if(ctx.roundRect) ctx.roundRect(prevBx, prevBy, prevW, prevH, 6);
-    else ctx.fillRect(prevBx, prevBy, prevW, prevH);
+    if(ctx.roundRect) ctx.roundRect(preBtn.x, preBtn.y, preBtn.w, preBtn.h, 7);
+    else ctx.fillRect(preBtn.x, preBtn.y, preBtn.w, preBtn.h);
     ctx.fill();
-    ctx.strokeStyle = '#38c6ff'; ctx.lineWidth = 1.5; ctx.stroke();
-
+    ctx.strokeStyle = 'rgba(56,198,255,0.5)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(preBtn.x+0.5, preBtn.y+0.5, preBtn.w-1, preBtn.h-1, 7);
+    else ctx.strokeRect(preBtn.x, preBtn.y, preBtn.w, preBtn.h);
+    ctx.stroke();
     ctx.textAlign = 'center';
-    ctx.font = 'bold 12px sans-serif';
-    ctx.fillStyle = '#38c6ff';
-    ctx.fillText('👁️ პრევიუ', prevBx + prevW/2, prevBy + 20);
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillStyle = '#7dd3fc';
+    ctx.fillText('👁 პრევიუ', preBtn.x + preBtn.w/2, preBtn.y + btnH/2 + 4);
 
-    // Action Button Area (Right Bottom)
-    ctx.font = 'bold 13px sans-serif';
     if(isEquipped){
-      ctx.fillStyle = '#3fe07d';
       ctx.textAlign = 'right';
-      ctx.fillText('✅ არჩეულია', cx + cardW - 12, cy + cardH - 20);
-    } else if(isBought){
-      const btnW = 100, btnH = 30;
-      const bx = cx + cardW - btnW - 12, by = cy + cardH - btnH - 10;
-      ctx.fillStyle = '#38c6ff';
-      ctx.beginPath();
-      if(ctx.roundRect) ctx.roundRect(bx, by, btnW, btnH, 6);
-      else ctx.fillRect(bx, by, btnW, btnH);
-      ctx.fill();
-
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#000000';
       ctx.font = 'bold 13px sans-serif';
-      ctx.fillText('🎯 არჩევა', bx + btnW/2, by + 20);
-    } else {
-      const btnW = 105, btnH = 30;
-      const bx = cx + cardW - btnW - 12, by = cy + cardH - btnH - 10;
-      ctx.fillStyle = canAfford ? '#ffd23f' : '#444444';
+      ctx.fillStyle = '#3fe07d';
+      ctx.fillText('✅ არჩეულია', cx + cardW - 14, cy + cardH - 14);
+    } else if(isBought){
+      const sBtn = { x: cx + cardW - 112, y: cy + cardH - btnH - 10, w: 100, h: btnH };
+      ctx.fillStyle = '#38c6ff';
+      ctx.shadowColor = '#38c6ff'; ctx.shadowBlur = 7;
       ctx.beginPath();
-      if(ctx.roundRect) ctx.roundRect(bx, by, btnW, btnH, 6);
-      else ctx.fillRect(bx, by, btnW, btnH);
+      if(ctx.roundRect) ctx.roundRect(sBtn.x, sBtn.y, sBtn.w, sBtn.h, 7);
+      else ctx.fillRect(sBtn.x, sBtn.y, sBtn.w, sBtn.h);
       ctx.fill();
-
+      ctx.shadowBlur = 0;
       ctx.textAlign = 'center';
-      ctx.fillStyle = canAfford ? '#000000' : '#888888';
+      ctx.fillStyle = '#001722';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.fillText('🎯 არჩევა', sBtn.x + sBtn.w/2, sBtn.y + btnH/2 + 4);
+    } else {
+      const bBtn = { x: cx + cardW - 122, y: cy + cardH - btnH - 10, w: 110, h: btnH };
+      ctx.fillStyle = canAfford ? '#ffd23f' : 'rgba(30,41,59,0.9)';
+      ctx.shadowColor = canAfford ? '#ffd23f' : 'transparent';
+      ctx.shadowBlur = canAfford ? 8 : 0;
+      ctx.beginPath();
+      if(ctx.roundRect) ctx.roundRect(bBtn.x, bBtn.y, bBtn.w, bBtn.h, 7);
+      else ctx.fillRect(bBtn.x, bBtn.y, bBtn.w, bBtn.h);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = canAfford ? '#ffffff' : '#334155';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      if(ctx.roundRect) ctx.roundRect(bBtn.x+0.5, bBtn.y+0.5, bBtn.w-1, bBtn.h-1, 7);
+      else ctx.strokeRect(bBtn.x, bBtn.y, bBtn.w, bBtn.h);
+      ctx.stroke();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = canAfford ? '#331a00' : '#94a3b8';
       ctx.font = 'bold 12px sans-serif';
-      ctx.fillText(`🛒 ${item.cost} 💰`, bx + btnW/2, by + 20);
+      ctx.fillText('🛒 ' + item.cost + ' 💰', bBtn.x + bBtn.w/2, bBtn.y + btnH/2 + 4);
     }
     ctx.restore();
   });
@@ -18383,67 +18524,70 @@ function drawShop(){
   ctx.restore();
   ctx.restore();
 
-  // Scrollbar indicator
+  // Scrollbar
   if (maxScrollY > 0) {
-    const trackX = W - 16;
-    const trackY = viewportTop;
-    const trackH = viewportH;
-    const thumbH = Math.max(35, (viewportH / totalContentH) * trackH);
-    const thumbY = trackY + (state.shopScrollY / maxScrollY) * (trackH - thumbH);
-
+    const trackX = W - 14, trackW = 6;
+    const thumbH = Math.max(34, (viewportH / totalContentH) * viewportH);
+    const thumbY = viewportTop + (state.shopScrollY / maxScrollY) * (viewportH - thumbH);
     ctx.save();
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
-    ctx.fillRect(trackX, trackY, 10, trackH);
-    ctx.strokeStyle = '#334155'; ctx.lineWidth = 1; ctx.strokeRect(trackX, trackY, 10, trackH);
-
+    ctx.fillStyle = 'rgba(15,23,42,0.9)';
+    if(ctx.roundRect){ ctx.beginPath(); ctx.roundRect(trackX, viewportTop, trackW, viewportH, 3); }
+    else ctx.fillRect(trackX, viewportTop, trackW, viewportH);
+    ctx.fill();
     ctx.fillStyle = '#38c6ff';
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(trackX + 1, thumbY, 8, thumbH, 4);
-    else ctx.fillRect(trackX + 1, thumbY, 8, thumbH);
+    ctx.shadowColor = '#38c6ff'; ctx.shadowBlur = 6;
+    if(ctx.roundRect){ ctx.beginPath(); ctx.roundRect(trackX, thumbY, trackW, thumbH, 3); }
+    else ctx.fillRect(trackX, thumbY, trackW, thumbH);
     ctx.fill();
     ctx.restore();
   }
 
-  // Bottom Buttons: Promo Code & Back
+  // Bottom buttons
   ctx.save();
-  const bw = 260, bh = 42;
-  const btnGap = 20;
+  const bw = 260, bh = 42, btnGap = 20;
 
-  // Promo Code Button (Left)
   const pbx = W/2 - bw - btnGap/2, pby = H - 52;
-  ctx.fillStyle = 'rgba(255, 210, 63, 0.18)';
+  ctx.fillStyle = 'rgba(255,210,63,0.12)';
   ctx.beginPath();
-  if(ctx.roundRect) ctx.roundRect(pbx, pby, bw, bh, 10);
+  if(ctx.roundRect) ctx.roundRect(pbx, pby, bw, bh, 12);
   else ctx.fillRect(pbx, pby, bw, bh);
   ctx.fill();
   ctx.strokeStyle = '#ffd23f';
   ctx.lineWidth = 2;
-  ctx.stroke();
-
-  ctx.font = 'bold 16px sans-serif';
-  ctx.fillStyle = '#ffd23f';
-  ctx.fillText('🎟️ პრომოკოდი (PROMO CODE)', pbx + bw/2, pby + 27);
-
-  // Back Button (Right)
-  const bbx = W/2 + btnGap/2, bby = H - 52;
-  ctx.fillStyle = '#ff3d6e';
   ctx.beginPath();
-  if(ctx.roundRect) ctx.roundRect(bbx, bby, bw, bh, 10);
+  if(ctx.roundRect) ctx.roundRect(pbx+0.5, pby+0.5, bw-1, bh-1, 12);
+  else ctx.strokeRect(pbx, pby, bw, bh);
+  ctx.stroke();
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillStyle = '#ffd23f';
+  ctx.fillText('🎟️ პრომოკოდი', pbx + bw/2, pby + 27);
+
+  const bbx = W/2 + btnGap/2, bby = H - 52;
+  const bg2 = ctx.createLinearGradient(bbx, bby, bbx, bby + bh);
+  bg2.addColorStop(0, '#ff3d6e');
+  bg2.addColorStop(1, '#c81e4a');
+  ctx.fillStyle = bg2;
+  ctx.shadowColor = '#ff3d6e';
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(bbx, bby, bw, bh, 12);
   else ctx.fillRect(bbx, bby, bw, bh);
   ctx.fill();
-
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 2;
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(bbx+0.5, bby+0.5, bw-1, bh-1, 12);
+  else ctx.strokeRect(bbx, bby, bw, bh);
   ctx.stroke();
 
-  ctx.font = 'bold 16px sans-serif';
+  ctx.font = 'bold 15px sans-serif';
   ctx.fillStyle = '#ffffff';
   const isReturningToGame = state.returnMode === 'playing' || state.returnMode === 'paused';
   const backLabel = isReturningToGame ? '⬅️ თამაშში დაბრუნება' : '⬅️ მენიუში დაბრუნება';
   ctx.fillText(backLabel, bbx + bw/2, bby + 27);
   ctx.restore();
 
-  // Render Product Preview Modal overlay if active
   if (state.previewModal && state.previewModal.active) {
     drawPreviewModal();
   }
@@ -18459,7 +18603,7 @@ function handleShopClick(mx, my){
   const btnGap = 20;
 
   // Exchange button (center top)
-  const exBtn = { x: W/2 - 85, y: 52, w: 170, h: 27 };
+  const exBtn = { x: W/2 - 108, y: 73, w: 216, h: 28 };
   if(mx >= exBtn.x && mx <= exBtn.x + exBtn.w && my >= exBtn.y && my <= exBtn.y + exBtn.h){
     exchangeCoins();
     return;
@@ -18489,12 +18633,12 @@ function handleShopClick(mx, my){
   }
 
   // Check Tab Clicks
-  const tabY = 82, tabW = 210, tabH = 38;
-  const tabStartX = W/2 - (3 * tabW + 2 * 16)/2;
+  const tabY = 118, tabW = 190, tabH = 40;
+  const tabStartX = W/2 - (3 * tabW + 2 * 12)/2;
   const shopTabs = ['upgrades', 'skins', 'weapons'];
 
   for(let i = 0; i < 3; i++){
-    const tx = tabStartX + i * (tabW + 16);
+    const tx = tabStartX + i * (tabW + 12);
     if(mx >= tx && mx <= tx + tabW && my >= tabY && my <= tabY + tabH){
       state.shopTab = shopTabs[i];
       state.shopScrollY = 0;
@@ -18505,7 +18649,7 @@ function handleShopClick(mx, my){
   }
 
   // Check Item Card Clicks inside shop viewport
-  if (my >= 125 && my <= H - 65) {
+  if (my >= 164 && my <= H - 70) {
     const cardMy = my + (state.shopScrollY || 0);
 
     let currentItems = shopUpgrades;
@@ -18513,10 +18657,10 @@ function handleShopClick(mx, my){
     if(state.shopTab === 'weapons') currentItems = shopWeapons;
 
     const cols = 3;
-    const cardW = 280, cardH = 145;
-    const cardGap = 18;
+    const cardW = 300, cardH = 158;
+    const cardGap = 20;
     const startX = W/2 - (cols * cardW + (cols - 1) * cardGap) / 2;
-    const startY = 135;
+    const startY = 170;
 
     currentItems.forEach((item, idx) => {
       const col = idx % cols;
@@ -18526,7 +18670,7 @@ function handleShopClick(mx, my){
 
       if(mx >= cx && mx <= cx + cardW && cardMy >= cy && cardMy <= cy + cardH){
         // Check preview button
-        const prevW = 95, prevH = 30;
+        const prevW = 82, prevH = 28;
         const prevBx = cx + 12, prevBy = cy + cardH - prevH - 10;
         if(mx >= prevBx && mx <= prevBx + prevW && cardMy >= prevBy && cardMy <= prevBy + prevH){
           openPreviewModal(item, state.shopTab);
