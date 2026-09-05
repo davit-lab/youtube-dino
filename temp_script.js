@@ -11489,7 +11489,7 @@ function drawGround(theme){
       continue;
     }
 
-    if(!p.vx && !p.vy && !p.isPipe && !p.isBrick && !p.isQuestionBlock && drawPng4Trimmed('platforms', Math.floor(p.x / 180) + (state.levelIndex || 0), sx, p.y, p.w, p.h, 1)){
+    if(!p.vx && !p.vy && !p.isPipe && !p.isBrick && !p.isQuestionBlock && drawPng4Tiled('platforms', Math.floor(p.x / 180) + (state.levelIndex || 0), sx, p.y, p.w, p.h, 1)){
       continue;
     }
 
@@ -14650,10 +14650,7 @@ function drawPng4(group, index, x, y, w, h, alpha = 1){
   return true;
 }
 
-function drawPng4Trimmed(group, index, x, y, w, h, alpha = 1){
-  const image = png4Image(group, index);
-  if(!image || !image.complete || !image.naturalWidth) return false;
-
+function png4TrimmedBounds(image){
   const cacheKey = image.src;
   let bounds = png4BoundsCache.get(cacheKey);
   if(!bounds){
@@ -14675,11 +14672,52 @@ function drawPng4Trimmed(group, index, x, y, w, h, alpha = 1){
     bounds = left < right ? {left, top, width: right - left, height: bottom - top} : {left: 0, top: 0, width: sample.width, height: sample.height};
     png4BoundsCache.set(cacheKey, bounds);
   }
+  return bounds;
+}
+
+function drawPng4Trimmed(group, index, x, y, w, h, alpha = 1){
+  const image = png4Image(group, index);
+  if(!image || !image.complete || !image.naturalWidth) return false;
+
+  const bounds = png4TrimmedBounds(image);
 
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(image, bounds.left, bounds.top, bounds.width, bounds.height, x, y, w, h);
+  ctx.restore();
+  return true;
+}
+
+function drawPng4Tiled(group, index, x, y, w, h, alpha = 1){
+  const image = png4Image(group, index);
+  if(!image || !image.complete || !image.naturalWidth || w <= 0 || h <= 0) return false;
+
+  const bounds = png4TrimmedBounds(image);
+  const sw = bounds.width, sh = bounds.height;
+  if(sw <= 0 || sh <= 0) return false;
+
+  // Tile the sprite in a columns x rows grid so artwork keeps its native aspect
+  // and is never stretched or blurred. Upscaling is capped at ~1.25x; anything
+  // beyond that becomes extra tiles instead of blur.
+  const aspect = sw / sh;
+  let s = Math.min(w / sw, h / sh);
+  s = Math.min(s, 1.25);
+  const tileW = Math.max(1, sw * s);
+  const tileH = Math.max(1, sh * s);
+  const cols = Math.max(1, Math.ceil(w / tileW));
+  const rows = Math.max(1, Math.ceil(h / tileH));
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.imageSmoothingEnabled = false;
+  for(let r = 0; r < rows; r++){
+    for(let c = 0; c < cols; c++){
+      const dx = x + c * tileW;
+      const dy = y + r * tileH;
+      ctx.drawImage(image, bounds.left, bounds.top, sw, sh, dx, dy, tileW + 0.5, tileH + 0.5);
+    }
+  }
   ctx.restore();
   return true;
 }
