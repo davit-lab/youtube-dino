@@ -1,0 +1,9 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>PNG4 Asset Catalog</title>
+<style>
+body{margin:0;background:#111;color:#fff;font:12px monospace}main{display:grid;grid-template-columns:repeat(12,110px);gap:8px;padding:12px}.item{height:110px;background:#222;border:1px solid #444;text-align:center;overflow:hidden}.item img{display:block;width:100px;height:82px;object-fit:contain;margin:auto;background:#000}.item span{display:block;padding:4px;color:#ffd23f}
+</style><main id="grid"></main><script>
+const grid=document.querySelector('#grid');
+for(let i=1;i<=312;i++){const item=document.createElement('div');item.className='item';const img=document.createElement('img');img.src=`png4/character_${String(i).padStart(2,'0')}.png`;const label=document.createElement('span');label.textContent=`${i}`;item.append(img,label);grid.append(item)}
+</script>

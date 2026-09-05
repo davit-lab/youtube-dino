@@ -1,0 +1,8 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Uploaded Gun Asset Catalog</title>
+<style>body{margin:0;background:#111;color:#fff;font:12px monospace}main{display:grid;grid-template-columns:repeat(10,130px);gap:8px;padding:12px}.item{height:110px;background:#222;border:1px solid #444;text-align:center;overflow:hidden}.item img{display:block;width:120px;height:82px;object-fit:contain;margin:auto;background:#000}.item span{display:block;padding:4px;color:#ffd23f;white-space:nowrap;overflow:hidden}</style><main id="grid"></main><script>
+const files=['1.png','2.png','3.png','4.png','5.png','6.png','7.png','8.png',...Array.from({length:126},(_,i)=>`character_${String(i+1).padStart(2,'0')}.png`)];
+const grid=document.querySelector('#grid');
+for(const file of files){const item=document.createElement('div');item.className='item';const img=document.createElement('img');img.src=`guns.png/${file}`;const label=document.createElement('span');label.textContent=file;item.append(img,label);grid.append(item)}
+</script>
