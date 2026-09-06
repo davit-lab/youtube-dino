@@ -86,6 +86,7 @@ function sfxFall(){ beep(600, 1.2, 'sawtooth', 0.08, 0, 40); }
 function sfxBoxHit(){ beep(300,0.1,'square',0.08,0,600); }
 function sfxPowerup(){ beep(400,0.1,'triangle',0.08); beep(600,0.1,'triangle',0.08,0.06); beep(900,0.15,'triangle',0.09,0.12); }
 function sfxExplode(){ beep(120,0.35,'sawtooth',0.15,0,30); beep(80,0.4,'square',0.12,0.02,20); }
+function sfxReload(){ beep(180,0.08,'square',0.05); beep(260,0.12,'square',0.05,0.07); beep(360,0.1,'square',0.06,0.17); }
 
 // ---------- Background Music System (Procedural Web Audio Engine) ----------
 let bgmMuted = false;
@@ -344,8 +345,14 @@ window.addEventListener('keydown', e=>{
     boostBiteEscape();
   }
   if(e.code==='KeyP') togglePause();
-  if(e.code==='KeyR') restartLevel();
-  if(e.code==='KeyK'||e.code==='KeyF') shoot();
+  if(e.code==='KeyR' || e.code==='KeyX'){
+    // R/X reload the current gun while alive in play; R still restarts on death/gameover/pause.
+    if(state.mode==='playing' && player && !player.dead && !(level && level.noGuns) && !sponsorPopup.active){
+      player.reloadRequested = true;
+    } else if(e.code==='KeyR'){
+      restartLevel();
+    }
+  }
   if(e.code==='Escape' && sponsorPopup.active){ closeSponsorPopup(); }
   if(e.code==='Escape' && state.previewModal && state.previewModal.active){ closePreviewModal(); }
   if(e.code==='Space'||e.code==='Enter'){
@@ -638,11 +645,10 @@ const defaultSettings = {
   screenShake: 'full',    // 'full' | 'reduced' | 'off'
   bgmVolume: 1.0,         // 0.0 .. 1.0
   sfxVolume: 1.0,         // 0.0 .. 1.0
-  highJumpAssist: false,  // false | true
-  showFPS: false          // false | true
+  highJumpAssist: false   // false | true
 };
 
-const MAX_LEVELS = 10;
+const MAX_LEVELS = 11; // Raised to 11 so Epic 11 (Volcano's Heart) stays spliced in & playable
 
 // 🪙 dino coins (earned in levels) -> 💰 shop coins (spent in the shop)
 const COIN_EXCHANGE_RATE = 10;
@@ -2177,6 +2183,7 @@ function updateTrainLevel(dt){
         shake(10);
         spawnParticles(z.x + z.w/2, z.y + z.h/2, '#ef4444', 20, 2.2);
         if(z.hp <= 0){
+          spawnZombieBlood(z.x + z.w/2, z.y + z.h, { power: z.type === 'boss' ? 2 : 1 });
           z.dead = true;
           trainObby.zombiesKilled++;
           state.score += z.type === 'boss' ? 2000 : 250;
@@ -2235,6 +2242,7 @@ function updateTrainLevel(dt){
         // Blast nearby zombies
         for(const z of trainObby.zombies){
           if(!z.dead && Math.abs(z.x - barrel.x) < 240){
+            spawnZombieBlood(z.x + z.w/2, z.y + z.h, { power: 1.4 });
             z.dead = true;
             trainObby.zombiesKilled++;
             state.score += 300;
@@ -2255,6 +2263,7 @@ function updateTrainLevel(dt){
         shake(5);
         spawnParticles(z.x + z.w/2, z.y + z.h/2, '#ef4444', 16, 2.0);
         if(z.hp <= 0){
+          spawnZombieBlood(z.x + z.w/2, z.y + z.h, { power: z.type === 'boss' ? 1.8 : 1 });
           z.dead = true;
           trainObby.zombiesKilled++;
           state.score += z.type === 'boss' ? 2000 : 200;
@@ -2889,6 +2898,7 @@ function updateJetski(dt){
           hit = true;
           spawnParticles(z.x + z.w/2, z.y + z.h/2, '#ef4444', 12, 1.8);
           if(z.hp <= 0) { 
+             spawnZombieBlood(z.x + z.w/2, z.y + z.h, { power: 1.2 });
              z.dead = true; state.score += 150; shake(4); 
              spawnParticles(z.x + z.w/2, z.y + z.h/2, '#ef4444', 30, 3);
           }
@@ -2915,7 +2925,7 @@ function updateJetski(dt){
         }
       }
 
-      if(hit || b.life <= 0){
+    if(hit || b.life <= 0){
         if(b.type === 'bazooka' && hit){
            spawnParticles(b.x, b.y, '#fb923c', 40, 5); // Bazooka AoE explosion effect
         }
@@ -2975,6 +2985,7 @@ function updateJetski(dt){
           z.x -= 180 * (dt/1000); // Move left towards player
         }
         if(overlap(jetski, z)){
+          spawnZombieBlood(z.x, z.y);
           jetski.hp -= 20;
           z.dead = true;
           shake(10);
@@ -4180,6 +4191,12 @@ function initWeather(){
     });
   }
 
+  // Each level starts at dawn; the 90s day/night cycle runs from there.
+  if(typeof dayClock !== 'undefined'){
+    dayClock.millis = 0;
+    dayClock.t = 0;
+  }
+
   applyWeatherType(weather.type, true);
 }
 
@@ -4234,13 +4251,29 @@ function applyWeatherType(newType, isInitial=false){
 }
 
 function updateWeather(dt){
+  // ---- Day / night clock: full cycle = DAY_DURATION (90s) ----
+  dayClock.millis += dt;
+  if(dayClock.millis >= DAY_DURATION) dayClock.millis -= DAY_DURATION;
+  if(dayClock.millis < 0) dayClock.millis = 0;
+  dayClock.t = dayClock.millis / DAY_DURATION;
+
   weather.timer += dt;
 
-  if(weather.timer >= 30000){
+  // Timed random weather swaps, weighted by the time of day.
+  if(weather.timer >= weather.nextChange){
     weather.timer = 0;
-    weather.nextChange = 30000;
-    const types = ['clear', 'rain', 'fog', 'thunderstorm'].filter(t => t !== weather.type);
-    const nextType = types[Math.floor(Math.random() * types.length)];
+    weather.nextChange = 40000 + Math.random() * 25000;
+    const ph = dayPhase();
+    let pool = ['clear', 'rain', 'fog', 'thunderstorm'];
+    if(ph.phase === 'day' && Math.random() < 0.6){
+      pool = ['clear', 'clear', 'rain', 'fog'];
+    } else if(ph.phase === 'dawn' || ph.phase === 'dusk'){
+      pool = ['clear', 'fog', 'rain'];
+    } else if(ph.phase === 'night'){
+      pool = ['fog', 'fog', 'rain', 'thunderstorm', 'clear'];
+    }
+    const candidates = pool.filter(t => t !== weather.type);
+    const nextType = candidates.length ? candidates[Math.floor(Math.random() * candidates.length)] : 'clear';
     applyWeatherType(nextType);
   }
 
@@ -4294,109 +4327,91 @@ function updateWeather(dt){
 }
 
 function drawWeatherWorld(){
+  // ---- Fog: flat dithered pixel bands (no soft radial blobs / glow) ----
   if(weather.curFogAlpha > 0.05){
-    ctx.save();
-    const hazeColor = (weather.type === 'ash') ? '70, 60, 60' : (weather.type === 'haze') ? '80, 160, 100' : '100, 130, 160';
+    const hazeRGB = (weather.type === 'ash') ? [70, 60, 60] : (weather.type === 'haze') ? [80, 160, 100] : [110, 135, 160];
     for(const cloud of weather.fogClouds){
       const cx = cloud.x - camX * 0.4;
       if(cx < -350 || cx > W + 350) continue;
-      const grad = ctx.createRadialGradient(cx, cloud.y, 10, cx, cloud.y, cloud.r);
-      grad.addColorStop(0, `rgba(${hazeColor}, ${cloud.alpha * weather.curFogAlpha * 0.8})`);
-      grad.addColorStop(0.6, `rgba(${hazeColor}, ${cloud.alpha * weather.curFogAlpha * 0.4})`);
-      grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(cx, cloud.y, cloud.r, 0, Math.PI*2);
-      ctx.fill();
+      const a = Math.min(0.5, cloud.alpha * weather.curFogAlpha);
+      const w = cloud.r * 1.5;
+      const top = cloud.y;
+      ctx.fillStyle = `rgba(${hazeRGB[0]}, ${hazeRGB[1]}, ${hazeRGB[2]}, ${a})`;
+      ctx.fillRect(cx - w / 2, top - 6, w, 40);
+      ctx.fillRect(cx - w * 0.22, top - 16, w * 0.44, 12);
+      ctx.fillStyle = `rgba(${hazeRGB[0]}, ${hazeRGB[1]}, ${hazeRGB[2]}, ${a * 0.55})`;
+      for(let dy = 0; dy < 36; dy += 4){
+        const flip = (dy / 4) % 2;
+        ctx.fillRect(cx - w / 2 - 7 + flip * 5, top - 6 + dy, 5, 3);
+        ctx.fillRect(cx + w / 2 + 2 - flip * 5, top - 6 + dy, 5, 3);
+      }
     }
-    ctx.restore();
+    // flat fog wash over the whole screen
+    ctx.fillStyle = `rgba(${hazeRGB[0]}, ${hazeRGB[1]}, ${hazeRGB[2]}, ${Math.min(0.2, weather.curFogAlpha * 0.14)})`;
+    ctx.fillRect(0, 0, W, H);
   }
 
+  // ---- Rain / storm: chunky pixel streaks with ground splashes ----
   if((weather.type === 'rain' || weather.type === 'thunderstorm') && weather.drops){
-    ctx.save();
-    const rainColor = weather.type === 'thunderstorm' ? [185, 220, 240] : [140, 190, 220];
-    const farDrops = [];
-    const nearDrops = [];
+    const isStorm = weather.type === 'thunderstorm';
     for(const d of weather.drops){
-      (d.depth < 0.55 ? farDrops : nearDrops).push(d);
+      const far = d.depth < 0.55;
+      const sx = d.x - camX * (far ? 0.08 : 0.14);
+      ctx.fillStyle = isStorm
+        ? (far ? 'rgba(205,232,250,0.4)' : 'rgba(230,248,255,0.7)')
+        : (far ? 'rgba(150,195,225,0.38)' : 'rgba(195,225,245,0.66)');
+      ctx.fillRect(Math.floor(sx - (far ? 0 : 1)), Math.floor(d.y), far ? 1 : 2, far ? 6 : 12);
+      if(!far && d.y > H - 70 && d.y < H - 30){
+        const px2 = Math.floor(sx);
+        ctx.fillStyle = isStorm ? 'rgba(230,248,255,0.5)' : 'rgba(195,225,245,0.45)';
+        ctx.fillRect(px2 - 2, H - 24, 2, 2);
+        ctx.fillRect(px2 + 3, H - 22, 2, 2);
+        ctx.fillRect(px2, H - 25, 2, 2);
+      }
     }
-
-    ctx.lineCap = 'round';
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = `rgba(${rainColor[0]}, ${rainColor[1]}, ${rainColor[2]}, 0.2)`;
-    ctx.beginPath();
-    for(const d of farDrops){
-      const sx = d.x - camX * 0.08;
-      ctx.moveTo(sx, d.y);
-      ctx.lineTo(sx - 2, d.y + d.len);
-    }
-    ctx.stroke();
-
-    ctx.lineWidth = 1.4;
-    ctx.strokeStyle = `rgba(${rainColor[0]}, ${rainColor[1]}, ${rainColor[2]}, 0.44)`;
-    ctx.beginPath();
-    for(const d of nearDrops){
-      const sx = d.x - camX * 0.14;
-      ctx.moveTo(sx, d.y);
-      ctx.lineTo(sx - 3, d.y + d.len);
-    }
-    ctx.stroke();
-
-    ctx.fillStyle = weather.type === 'thunderstorm' ? 'rgba(105, 145, 175, 0.06)' : 'rgba(105, 145, 175, 0.035)';
-    ctx.fillRect(0, 0, W, H);
-    ctx.restore();
   } else if(weather.type === 'snow' && weather.drops){
-    ctx.save();
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
     for(const d of weather.drops){
-       const sx = d.x - camX * 0.15;
-       ctx.beginPath();
-       ctx.arc(sx, d.y, 2.5, 0, Math.PI*2);
-       ctx.fill();
+      const sx = d.x - camX * 0.15;
+      const big = d.depth > 0.55;
+      const flik = ((Math.floor(d.y) + Math.floor(d.x)) % 300 < 24) ? 0.55 : 1;
+      ctx.fillStyle = `rgba(255,255,255,${0.5 + 0.5 * flik * (big ? 1 : 0.7)})`;
+      if(big) ctx.fillRect(Math.floor(sx), Math.floor(d.y), 2, 2);
+      else ctx.fillRect(Math.floor(sx), Math.floor(d.y), 1, 1);
     }
-    ctx.restore();
   } else if(weather.type === 'ash' && weather.drops){
-    ctx.save();
     for(const d of weather.drops){
-       const sx = d.x - camX * 0.2;
-       ctx.fillStyle = `rgba(255, 120, 40, ${d.alpha * 0.8})`;
-       ctx.beginPath();
-       ctx.arc(sx, d.y, 2, 0, Math.PI*2);
-       ctx.fill();
+      const sx = d.x - camX * 0.2;
+      ctx.fillStyle = ((Math.floor(d.x) + Math.floor(d.y)) % 5) === 0 ? `rgba(255,180,60,${d.alpha * 0.9})` : `rgba(255,90,30,${d.alpha * 0.9})`;
+      ctx.fillRect(Math.floor(sx), Math.floor(d.y), 2, 2);
     }
-    ctx.restore();
   }
 }
 
 function drawWeatherOverlay(){
+  const ph = dayPhase();
+
+  // ---- Fog wash: flat retro dither, no spotlight / glow ----
   if(weather.curFogAlpha > 0.15){
-    ctx.save();
-    const px = player.x - camX + player.w/2;
-    const py = player.y + player.h/2;
-    const maxAlpha = Math.min(0.82, weather.curFogAlpha * 0.9);
-    
-    const spotlightRad = 190;
-    const grad = ctx.createRadialGradient(px, py, 25, px, py, spotlightRad);
-    grad.addColorStop(0, 'rgba(255, 240, 200, 0.05)');
-    grad.addColorStop(0.4, `rgba(10, 15, 25, ${maxAlpha * 0.4})`);
-    grad.addColorStop(1, `rgba(5, 8, 16, ${maxAlpha})`);
-
-    ctx.fillStyle = grad;
+    const fogRGB = (weather.type === 'ash') ? [70, 60, 60] : (weather.type === 'haze') ? [95, 150, 110] : [115, 135, 155];
+    ctx.fillStyle = `rgba(${fogRGB[0]}, ${fogRGB[1]}, ${fogRGB[2]}, ${Math.min(0.26, weather.curFogAlpha * 0.18)})`;
     ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = `rgba(${fogRGB[0]}, ${fogRGB[1]}, ${fogRGB[2]}, ${Math.min(0.10, weather.curFogAlpha * 0.06)})`;
+    for(let yy = 0; yy < H; yy += 6){
+      const flip = Math.floor(yy / 6) % 2;
+      for(let xx = 0; xx < W; xx += 12){
+        ctx.fillRect(xx + flip * 6, yy, 6, 3);
+      }
+    }
+  }
 
-    const beamAngle = player.facing === 1 ? 0 : Math.PI;
-    const beamGrad = ctx.createRadialGradient(px, py, 10, px + player.facing * 160, py, 220);
-    beamGrad.addColorStop(0, 'rgba(255, 235, 180, 0.18)');
-    beamGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-
-    ctx.fillStyle = beamGrad;
-    ctx.beginPath();
-    ctx.moveTo(px, py);
-    ctx.arc(px, py, 260, beamAngle - 0.4, beamAngle + 0.4);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.restore();
+  // ---- Time-of-day grade: flat full-screen tints ----
+  if(ph.nightF > 0){
+    ctx.fillStyle = `rgba(4, 7, 22, ${0.30 * ph.nightF})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+  if(ph.amberF > 0){
+    ctx.fillStyle = `rgba(255, 130, 45, ${0.16 * ph.amberF})`;
+    ctx.fillRect(0, 0, W, H);
   }
 }
 
@@ -4545,6 +4560,15 @@ const loadMessages = [
 // ---------- Camera ----------
 let camX = 0, camY = 0;
 
+// Vertical camera bound: handcrafted tall levels (masterDesign) may place
+// platforms above the world's y=0 line — let the camera follow up there.
+function levelCamMin(){
+  if(!level || !level.masterDesign || !level.plats) return 0;
+  let minP = 0;
+  for(const p of level.plats){ if(p.y < minP) minP = p.y; }
+  return minP - 90;
+}
+
 // ---------- Player Definition ----------
 const player = {
   x: 60, y: GROUND_Y-60, w:36, h:54,
@@ -4563,6 +4587,11 @@ const player = {
   deathTimer: 0,
   dustParticles: [],
   gunRecoil: 0,
+  ammoStore: {},
+  reloading: null,
+  reloadTimer: 0,
+  reloadRequested: false,
+  recoilSpray: 0,
   weaponMode: 'pistol', // 'pistol', 'triple', 'shotgun', 'minigun', 'plasma'
   fastenerTimer: 0,
   reverseControlsTimer: 0,
@@ -4575,6 +4604,9 @@ const player = {
   // Abilities
   dashTimer: 0,
   dashCooldown: 0,
+  // Stamina & running system
+  stamina: 100,
+  maxStamina: 100,
   jumpCount: 0,
   wingsTimer: 0,
   hasShield: false,
@@ -4599,6 +4631,7 @@ function resetPlayer(spawn){
   player.fastenerTimer = 0; player.reverseControlsTimer = 0; player.wingsTimer = 0;
   player.isBitten = false; player.bitePhase = 'hand'; player.biteProgress = 0; player.biteTimer = 0; player.bitingZombie = null;
   player.dashTimer = 0; player.dashCooldown = 0; player.jumpCount = 0;
+  player.stamina = player.maxStamina || 100;
   if(state.upgrades.shield && player.hasShield === undefined) player.hasShield = true;
   player.floorY = player.y;
   const maxCamX = level ? Math.max(0, (level.width || 5000) - W) : 4000;
@@ -4619,6 +4652,8 @@ let particles = [];
 let floatingTexts = [];
 let coinFx = [];
 let impactFx = [];
+let explosions = [];
+let bloodMarks = [];
 let lastHeartHitTime = -999999;
 
 function spawnParticles(x, y, color, count = 10, speedMult = 1){
@@ -4750,6 +4785,91 @@ function boostBiteEscape(){
   }
 }
 
+// Per-weapon fire interval (ms) used for auto-fire on held triggers.
+const WEAPON_FIRE_INTERVAL = {
+  pistol: 150, triple: 210, shotgun: 420, minigun: 80,
+  plasma: 380, flamethrower: 95, rocket: 520, laser: 280,
+  grenade: 520, guitar: 150, tank: 520
+};
+
+// Ammo per weapon — magazine size, starting reserve and reload time (ms).
+// AMMO IS UNLIMITED: mag/reserve are display-only numbers, guns never run dry.
+// tank (Godzilla boss) and bike (vehicle) are not tracked and fire forever.
+const GUN_STATS = {
+  pistol:      { mag: 12, reserve: 96,  reload: 900 },
+  triple:      { mag: 18, reserve: 72,  reload: 1400 },
+  shotgun:     { mag: 6,  reserve: 30,  reload: 1900 },
+  minigun:     { mag: 120,reserve: 360, reload: 3000 },
+  plasma:      { mag: 6,  reserve: 24,  reload: 2100 },
+  flamethrower:{ mag: 60, reserve: 200, reload: 2200 },
+  rocket:      { mag: 3,  reserve: 9,   reload: 2600 },
+  laser:       { mag: 24, reserve: 120, reload: 1700 },
+  grenade:     { mag: 5,  reserve: 20,  reload: 2000 },
+  guitar:      { mag: 12, reserve: 48,  reload: 1200 }
+};
+
+// How much sustained-fire spread builds per shot (muzzle climb while spraying).
+const GUN_RECOIL_SPRAY = { pistol: 1.1, triple: 1.5, minigun: 1.5, guitar: 1.3,
+  shotgun: 0.4, flamethrower: 0.2, plasma: 0.5, grenade: 0, rocket: 0, laser: 0 };
+
+// Ballistic bullets drop a little so the trajectory visibly sags and dies at maxRange.
+// maxRange = the "shooting length" (how far a bullet travels before it fizzles).
+const GUN_RANGE = {
+  pistol: 380, triple: 360, shotgun: 380, minigun: 450, plasma: 420,
+  flamethrower: 220, rocket: 480, grenade: 520, guitar: 450, tank: 520, bike: 450
+};
+
+function gunNeedsAmmo(mode){
+  return !!(GUN_STATS[mode] && GUN_STATS[mode].mag > 0);
+}
+
+function getWeaponAmmo(mode){
+  if(!player.ammoStore) player.ammoStore = {};
+  const st = GUN_STATS[mode];
+  if(!st) return null;
+  if(!player.ammoStore[mode]){
+    player.ammoStore[mode] = { mag: st.mag, magMax: st.mag, reserve: st.reserve };
+  }
+  return player.ammoStore[mode];
+}
+
+function refillAmmo(mode){
+  const a = getWeaponAmmo(mode);
+  if(a){ a.mag = a.magMax; a.reserve = Math.max(a.reserve, GUN_STATS[mode].reserve); }
+}
+
+function refillAllWeapons(){
+  for(const k in GUN_STATS) refillAmmo(k);
+}
+
+function startReload(){
+  const mode = player.weaponMode || 'pistol';
+  if(!gunNeedsAmmo(mode) || (level && level.noGuns)) return;
+  const a = getWeaponAmmo(mode);
+  if(!a || player.reloading === mode) return;
+  // Cosmetic reload: ammo never runs dry, but R/X still plays the animation
+  // ("tactical reload") and refreshes the magazine to full.
+  player.reloading = mode;
+  player.reloadTimer = GUN_STATS[mode].reload;
+  sfxReload();
+  addFloatingText(player.x, player.y - 26, 'RELOADING…', '#38c6ff');
+}
+
+function isFireHeld(){
+  return keys['KeyK'] || keys['KeyF'] || keys['KeyJ'] || mouseState.isDown;
+}
+
+// Where the drawn gun's muzzle sits relative to the player's centre, matching
+// drawPlayer's arm joint (translate 6,-2) and drawDetailedGun's 0.9 scale, so
+// bullets/bursts leave the barrel instead of floating out of the body.
+function gunMuzzleOffset(){
+  const mode = player.weaponMode || 'pistol';
+  const scale = 0.9;
+  const armY = -2;
+  const mx = png3MuzzleX(mode) || 34;
+  return { x: (6 + mx) * scale, y: armY };
+}
+
 function shoot(){
   if(state.mode!=='playing' || player.dead || player.isFalling || sponsorPopup.active) return;
   if(level && level.noGuns){
@@ -4763,40 +4883,50 @@ function shoot(){
     return;
   }
   const dmgMult = 1;
-  const gunX = player.x + player.w/2 + player.facing * 24;
-  const gunY = player.y + player.h/2 - 2;
+  const muzzle = gunMuzzleOffset();
+  const gunX = player.x + player.w/2 + player.facing * muzzle.x;
+  const gunY = player.y + player.h/2 + muzzle.y;
 
   const mode = player.weaponMode || 'pistol';
   const shotBulletStart = bullets.length;
   const shotShellStart = shellCasings.length;
 
+  // ---- Unlimited ammo: the chamber never runs dry. Reload (R / X) is a
+  // cosmetic "tactical" animation only (see startReload). ----
+  if(player.reloading === mode) return; // reloading: chamber busy, no clatter
+  if(GUN_RECOIL_SPRAY[mode] > 0){
+    player.recoilSpray = Math.min(8, (player.recoilSpray || 0) + GUN_RECOIL_SPRAY[mode]);
+  }
+  const spray = 1 + (player.recoilSpray || 0) * 0.16;
+  const range = GUN_RANGE[mode] || 420;
+
   if(mode === 'pistol'){
-    player.gunRecoil = 8;
+    player.gunRecoil = 10;
     bullets.push({
       x: gunX, y: gunY,
-      vx: player.facing * 15, vy: (Math.random()-0.5)*0.4,
-      life: 55, color: '#ffd23f', size: 6, damage: 1 * dmgMult
+      vx: player.facing * 15, vy: (Math.random()-0.5)*0.4*spray,
+      life: 55, color: '#ffd23f', size: 6, damage: 1 * dmgMult, range: range, grav: 0.07
     });
     sfxShoot();
     shakeGun(3);
     spawnParticles(gunX, gunY, '#ffd23f', 5);
     spawnShellCasing(gunX, gunY, player.facing);
   } else if(mode === 'triple'){
-    player.gunRecoil = 10;
-    bullets.push({ x: gunX, y: gunY, vx: player.facing * 14, vy: 0, life: 55, color: '#ffd23f', size: 6, damage: 1 * dmgMult });
-    bullets.push({ x: gunX, y: gunY, vx: player.facing * 13, vy: -2.5, life: 55, color: '#ff3d6e', size: 6, damage: 1 * dmgMult });
-    bullets.push({ x: gunX, y: gunY, vx: player.facing * 13, vy: 2.5, life: 55, color: '#38c6ff', size: 6, damage: 1 * dmgMult });
+    player.gunRecoil = 12;
+    bullets.push({ x: gunX, y: gunY, vx: player.facing * 14, vy: 0, life: 55, color: '#ffd23f', size: 6, damage: 1 * dmgMult, range: range, grav: 0.07 });
+    bullets.push({ x: gunX, y: gunY, vx: player.facing * 13, vy: -2.5*spray, life: 55, color: '#ff3d6e', size: 6, damage: 1 * dmgMult, range: range, grav: 0.07 });
+    bullets.push({ x: gunX, y: gunY, vx: player.facing * 13, vy: 2.5*spray, life: 55, color: '#38c6ff', size: 6, damage: 1 * dmgMult, range: range, grav: 0.07 });
     sfxShoot();
     shakeGun(5);
     spawnParticles(gunX, gunY, '#ff3d6e', 8);
     spawnShellCasing(gunX, gunY, player.facing);
   } else if(mode === 'shotgun'){
-    player.gunRecoil = 16;
+    player.gunRecoil = 20;
     for(let angle = -3; angle <= 3; angle += 1.5){
       bullets.push({
         x: gunX, y: gunY,
         vx: player.facing * (12 + Math.random()*3), vy: angle * 1.2,
-        life: 38, color: '#ff7700', size: 7, damage: 2 * dmgMult
+        life: 38, color: '#ff7700', size: 7, damage: 2 * dmgMult, range: range, grav: 0.09
       });
     }
     sfxShoot();
@@ -4805,33 +4935,33 @@ function shoot(){
     spawnParticles(gunX, gunY, '#888888', 8, 1);
     for(let i=0; i<3; i++) spawnShellCasing(gunX, gunY, player.facing);
   } else if(mode === 'minigun'){
-    player.gunRecoil = 6;
+    player.gunRecoil = 7;
     bullets.push({
       x: gunX, y: gunY + (Math.random()-0.5)*6,
-      vx: player.facing * 18, vy: (Math.random()-0.5)*1.2,
-      life: 50, color: '#38c6ff', size: 5, damage: 1 * dmgMult
+      vx: player.facing * 18, vy: (Math.random()-0.5)*1.2*spray,
+      life: 50, color: '#38c6ff', size: 5, damage: 1 * dmgMult, range: range, grav: 0.06
     });
     sfxShoot();
     shakeGun(3);
     spawnParticles(gunX, gunY, '#38c6ff', 4);
     spawnShellCasing(gunX, gunY, player.facing);
   } else if(mode === 'plasma'){
-    player.gunRecoil = 18;
+    player.gunRecoil = 22;
     bullets.push({
       x: gunX, y: gunY,
       vx: player.facing * 10, vy: 0,
-      life: 70, color: '#00ffcc', size: 14, damage: 5 * dmgMult, isPlasma: true
+      life: 70, color: '#00ffcc', size: 14, damage: 5 * dmgMult, isPlasma: true, range: range
     });
     sfxDemonic();
     shakeGun(14);
     spawnParticles(gunX, gunY, '#00ffcc', 20, 1.8);
   } else if(mode === 'flamethrower'){
-    player.gunRecoil = 5;
+    player.gunRecoil = 6;
     for(let i=0; i<3; i++){
       bullets.push({
         x: gunX, y: gunY + (Math.random()-0.5)*8,
         vx: player.facing * (11 + Math.random()*5), vy: (Math.random()-0.5)*2,
-        life: 28, color: Math.random()<0.5?'#ff5500':'#ffcc00', size: 8, damage: 1 * dmgMult, isFlame: true
+        life: 28, color: Math.random()<0.5?'#ff5500':'#ffcc00', size: 8, damage: 1 * dmgMult, isFlame: true, range: range, grav: 0.16
       });
     }
     sfxShoot();
@@ -4839,22 +4969,22 @@ function shoot(){
     spawnParticles(gunX, gunY, '#ff5500', 6, 1.2);
   } else if(mode === 'bike'){
     // Bike Mode: Drive-by rapid shooting (2 bullets spread)
-    player.gunRecoil = 5;
+    player.gunRecoil = 6;
     bullets.push({
       x: gunX, y: gunY - 10,
       vx: player.facing * 18, vy: (Math.random()-0.5)*1.2,
-      life: 50, color: '#38c6ff', size: 5, damage: 1.5 * dmgMult
+      life: 50, color: '#38c6ff', size: 5, damage: 1.5 * dmgMult, range: 450, grav: 0.08
     });
     sfxShoot();
     shakeGun(2);
     spawnParticles(gunX, gunY - 10, '#38c6ff', 4);
     spawnShellCasing(gunX, gunY - 10, player.facing);
   } else if(mode === 'tank'){
-    player.gunRecoil = 22;
+    player.gunRecoil = 26;
     bullets.push({
       x: gunX, y: gunY - 8,
       vx: player.facing * 22, vy: -1.2,
-      life: 80, color: '#ffaa00', size: 12, damage: 8 * dmgMult, isTankShell: true
+      life: 80, color: '#ffaa00', size: 12, damage: 8 * dmgMult, isTankShell: true, range: 520, grav: 0.04
     });
     sfxDemonic();
     shakeGun(20);
@@ -4863,22 +4993,21 @@ function shoot(){
     for(let i=0; i<4; i++) spawnShellCasing(gunX, gunY, player.facing);
   } else if(mode === 'rocket'){
     // Rocket Launcher: slow heavy projectile, massive AOE explosion on impact
-    player.gunRecoil = 26;
+    player.gunRecoil = 30;
     bullets.push({
       x: gunX, y: gunY - 4,
       vx: player.facing * 11, vy: 0,
       life: 90, color: '#ff6600', size: 10, damage: 10 * dmgMult,
-      isRocket: true, hasExploded: false
+      isRocket: true, hasExploded: false, range: range
     });
     sfxDemonic();
     shakeGun(18);
     spawnParticles(gunX - player.facing * 14, gunY, '#888888', 20, 1.8);
     spawnParticles(gunX - player.facing * 14, gunY, '#ff6600', 10, 1.2);
   } else if(mode === 'laser'){
-    // Laser Rifle: instant hitscan beam, pierces multiple enemies
-    player.gunRecoil = 14;
-    // Cast a ray from gun forward; deal damage to every zombie on the line
-    const beamEndX = gunX + player.facing * 900;
+    // Laser Rifle: short-range instant beam, pierces multiple enemies
+    player.gunRecoil = 18;
+    const beamEndX = gunX + player.facing * 420;
     let pierced = 0;
     for(const z of zombies){
       if(pierced >= 5) break;
@@ -4903,8 +5032,8 @@ function shoot(){
         addFloatingText(godzillaBoss.x + 60, godzillaBoss.y - 20, '-6 LASER', '#ff00ff');
       }
     }
-    // Visual: spawn a laser beam particle trail
-    for(let lx = gunX; Math.abs(lx - gunX) < 900; lx += player.facing * 18){
+    // Visual: spawn a laser beam particle trail (same 420 range)
+    for(let lx = gunX; Math.abs(lx - gunX) < 420; lx += player.facing * 18){
       particles.push({ x: lx, y: gunY + (Math.random()-0.5)*4, vx:0, vy:0, life:6, maxLife:6, color:'#ff00ff', size:4 });
     }
     // Beam body via projectile sprite (stretched along the ray)
@@ -4913,12 +5042,12 @@ function shoot(){
     shakeGun(8);
   } else if(mode === 'grenade'){
     // Grenade Launcher: arcing projectile that bounces and explodes after a delay
-    player.gunRecoil = 20;
+    player.gunRecoil = 24;
     bullets.push({
       x: gunX, y: gunY - 4,
       vx: player.facing * 13, vy: -6,
       life: 120, color: '#22c55e', size: 8, damage: 0,
-      isGrenade: true, bounces: 0, fuseTimer: 90
+      isGrenade: true, bounces: 0, fuseTimer: 90, range: 520
     });
     sfxShoot();
     shakeGun(10);
@@ -4926,16 +5055,16 @@ function shoot(){
     spawnShellCasing(gunX, gunY, player.facing);
   } else if(mode === 'guitar'){
     // 🎸 Lasha's Signature Electric Guitar Laser Bullets
-    player.gunRecoil = 14;
+    player.gunRecoil = 16;
     bullets.push({
       x: gunX, y: gunY - 3,
       vx: player.facing * 22, vy: (Math.random()-0.5)*0.6,
-      life: 65, color: '#ef4444', size: 9, damage: 5 * dmgMult, isGuitarLaser: true
+      life: 65, color: '#ef4444', size: 9, damage: 5 * dmgMult, isGuitarLaser: true, range: range, grav: 0.05
     });
     bullets.push({
       x: gunX, y: gunY + 3,
-      vx: player.facing * 20, vy: (Math.random()-0.5)*1.2,
-      life: 65, color: '#ffffff', size: 7, damage: 4 * dmgMult, isGuitarLaser: true
+      vx: player.facing * 20, vy: (Math.random()-0.5)*1.2*spray,
+      life: 65, color: '#ffffff', size: 7, damage: 4 * dmgMult, isGuitarLaser: true, range: range, grav: 0.05
     });
     sfxShoot();
     shakeGun(6);
@@ -4945,6 +5074,7 @@ function shoot(){
 
   for(let i = shotBulletStart; i < bullets.length; i++){
     if(bullets[i].mode === undefined) bullets[i].mode = mode;
+    if(bullets[i].ox === undefined && bullets[i].x !== undefined) bullets[i].ox = gunX;
   }
   for(let i = shotShellStart; i < shellCasings.length; i++){
     if(shellCasings[i].mode === undefined) shellCasings[i].mode = mode;
@@ -4954,9 +5084,14 @@ function shoot(){
 function updateBullets(){
   for(let i = bullets.length - 1; i >= 0; i--){
     const b = bullets[i];
+    // Ballistic drop: ranged guns sag slightly so the trajectory is visible and
+    // shots never carry across the whole level.
+    if(b.grav) b.vy += b.grav;
     b.x += b.vx;
     b.y += b.vy;
     b.life--;
+    // Range cap: bullet fizzles once it travels its max "shooting length".
+    if(b.range && Math.abs(b.x - (b.ox || b.x)) > b.range) b.life = 0;
     
     // Bullet collision with pushboxes
     if(level && level.pushboxes){
@@ -5143,7 +5278,31 @@ function updateBullets(){
         }
       }
     }
-    
+
+    // Shooting barrels: bullets damage the barrel, it explodes at 0 HP
+    if(!hit && level && level.boulders){
+      for(let bi = level.boulders.length - 1; bi >= 0; bi--){
+        const bd = level.boulders[bi];
+        if(bd.dead) continue;
+        const bdBox = { x: bd.x - bd.r, y: bd.y - bd.r, w: bd.r * 2, h: bd.r * 2 };
+        const bulletBox = { x: b.x - (b.size||4), y: b.y - (b.size||4), w: (b.size||4)*2, h: (b.size||4)*2 };
+        if(overlap(bulletBox, bdBox)){
+          if(bd.hp === undefined) bd.hp = 3;
+          bd.hp -= (b.isRocket || b.isGrenade || b.isTankShell) ? 3 : (b.isPlasma ? 2 : (b.damage || 1));
+          spawnParticles(b.x, b.y, '#d97706', 12, 2);
+          spawnImpactFx(b.x, b.y, b.mode, { big: b.isRocket || b.isGrenade || b.isTankShell });
+          sfxZombieHit();
+          if(bd.hp <= 0){
+            bd.dead = true;
+            spawnBarrelExplosion(bd.x, bd.y);
+            level.boulders.splice(bi, 1);
+          }
+          hit = true;
+          break;
+        }
+      }
+    }
+
     if(hit || b.life <= 0){
       bullets.splice(i, 1);
     }
@@ -5271,6 +5430,7 @@ function updateZombies(dt){
     }
     
     if(z.health <= 0){
+      spawnZombieBlood(z.x + z.w/2, z.y + z.h, { power: z.isElite ? 1.6 : 1 });
       spawnParticles(z.x + z.w/2, z.y + z.h/2, z.color, 20, 1.5);
       spawnParticles(z.x + z.w/2, z.y + z.h/2, '#ff0033', 15, 2);
       shake(10);
@@ -6898,53 +7058,185 @@ function buildLevels(){
     flag: rect(17600, GROUND_Y - 140, 30, 140)
   });
 
-  // LEVEL 11: Screaming Bananas & Flamethrower Inferno
+  // LEVEL 11: Volcano's Heart - 10-Chapter Epic Volcanic Adventure
   levels.push({
-    name:'ეპ.11 — ვულკანის პირი',
+    name:'ეპ.11 — ვულკანის გული',
     diffRating: 'რთული', diffStars: '⭐⭐⭐⭐', diffColor: '#f97316',
-    gimmickTitle: '🌋 ლავის გეიზერები', diffDesc: 'ვულკანი იღვიძებს! მოერიდე ამოფრქვეულ ლავას.',
-    zombieSpeedMult: 1.4, zombieHpMult: 1.5, gravityMult: 1.0, hazardType: 'lava_geysers',
-    theme: 'desert',
-    width: 6000,
-    spawn:{x:60,y:GROUND_Y-60},
+    gimmickTitle: '🌋 ლავის ზღვარზე', diffDesc: 'ვულკანი იღვიძებს! მოიპოვე ფლამეინგი, გადალახე ლავის გეიზერები, დაამარცხე არენა და ებრძოლე ვულკანის გულს!',
+    zombieSpeedMult: 1.35, zombieHpMult: 1.4, gravityMult: 1.0, hazardType: 'lava_geysers',
+    theme: 'infernal_volcano',
+    keepDesign: true, masterDesign: true, checkpointRespawn: true,
+    width: 12000, height: 2600,
+    spawn:{x:60, y:GROUND_Y-60},
+
+    // ===== CHECKPOINTS (4 - after every major section + pre-boss) =====
+    checkpoints: [
+      { x: 1470, y: GROUND_Y - 54, active: false },     // After flamethrower shrine
+      { x: 4850, y: GROUND_Y - 54, active: false },     // After lava gauntlet
+      { x: 7350, y: GROUND_Y - 54, active: false },     // After combat arena
+      { x: 8280, y: GROUND_Y - 2354, active: false }    // Summit ash ridge (pre-boss)
+    ],
+
+    // ===== PLATFORMS & FLOORS =====
     plats: [
-      rect(0, GROUND_Y, 900, 90),
-      rect(1000, GROUND_Y-80, 220, 24),
-      rect(1300, GROUND_Y-160, 220, 24),
-      rect(1600, GROUND_Y, 700, 90),
-      rect(2400, GROUND_Y-90, 250, 24, {vx: 3.5, minX:2400, maxX:2800}),
-      rect(3100, GROUND_Y, 900, 90),
-      rect(4100, GROUND_Y-110, 250, 24),
-      rect(4450, GROUND_Y-190, 250, 24),
-      rect(4800, GROUND_Y, 1100, 90),
+      // --- SECTION A: Volcanic Entrance & Flamethrower Shrine (0-2580) ---
+      rect(0, GROUND_Y, 720, 90),                       // Spawn floor
+      rect(860, GROUND_Y, 360, 90),                     // Mid floor 1
+      rect(1380, GROUND_Y, 420, 90),                    // Flamethrower shrine floor
+      rect(1980, GROUND_Y, 520, 90),                    // Spike island floor
+      rect(2580, GROUND_Y, 260, 90),                    // Banana base floor
+
+      // --- SECTION B: Screaming Banana Staircase (2580-3600) ---
+      rect(2750, GROUND_Y-110, 130, 24),                // Banana step 1
+      rect(2950, GROUND_Y-220, 130, 24),                // Banana step 2
+      rect(3150, GROUND_Y-330, 130, 24),                // Banana top ledge
+      rect(3350, GROUND_Y-220, 130, 24),                // Banana descent 1
+      rect(3550, GROUND_Y-110, 130, 24),                // Banana descent 2
+      rect(3600, GROUND_Y, 200, 90),                    // Pre-gauntlet ledge
+
+      // --- SECTION C: Lava Gauntlet (3800-4700) ---
+      rect(3860, GROUND_Y-60, 110, 24),                 // Stone 1
+      rect(4060, GROUND_Y-120, 110, 24),                // Stone 2
+      rect(4260, GROUND_Y-70, 110, 24),                 // Stone 3
+      rect(4460, GROUND_Y-110, 110, 24),                // Stone 4
+      rect(4700, GROUND_Y, 400, 90),                    // Gauntlet landing + checkpoint
+
+      // --- SECTION D: Moving Platform Gorge (5120-5950) ---
+      rect(5180, GROUND_Y-70, 130, 24, {vx:2.6, minX:5120, maxX:5380}),   // Mover 1
+      rect(5400, GROUND_Y-120, 130, 24, {vx:-2.6, minX:5340, maxX:5620}), // Mover 2
+      rect(5580, GROUND_Y-70, 130, 24, {vx:2.6, minX:5520, maxX:5780}),   // Mover 3
+      rect(5350, GROUND_Y-260, 130, 24),                // Risk route high ledge (trophy + bell)
+
+      // --- SECTION E: Combat Arena (6000-7540) ---
+      rect(5950, GROUND_Y, 310, 90),                    // Gorge exit + pre-arena ledge (ends where lava begins)
+      rect(6400, GROUND_Y, 800, 90),                    // ARENA FLOOR (boss wave)
+      rect(7300, GROUND_Y, 240, 90),                    // Arena exit + checkpoint
+
+      // --- SECTION F: Deep Volcano Climb (7600-8600) ---
+      rect(7600, GROUND_Y, 2300, 90),                   // Climb base floor + rescue cradle (catches summit falls)
+      ...Array.from({length: 20}, (_, i) => rect(7780 + (i%2)*30, GROUND_Y-(110+i*115), 130, 24)),  // Ascent steps (~-110 to -2295)
+      rect(7860, GROUND_Y-2300, 130, 24),               // Top pad 1
+      rect(8000, GROUND_Y-2300, 130, 24),               // Top pad 2
+      rect(8140, GROUND_Y-2300, 460, 30),               // Ash ridge (pre-boss checkpoint)
+
+      // --- SECTION G: Summit Boss Arena & Victory Descent ---
+      rect(8800, GROUND_Y-2400, 700, 40),               // SUMMIT ARENA (final boss)
+      rect(8360, GROUND_Y-2000, 130, 24),               // Climb risk alcove (plasma + bell)
+      ...Array.from({length: 20}, (_, i) => rect(9680 + (i%2)*30, GROUND_Y-(2280-i*115), 130, 24)),  // Descent steps (to ~-95)
+      rect(9550, GROUND_Y, 1950, 90)                    // Victory field + flag
     ],
-    fakespikes: [ rect(1750,GROUND_Y-24,110,24), rect(3300,GROUND_Y-24,110,24) ],
-    spikes: [ rect(920,GROUND_Y-24,70,24), rect(1300, GROUND_Y-184, 60, 24), rect(2320,GROUND_Y-24,80,24), rect(4020,GROUND_Y-24,80,24), rect(4450, GROUND_Y-214, 60, 24) ],
-    lavas: [ rect(900, GROUND_Y, 100, 90), rect(2300, GROUND_Y, 100, 90), rect(4000, GROUND_Y, 100, 90) ],
-    bananas: [ rect(1700,GROUND_Y-14,40,14), rect(3200,GROUND_Y-14,40,14), rect(5000,GROUND_Y-14,40,14) ],
+
+    // ===== HAZARDS =====
+    lavas: [
+      rect(720, GROUND_Y, 140, 90),                     // Entrance gap 1
+      rect(1220, GROUND_Y, 160, 90),                    // Entrance gap 2
+      rect(1800, GROUND_Y, 180, 90),                    // Entrance gap 3
+      rect(2500, GROUND_Y, 80, 90),                     // Banana base gap
+      rect(3800, GROUND_Y, 900, 90),                    // Lava gauntlet pit
+      rect(5120, GROUND_Y, 830, 90),                    // Gorge abyss
+      rect(6260, GROUND_Y, 140, 90),                    // Pre-arena gap
+      rect(7200, GROUND_Y, 100, 90)                     // Post-arena gap
+    ],
+    firejets: [
+      { x: 3930, y: GROUND_Y, flameH: 120, period: 3600, offset: 0, w: 60 },      // Lava geyser between stones 1-2
+      { x: 4330, y: GROUND_Y, flameH: 125, period: 3600, offset: 1200, w: 60 }    // Lava geyser between stones 3-4
+    ],
+    spikes: [
+      rect(2060, GROUND_Y-24, 150, 24),                 // Spike island bed
+      rect(2640, GROUND_Y-24, 80, 24)                   // Banana base spikes
+    ],
+    fakespikes: [
+      rect(4370, GROUND_Y-24, 70, 24),                  // Gauntlet pillow (prank)
+      rect(11150, GROUND_Y-24, 70, 24)                  // Victory pillow
+    ],
+
+    // ===== REWARDS & COLLECTIBLES =====
     coins: [
-      ...Array.from({length:10}, (_,i)=>rect(1700+i*55, GROUND_Y-110,22,22)),
-      ...Array.from({length:10}, (_,i)=>rect(3200+i*60, GROUND_Y-120,22,22))
+      rect(150, GROUND_Y-40, 22, 22),
+      rect(950, GROUND_Y-40, 22, 22),
+      rect(1520, GROUND_Y-40, 22, 22),
+      rect(2080, GROUND_Y-40, 22, 22),
+      rect(2350, GROUND_Y-40, 22, 22),
+      rect(3050, GROUND_Y-250, 22, 22),
+      rect(3520, GROUND_Y-140, 22, 22),
+      rect(4320, GROUND_Y-120, 22, 22),
+      rect(5000, GROUND_Y-40, 22, 22),
+      rect(6100, GROUND_Y-40, 22, 22),
+      rect(7460, GROUND_Y-40, 22, 22),
+      rect(8950, GROUND_Y-2445, 22, 22),
+      rect(10600, GROUND_Y-40, 22, 22),
+      rect(10900, GROUND_Y-40, 22, 22),
+      ...Array.from({length: 6}, (_, i) => rect(11350 + i*45, GROUND_Y-130, 22, 22))  // Victory coin arc
     ],
-    bells: [ rect(1350, GROUND_Y-210,26,30), rect(4500, GROUND_Y-240,26,30) ],
-    bushes: [ rect(1900, GROUND_Y-50,50,50,{triggered:false}), rect(3500, GROUND_Y-50,50,50,{triggered:false}) ],
-    signs: [ 
-      {x:500,text:"ფლამეინგი გამოიყენე ზომბებზე! 🔥"}, 
-      {x:3200,text:"ყვირილის ბანანები აფეთქებენ ზომბებს!"} 
+    coinBags: [
+      rect(11080, GROUND_Y-50, 42, 42, {taken:false})
     ],
-    flag: rect(5800, GROUND_Y-140,30,140),
-    zombies: [ 
-      {x:1750,y:GROUND_Y-54}, 
-      {x:2000,y:GROUND_Y-54}, 
-      {x:3300,y:GROUND_Y-80, type:'boss'},
-      {x:4900,y:GROUND_Y-54} 
+    bells: [
+      rect(3130, GROUND_Y-370, 26, 30),                 // Banana top bell
+      rect(5370, GROUND_Y-180, 26, 30),                 // Gorge mover bell
+      rect(8480, GROUND_Y-1990, 26, 30)                 // Climb risk alcove bell
     ],
-    jumpboxes: [ 
-      rect(1050, GROUND_Y-130, 42, 42, {hit:false, type:'flamethrower'}),
-      rect(1800, GROUND_Y-110, 42, 42, {hit:false, type:'prank_dance'}),
-      rect(3250, GROUND_Y-110, 42, 42, {hit:false, type:'fastener'}),
-      rect(4500, GROUND_Y-240, 42, 42, {hit:false, type:'sponsor'})
+    goldTrophies: [
+      rect(5385, GROUND_Y-296, 42, 42, {taken:false}),  // Gorge risk route trophy
+      rect(11300, GROUND_Y-60, 42, 42, {taken:false})   // Victory celebration trophy
     ],
+    energyCrystals: [
+      rect(6690, GROUND_Y-120, 42, 42, {taken:false}),  // Arena bonus crystal
+      rect(9850, GROUND_Y-60, 42, 42, {taken:false})    // Victory field crystal
+    ],
+    wings: [
+      rect(5600, GROUND_Y-340, 58, 40, {taken:false})   // Gorge optional: golden wings
+    ],
+
+    // ===== JUMPBOXES =====
+    jumpboxes: [
+      rect(1600, GROUND_Y-150, 42, 42, {hit:false, type:'flamethrower'}),  // THE signature weapon
+      rect(3120, GROUND_Y-380, 42, 42, {hit:false, type:'lucky_mystery'}), // Banana top treat
+      rect(4290, GROUND_Y-210, 42, 42, {hit:false, type:'minigun'}),       // Gauntlet high bonus
+      rect(8420, GROUND_Y-2035, 42, 42, {hit:false, type:'plasma'}),       // Climb risk alcove
+      rect(8740, GROUND_Y-2490, 42, 42, {hit:false, type:'heart'})         // Summit jump reward (+1 life)
+    ],
+
+    // ===== ENEMIES =====
+    zombies: [
+      {x:240, y:GROUND_Y-54},
+      {x:480, y:GROUND_Y-54},
+      {x:960, y:GROUND_Y-54},
+      {x:1120, y:GROUND_Y-54},
+      {x:1500, y:GROUND_Y-54},
+      {x:1720, y:GROUND_Y-54},
+      {x:1880, y:GROUND_Y-54},
+      {x:2640, y:GROUND_Y-54},
+      {x:2900, y:GROUND_Y-54},
+      {x:6500, y:GROUND_Y-54},
+      {x:6640, y:GROUND_Y-80, type:'boss'},
+      {x:6800, y:GROUND_Y-54},
+      {x:7020, y:GROUND_Y-54},
+      {x:9000, y:GROUND_Y-2480, type:'boss'},
+      {x:9200, y:GROUND_Y-2454}
+    ],
+    birds: [
+      bird(5400, GROUND_Y-300, {type:'vulture', speed:2.6, rangeX:350}),
+      bird(7900, GROUND_Y-1450, {type:'fire_hawk', speed:3.0, rangeX:320}),
+      bird(8080, GROUND_Y-2150, {type:'fire_hawk', speed:3.0, rangeX:300})
+    ],
+
+    // ===== PROPS & TELEGRAPHY =====
+    bananas: [
+      rect(2420, GROUND_Y-14, 40, 14),                  // Spike island zombie patrol
+      rect(6560, GROUND_Y-14, 40, 14),                  // Arena crowd control banana
+      rect(6880, GROUND_Y-14, 40, 14)                   // Arena crowd control banana
+    ],
+    signs: [
+      {x:340, text:"🌋 ვულკანი იღვიძებს! გადახტი და აიღე ფლამეინგი!"},
+      {x:1580, text:"🔥 ფლამეინგი — ზომბების ცეცხლოვანი წმენდა!"},
+      {x:2720, text:"🍌 ყვირილის ბანანი აფეთქებს ზომბებს!"},
+      {x:3520, text:"🌋 ლავას ზღვარზე — ქვებზე გადადი, გეიზერებს დაელოდე!"},
+      {x:7050, text:"⚔️ არენა! დაამარცხე ბოსი ზომბები!"},
+      {x:8400, y:GROUND_Y-2470, text:"👹 ვულკანის გულის მცველი! ბოლო ბრძოლა!"},
+      {x:11300, text:"🏁 ვულკანი დამშვიდდა! გაიმარჯვე!"}
+    ],
+    flag: rect(11200, GROUND_Y-140, 30, 140),
     bgHue:'blue'
   });
 
@@ -8206,10 +8498,12 @@ function buildLevels(){
 
   levels.splice(MAX_LEVELS);
   levels.forEach(lvl => {
+    if(lvl.masterDesign) return; // Epic 11 keeps its handcrafted signs & checkpoints
     lvl.signs = [];
     lvl.checkpoints = [];
   });
   levels.forEach((lvl, idx) => {
+    if(lvl.masterDesign) return; // Epic 11 keeps its handcrafted coin economy
     const targetCoins = 10 + (idx % 6);
     const existingCoins = (lvl.coins || []).filter(coin => !coin.isTrap && !coin.isCursed).slice(0, 15);
     const platforms = (lvl.plats || []).filter(platform => platform && platform.w > 80);
@@ -8435,6 +8729,11 @@ function shakeGun(amount){
 
 function triggerDash(){
   if(player.dashCooldown > 0 || player.dead || player.isBitten) return;
+  if((player.stamina || 0) < 35){
+    toast("💤 არ გაქვს სტამინა! გაჩერდი და აღდგება! (RUN/მ) 💨", 1500);
+    return;
+  }
+  player.stamina -= 35;
   player.dashTimer = 220;
   player.dashCooldown = 800;
   player.invuln = 22;
@@ -8469,6 +8768,7 @@ function activateJumpbox(jb){
   } else if(jb.type === 'triple' || jb.type === 'shotgun' || jb.type === 'minigun' || jb.type === 'plasma' || jb.type === 'flamethrower' || jb.type === 'tank' || jb.type === 'rocket' || jb.type === 'laser'){
     if(state.equippedSkin === 'lasha'){
       player.weaponMode = 'guitar';
+      refillAmmo('guitar');
       sfxWin();
       state.coinsCollected = (state.coinsCollected || 0) + 100;
       addScore(500);
@@ -8476,6 +8776,7 @@ function activateJumpbox(jb){
       addFloatingText(jb.x, jb.y-20, "+100 🪙 & 🎸 ELECTRIC ROCK!", '#ef4444');
     } else {
       player.weaponMode = jb.type;
+      refillAmmo(jb.type);
       sfxWin();
       const wNames = {
         triple: "🔥 სამმაგი ლაზერი!",
@@ -8706,7 +9007,7 @@ function updatePlayer(dt){
 
   const bikeSpeedMult = isBike ? 1.6 : 1.0;
   const turboSpeedMult = (player.electroTurboTimer > 0) ? 1.35 : 1.0;
-  const speed = (isFastener ? 8.2 : 4.8) * bikeSpeedMult * turboSpeedMult;
+  let speed = (isFastener ? 8.2 : 4.8) * bikeSpeedMult * turboSpeedMult;
   const baseJumpPower = (state.settings && state.settings.highJumpAssist) ? -16.0 : -13.8;
   const jumpPower = (isFastener ? -17.5 : baseJumpPower) * (isBike ? 0.9 : 1.0);
 
@@ -8722,16 +9023,77 @@ function updatePlayer(dt){
   const left = leftKey;
   const right = rightKey;
 
-  if(player.gunRecoil > 0) player.gunRecoil *= 0.8;
+  // ---- Stamina & Running system ----
+  // Hold Shift to RUN (drains stamina), tap Shift to DASH (costs stamina).
+  // When stamina hits 0 the player can only WALK and cannot dash.
+  const isShiftHeld = keys['ShiftLeft'] || keys['ShiftRight'];
+  const wantRun = isShiftHeld && (left || right) && !player.isBitten && !player.isFalling && (player.stamina || 0) > 0;
+  if(player.dashTimer > 0){
+    // Very light drain while mid-dash so it never refunds a full sprint instantly.
+    player.stamina = Math.max(0, player.stamina - dt * 0.01);
+  } else if(wantRun){
+    player.stamina = Math.max(0, player.stamina - dt * 0.03);
+    speed *= 1.45;
+  } else if(player.dashCooldown <= 0 && player.stamina < (player.maxStamina || 100)){
+    // Regenerate stamina while not sprinting / not cooling down from a dash.
+    player.stamina = Math.min(player.maxStamina || 100, player.stamina + dt * 0.022);
+  }
 
-  // Dash controls
-  if(keys['ShiftLeft']||keys['ShiftRight']||keys['KeyE']){
-    if(!player.dashKeyPressed){
-      player.dashKeyPressed = true;
-      triggerDash();
+  if(player.gunRecoil > 0) player.gunRecoil *= 0.8;
+  if(player.recoilSpray > 0) player.recoilSpray = Math.max(0, player.recoilSpray - dt * 0.015);
+
+  // Reload (R / X): consume a manual request, then tick the progress each frame.
+  if(player.reloadRequested){
+    player.reloadRequested = false;
+    startReload();
+  }
+  if(player.reloading){
+    if((player.weaponMode || 'pistol') !== player.reloading){
+      player.reloading = null;
+      player.reloadTimer = 0;
+    } else {
+      player.reloadTimer -= dt;
+      if(player.reloadTimer <= 0){
+        const mode = player.reloading;
+        const a = getWeaponAmmo(mode);
+        const st = GUN_STATS[mode];
+        if(a && st){
+          const take = Math.min(a.magMax - a.mag, a.reserve);
+          a.mag += take;
+          a.reserve -= take;
+          spawnParticles(player.x + (player.facing === 1 ? player.w : 0), player.y, '#38c6ff', 6, 1);
+        }
+        player.reloading = null;
+        player.reloadTimer = 0;
+        sfxCoin();
+      }
+    }
+  }
+
+  // Auto-fire while the fire trigger is held (K / F / J / mouse / tap-and-hold)
+  player.fireCooldown = Math.max(0, (player.fireCooldown || 0) - dt);
+  if(isFireHeld() && !(level && level.noGuns)){
+    if(player.fireCooldown <= 0){
+      shoot();
+      player.fireCooldown = WEAPON_FIRE_INTERVAL[player.weaponMode || 'pistol'] || 140;
     }
   } else {
+    player.fireCooldown = 0;
+  }
+
+  // Dash controls — tap Shift/E for a DASH, hold Shift to RUN.
+  const shiftHeld = (keys['ShiftLeft']||keys['ShiftRight']||keys['KeyE']);
+  if(shiftHeld){
+    if(!player.dashKeyPressed){
+      player.dashKeyPressed = true;
+      player.shiftHoldStart = state.time;
+    }
+  } else {
+    if(player.dashKeyPressed && state.time - player.shiftHoldStart < 200){
+      triggerDash();
+    }
     player.dashKeyPressed = false;
+    player.shiftHoldStart = 0;
   }
 
   if(player.dashTimer > 0){
@@ -9491,6 +9853,23 @@ function updatePlayer(dt){
     }
   }
 
+  // Checkpoint activation (retro-gated: only levels that opt in via checkpointRespawn)
+  if(level && level.checkpointRespawn && !player.dead && !player.isFalling){
+    for(const cp of (level.checkpoints || [])){
+      if(cp.active) continue;
+      const cpHit = { x: cp.x - 22, y: cp.y - 80, w: 44, h: 136 };
+      if(overlap(player, cpHit)){
+        cp.active = true;
+        level.__cpWeapon = player.weaponMode;
+        sfxBell();
+        spawnParticles(cp.x, cp.y - 30, '#38c6ff', 14, 2.6);
+        spawnParticles(cp.x, cp.y - 30, '#ffffff', 8, 2.0);
+        addFloatingText(cp.x, cp.y - 74, "🚩 ჩექფოინთი!", '#38c6ff');
+        toast("🚩 ჩექფოინთი გააქტიურდა! (პროგრესი შენახულია)", 1700);
+      }
+    }
+  }
+
   // Continuous Chase Dynamic: Escalating Rising Horde / Collapse
   if(level && level.risingHordeSpeed && state.mode === 'playing' && !player.dead){
     if(level.risingHordeY === undefined) level.risingHordeY = GROUND_Y + 120;
@@ -9583,12 +9962,22 @@ function updatePlayer(dt){
   updateParticles();
 }
 
+function getCheckpointSpawn(){
+  let spawn = (level && level.spawn) || null;
+  if(level && level.checkpointRespawn && level.checkpoints){
+    (level.checkpoints || []).forEach(cp => {
+      if(cp.active) spawn = { x: cp.x, y: cp.y };
+    });
+  }
+  return spawn;
+}
+
 function hurtPlayer(msg, cause='zombie'){
   const isPit = cause === 'pit';
 
   if(player.isAdmin){
     if(isPit){
-      resetPlayer(level.spawn);
+      resetPlayer(getCheckpointSpawn() || level.spawn);
       if(level.isGodzillaLevel) player.weaponMode = 'tank';
       camX = 0; camY = 0;
     }
@@ -9656,7 +10045,12 @@ function hurtPlayer(msg, cause='zombie'){
       triggerNukeSequence();
     }
   } else {
-    resetPlayer(level.spawn);
+    const respawnPoint = getCheckpointSpawn() || level.spawn;
+    resetPlayer(respawnPoint);
+    if(level && level.checkpointRespawn && level.__cpWeapon){
+      player.weaponMode = level.__cpWeapon;
+      if(refillAmmo) refillAmmo(player.weaponMode);
+    }
     if(level.isGodzillaLevel) player.weaponMode = 'tank';
     camX = Math.max(0, player.x - W/3);
     camY = (level && level.height && level.height > 800) ? Math.max(0, player.y - H/2) : 0;
@@ -9714,6 +10108,10 @@ function loadLevel(idx){
   
   level = LEVELS[idx];
 
+  // Each level starts with a full magazine and reserve for every weapon.
+  refillAllWeapons();
+  if(player.reloading){ player.reloading = null; player.reloadTimer = 0; }
+
   // Reset session counters
   state.coinsCollectedInLevel = 0;
   state.zombiesKilledInLevel = 0;
@@ -9730,6 +10128,8 @@ function loadLevel(idx){
   (level.bells || []).forEach(b=>b.taken=false);
   (level.fakespikes || []).forEach(f=>f.hit=false);
   (level.bushes || []).forEach(b=>b.triggered=false);
+  if(level.checkpoints) level.checkpoints.forEach(cp=>cp.active=false);
+  if(level) delete level.__cpWeapon;
   if(level.jumpboxes) level.jumpboxes.forEach(jb=>{ jb.hit=false; jb.bounceY=0; });
   if(level.pushboxes){
     level.pushboxes.forEach(b => {
@@ -9756,7 +10156,7 @@ function loadLevel(idx){
   
   const spawnTarget = level.spawn;
   resetPlayer(spawnTarget);
-  zombies = []; bullets = []; particles = []; shellCasings = []; floatingTexts = []; coinFx = []; impactFx = [];
+  zombies = []; bullets = []; particles = []; shellCasings = []; floatingTexts = []; coinFx = []; impactFx = []; explosions = []; bloodMarks = [];
   
   if(level.zombies){
     (level.zombies || []).forEach(z => spawnZombie(z.x, z.y, z.type));
@@ -9864,1490 +10264,1313 @@ function startGame(){
 }
 
 // ---------- Drawing Rendering Engine ----------
+// ============================================================
+// RETRO BACKGROUND SYSTEM
+// Blocky pixel-skies, day/night clock, timed weather, no glow.
+// ============================================================
+const DAY_DURATION = 90000;
+const dayClock = { t: 0, millis: 0 };
+
+function dayPhase(){
+  const t = dayClock.t;
+  let phase = 'night';
+  let phase01 = 0;
+  if(t < 0.12){ phase = 'dawn'; phase01 = t / 0.12; }
+  else if(t < 0.45){ phase = 'day'; phase01 = (t - 0.12) / 0.33; }
+  else if(t < 0.62){ phase = 'dusk'; phase01 = (t - 0.45) / 0.17; }
+  else { phase = 'night'; phase01 = (t - 0.62) / 0.38; }
+
+  let nightF = 0;
+  if(t < 0.58){ nightF = 0; }
+  else if(t < 0.75){ nightF = (t - 0.58) / 0.17; }
+  else if(t < 0.92){ nightF = 1; }
+  else { nightF = Math.max(0, (1 - t) / 0.08); }
+
+  let amberF = 0;
+  if(t < 0.2){ amberF = Math.max(0, 1 - Math.abs(t - 0.09) / 0.09); }
+  else if(t > 0.4 && t < 0.66){ amberF = Math.max(0, 1 - Math.abs(t - 0.53) / 0.11); }
+
+  return { t, phase, phase01, nightF, amberF };
+}
+
+function sgn(i, seed, mod){
+  return ((Math.abs(i) * 7919 + (seed * 37)) % mod);
+}
+
+function parRow(cfg, unitFn){
+  const spacing = cfg.spacing || 340;
+  const speed = cfg.speed === undefined ? 0.1 : cfg.speed;
+  const offset = (camX * speed) % spacing;
+  const n = Math.ceil(W / spacing) + 2;
+  for(let i = -2; i <= n; i++){
+    unitFn(i * spacing - offset, i);
+  }
+}
+
+function bandedSky(stops){
+  const y0 = 0;
+  const y1 = GROUND_Y + 60;
+  const n = stops.length - 1;
+  for(let i = 0; i < n; i++){
+    const ya = y0 + ((y1 - y0) * i) / n;
+    const yb = y0 + ((y1 - y0) * (i + 1)) / n;
+    ctx.fillStyle = stops[i];
+    ctx.fillRect(0, ya, W, yb - ya + 1);
+    const mixB = stops[i + 1];
+    ctx.fillStyle = mixB;
+    const start = Math.max(ya, yb - 8);
+    for(let yy = start; yy < yb; yy += 2){
+      const off = Math.floor((yy - start) / 2) % 2;
+      for(let xx = 0; xx < W; xx += 8){
+        ctx.fillRect(xx + off * 4, yy, 4, 2);
+      }
+    }
+  }
+  ctx.fillStyle = stops[n];
+  ctx.fillRect(0, GROUND_Y, W, 64);
+}
+
+function skyStars(alpha){
+  const maxX = W + 120;
+  const maxY = Math.floor(GROUND_Y * 0.72);
+  const off = (camX * 0.02) % maxX;
+  for(let i = 0; i < 70; i++){
+    const sx = ((i * 137 + 23) % maxX) - off;
+    const sy = (i * 53 + 17) % maxY;
+    const tw = Math.sin(state.time * 0.004 + i * 3) > -0.35 ? 1 : 0.3;
+    ctx.fillStyle = `rgba(255,255,255,${0.9 * alpha * tw})`;
+    ctx.fillRect(Math.floor(sx), Math.floor(sy), 1 + (i % 3 === 0 ? 1 : 0), 1 + (i % 3 === 0 ? 1 : 0));
+  }
+}
+
+function pxSun(x, y, r, c, alpha){
+  ctx.save();
+  ctx.globalAlpha = Math.max(0.05, alpha);
+  ctx.fillStyle = c;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+  for(let i = 0; i < 8; i++){
+    const a = i * Math.PI / 4;
+    const rx = x + Math.round(Math.cos(a) * (r + 9));
+    const ry = y + Math.round(Math.sin(a) * (r + 9));
+    ctx.fillRect(rx - 3, ry - 3, 6, 6);
+  }
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(x - 6, y - 6, 4, 4);
+  ctx.fillRect(x + 2, y + 2, 4, 4);
+  ctx.restore();
+}
+
+function pxMoon(x, y, r, c, alpha){
+  ctx.save();
+  ctx.globalAlpha = Math.max(0.05, alpha);
+  ctx.fillStyle = c;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.arc(x + r * 0.55, y - r * 0.28, r * 0.85, 0, Math.PI * 2, true);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(160,180,220,0.5)';
+  ctx.fillRect(x - 10, y - 6, 4, 4);
+  ctx.fillRect(x + 4, y + 6, 4, 4);
+  ctx.restore();
+}
+
+function pxClouds(speed, spacing, baseY, c1, c2){
+  const offset = (camX * speed) % spacing;
+  for(let i = -1; i < 6; i++){
+    const cx = i * spacing - offset;
+    const cy = baseY + (i % 3) * 30;
+    ctx.fillStyle = c1;
+    ctx.fillRect(cx, cy, 62, 14);
+    ctx.fillRect(cx + 12, cy - 8, 38, 8);
+    ctx.fillRect(cx + 22, cy - 12, 22, 6);
+    ctx.fillStyle = c2;
+    ctx.fillRect(cx + 6, cy + 14, 50, 4);
+  }
+}
+
+function drawCelestials(ph, cfg){
+  const t = dayClock.t;
+  const sunUp = t < 0.62;
+  const sunElev = sunUp ? Math.sin((t / 0.62) * Math.PI) : 0;
+  const moonUp = t >= 0.62;
+  const moonElev = moonUp ? Math.sin(((t - 0.62) / 0.38) * Math.PI) : 0;
+  const hiding = (weather.type === 'rain' || weather.type === 'thunderstorm' || weather.type === 'fog') ? 0.3 : 1;
+  if(cfg.sun !== false && sunElev > 0.02){
+    const sx = W * 0.72 - (camX * 0.02) % W;
+    const sy = 44 + (1 - sunElev) * (GROUND_Y * 0.5);
+    pxSun(sx, sy, cfg.sunR || 38, cfg.sunColor || '#ffd23f', Math.max(0.2, sunElev) * hiding);
+  }
+  if(cfg.moon !== false && moonElev > 0.02){
+    const mx = W * 0.28 - (camX * 0.02) % W;
+    const my = 44 + (1 - moonElev) * (GROUND_Y * 0.5);
+    pxMoon(mx, my, cfg.moonR || 32, cfg.moonColor || '#e6f0ff', Math.max(0.18, moonElev));
+  }
+  if(cfg.clouds){
+    pxClouds(0.14, 310, 104, cfg.clouds1 || '#ffffff', cfg.clouds2 || '#bcd2f0');
+    pxClouds(0.26, 380, 190, cfg.clouds1 || '#ffffff', cfg.clouds2 || '#bcd2f0');
+  }
+}
+
+// --- Blocky parallax motif library (flat pixels, no glow) ---
+const MOTIFS = {
+  hills(cfg){
+    parRow(cfg, (x, i) => {
+      const h = cfg.h + sgn(i, cfg.seed, 56);
+      const w = cfg.w || h;
+      for(let k = 0; k < 5; k++){
+        const half = (w / 2) * (1 - k / 5);
+        ctx.fillStyle = cfg.c[0];
+        ctx.fillRect(Math.floor(x - half), Math.floor(cfg.y - h + k * (h / 5)), Math.floor(half * 2 + 1), Math.floor(h / 5 + 1));
+      }
+      ctx.fillStyle = cfg.c[1];
+      ctx.fillRect(x + w * 0.32, cfg.y - h, w * 0.13, h);
+      ctx.fillRect(x - w * 0.45, cfg.y - h, w * 0.13, h * 0.6);
+    });
+  },
+  city(cfg){
+    parRow(cfg, (x, i) => {
+      const bh = cfg.h + sgn(i, cfg.seed, cfg.hv || 80);
+      const bw = cfg.w || 150;
+      ctx.fillStyle = cfg.c[0];
+      ctx.fillRect(x - bw / 2, cfg.y - bh, bw, bh + 8);
+      ctx.fillStyle = cfg.c[1];
+      ctx.fillRect(x - bw / 2 + 4, cfg.y - bh - 8, bw - 8, 10);
+      if(sgn(i, cfg.seed + 3, 5) === 0){
+        ctx.fillRect(x - 3, cfg.y - bh - 34, 6, 26);
+      }
+      const baseY = Math.ceil(cfg.y - bh + 14);
+      for(let wy = baseY; wy < cfg.y - 12; wy += 22){
+        const stepY = Math.floor(wy / 22);
+        const lit = sgn(i * 31 + stepY, cfg.seed, 7) !== 0;
+        ctx.fillStyle = lit ? cfg.c[2] : (cfg.c[3] || cfg.c[0]);
+        ctx.fillRect(x - bw / 2 + 10, wy, 10, 12);
+        ctx.fillRect(x + bw / 2 - 22, wy, 10, 12);
+      }
+      ctx.fillStyle = cfg.c[1];
+      ctx.fillRect(x - bw / 2, cfg.y - 12, bw, 12);
+    });
+  },
+  trees(cfg){
+    parRow(cfg, (x, i) => {
+      const th = cfg.h + sgn(i, cfg.seed, 36);
+      const kind = cfg.kind;
+      if(kind === 'palm'){
+        ctx.fillStyle = cfg.c[0];
+        ctx.fillRect(x - 5, cfg.y - th * 0.45, 10, th * 0.45 + 4);
+        ctx.fillStyle = cfg.c[1];
+        for(let f = 0; f < 5; f++){
+          const a = -Math.PI / 2 + (f - 2) * 0.55;
+          const cos = Math.cos(a), sin = Math.sin(a);
+          for(let s = 0; s < 4; s++){
+            ctx.fillRect(x + Math.round(cos * (14 + s * 8)) - 3, cfg.y - th * 0.5 + Math.round(sin * (14 + s * 8)) - 2, 7, 3);
+          }
+        }
+      } else if(kind === 'cypress'){
+        for(let l = 0; l < 4; l++){
+          const wl = (cfg.w || 40) * (1 - l / 4);
+          ctx.fillStyle = cfg.c[l % 2];
+          ctx.fillRect(x - wl / 2, cfg.y - th + l * (th / 4), wl, th / 4 + 3);
+        }
+      } else {
+        for(let l = 0; l < 4; l++){
+          const wl = (cfg.w || 60) * (1 - l / 4);
+          ctx.fillStyle = cfg.c[l % 2];
+          ctx.fillRect(x - wl / 2, cfg.y - th + l * (th / 4), wl, th / 4 + 4);
+          if(l < 3) ctx.fillRect(x - 4, cfg.y - th + (l + 1) * (th / 4), 8, 4);
+        }
+      }
+    });
+  },
+  peaks(cfg){
+    parRow(cfg, (x, i) => {
+      const h = cfg.h + sgn(i, cfg.seed, 70);
+      const w = cfg.w || 180;
+      ctx.fillStyle = cfg.c[0];
+      ctx.beginPath();
+      ctx.moveTo(x - w / 2, cfg.y);
+      ctx.lineTo(x + 8, cfg.y - h);
+      ctx.lineTo(x + w / 2, cfg.y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = cfg.c[1];
+      for(let k = 0; k < 3; k++){
+        ctx.fillRect(x - w * 0.12 + k * 14, cfg.y - h + 10 + k * 12, 9, 6);
+      }
+      ctx.fillStyle = cfg.c[2];
+      ctx.fillRect(x - 2, cfg.y - h - 6, 14, 6);
+    });
+  },
+  dunes(cfg){
+    parRow(cfg, (x, i) => {
+      const w = cfg.w || 300;
+      const y = cfg.y + sgn(i, cfg.seed, 24) - 12;
+      ctx.fillStyle = cfg.c[0];
+      for(let k = 0; k < 6; k++){
+        const hh = 34 + Math.floor((5 - k) * 3.2);
+        ctx.fillRect(x + k * (w / 6), y - hh, w / 6 + 2, hh + 40);
+      }
+      ctx.fillStyle = cfg.c[1];
+      ctx.fillRect(x + w / 6 + 4, y - 16, w * 0.45, 16);
+    });
+  },
+  pillars(cfg){
+    parRow(cfg, (x, i) => {
+      const ph = cfg.h + sgn(i, cfg.seed, 40);
+      const w = cfg.w || 40;
+      ctx.fillStyle = cfg.c[0];
+      ctx.fillRect(x - w / 2, cfg.y - ph, w, ph + 6);
+      ctx.fillRect(x - w / 2 - 6, cfg.y - ph - 8, w + 12, 10);
+      ctx.fillRect(x - w / 2 - 4, cfg.y - 8, w + 8, 8);
+      ctx.fillStyle = cfg.c[1];
+      ctx.fillRect(x - w / 2 + 4, cfg.y - ph + 14, w - 8, 6);
+      ctx.fillRect(x - w / 2 + 4, cfg.y - ph + 28, w - 8, 6);
+    });
+  },
+  volcano(cfg){
+    parRow(cfg, (x, i) => {
+      const vh = cfg.h + sgn(i, cfg.seed, 40);
+      const vw = cfg.w || 300;
+      ctx.fillStyle = cfg.c[0];
+      ctx.beginPath();
+      ctx.moveTo(x - vw / 2, cfg.y);
+      ctx.lineTo(x - vw * 0.12, cfg.y - vh);
+      ctx.lineTo(x + vw * 0.12, cfg.y - vh);
+      ctx.lineTo(x + vw / 2, cfg.y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = cfg.c[2];
+      ctx.fillRect(x - 16, cfg.y - vh - 4, 32, 8);
+      const hot = Math.sin(state.time * 0.008 + i * 1.7) > 0;
+      ctx.fillStyle = hot ? cfg.c[2] : cfg.c[3];
+      ctx.fillRect(x - 5, cfg.y - vh + 4, 10, 16);
+      ctx.fillRect(x - 5 + Math.floor(sgn(i, 0, 3) * 12), cfg.y - vh + 26, 10, 10);
+      ctx.fillRect(x - 5, cfg.y - vh + 42, 10, 12);
+    });
+  },
+  silos(cfg){
+    parRow(cfg, (x, i) => {
+      const sh = cfg.h + sgn(i, cfg.seed, 46);
+      const sw = cfg.w || 110;
+      ctx.fillStyle = cfg.c[0];
+      ctx.beginPath();
+      ctx.moveTo(x - sw / 2, cfg.y);
+      ctx.lineTo(x - sw * 0.3, cfg.y - sh);
+      ctx.lineTo(x + sw * 0.3, cfg.y - sh);
+      ctx.lineTo(x + sw / 2, cfg.y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = cfg.c[1];
+      for(let ry = cfg.y - sh + 10; ry < cfg.y - 8; ry += sh / 5){
+        ctx.fillRect(x - sw * 0.22, ry, sw * 0.44, 3);
+      }
+      ctx.fillStyle = cfg.c[2] || cfg.c[1];
+      ctx.fillRect(x - 3, cfg.y - sh + 16, 6, 5);
+    });
+  },
+  crystals(cfg){
+    parRow(cfg, (x, i) => {
+      const ch = cfg.h + sgn(i, cfg.seed, 40);
+      const cw = cfg.w || 70;
+      ctx.fillStyle = cfg.c[0];
+      ctx.beginPath();
+      ctx.moveTo(x - cw / 2, cfg.y);
+      ctx.lineTo(x - cw * 0.12, cfg.y - ch);
+      ctx.lineTo(x + cw * 0.12, cfg.y - ch);
+      ctx.lineTo(x + cw / 2, cfg.y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = cfg.c[1];
+      ctx.fillRect(x, cfg.y - ch + 6, Math.max(2, cw * 0.1), ch - 6);
+      ctx.fillRect(x + cw * 0.16, cfg.y - ch * 0.5, Math.max(2, cw * 0.08), ch * 0.5);
+    });
+  },
+  canopy(cfg){
+    parRow(cfg, (x, i) => {
+      const ch = cfg.h + sgn(i, cfg.seed, 24);
+      const cw = cfg.w || 140;
+      for(let l = 0; l < 3; l++){
+        ctx.fillStyle = cfg.c[l % 2];
+        const wl = cw * (1 - l * 0.16);
+        for(let k = -4; k <= 4; k++){
+          ctx.fillRect(x - wl / 2 + k * 6, cfg.y - ch + l * 14, 6, ch - l * 14 + 4 + (k % 2) * 6);
+        }
+      }
+    });
+  },
+  graves(cfg){
+    parRow(cfg, (x, i) => {
+      const g1 = cfg.h + sgn(i, cfg.seed, 26);
+      ctx.fillStyle = cfg.c[1];
+      ctx.fillRect(x, cfg.y - g1 * 0.3 - 4, 30, 3);
+      for(let f = 0; f < 4; f++){
+        ctx.fillRect(x + f * 8, cfg.y - g1 * 0.3 - 12, 4, g1 * 0.3 + 12);
+      }
+      ctx.fillStyle = cfg.c[0];
+      ctx.beginPath();
+      ctx.moveTo(x + 40, cfg.y);
+      ctx.lineTo(x + 40, cfg.y - g1 * 0.8);
+      ctx.arc(x + 47, cfg.y - g1 * 0.8, 7, Math.PI, 0);
+      ctx.lineTo(x + 54, cfg.y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = cfg.c[2];
+      ctx.fillRect(x + 44, cfg.y - g1 * 0.4, 6, 4);
+    });
+  },
+  girders(cfg){
+    parRow(cfg, (x, i) => {
+      const gh = cfg.h + sgn(i, cfg.seed, 50);
+      const gw = cfg.w || 70;
+      ctx.fillStyle = cfg.c[0];
+      ctx.fillRect(x - gw / 2, cfg.y - gh, gw, gh + 6);
+      ctx.fillStyle = cfg.c[1];
+      for(let k = 0; k < 4; k++){
+        ctx.fillRect(x - gw / 2 + 4, cfg.y - gh + k * (gh / 4), gw - 8, 3);
+      }
+      ctx.fillStyle = cfg.c[2];
+      for(let k = 0; k < gh - 14; k += 11){
+        ctx.fillRect(x - gw / 2 + 6, cfg.y - gh + 14 + k, 4, 11);
+        ctx.fillRect(x + gw / 2 - 10, cfg.y - gh + 14 + k + 6, 4, 11);
+      }
+      ctx.fillStyle = cfg.c[1];
+      ctx.fillRect(x - gw / 2 - 8, cfg.y - gh - 10, gw + 16, 12);
+    });
+  },
+  temple(cfg){
+    parRow(cfg, (x, i) => {
+      const th = cfg.h + sgn(i, cfg.seed, 20);
+      const tw = cfg.w || 130;
+      for(let l = 4; l >= 1; l--){
+        const yv = cfg.y - th * l / 5;
+        const wl = tw * (l / 5) + l * 8;
+        ctx.fillStyle = cfg.c[0];
+        ctx.fillRect(x - wl / 2, yv, wl, th / 5 + 3);
+        ctx.fillRect(x - wl / 2 - 6, yv, wl + 12, 5);
+        ctx.fillRect(x - wl / 2 - 9, yv - 4, 5, 5);
+        ctx.fillRect(x + wl / 2 + 4, yv - 4, 5, 5);
+      }
+      ctx.fillStyle = cfg.c[1];
+      ctx.fillRect(x - 3, cfg.y - th - 6, 6, th + 6);
+    });
+  },
+  ruins(cfg){
+    parRow(cfg, (x, i) => {
+      const rh = cfg.h + sgn(i, cfg.seed, 46);
+      const w = cfg.w || 26;
+      ctx.fillStyle = cfg.c[0];
+      ctx.fillRect(x - w / 2, cfg.y - rh, w, rh + 4);
+      ctx.fillStyle = cfg.c[1];
+      ctx.fillRect(x - w / 2 - 3, cfg.y - rh + 2, w / 2 + 4, 8);
+      ctx.fillRect(x - w / 2 + 7, cfg.y - rh - 6, 7, 8);
+      ctx.fillRect(x + w / 2 - 5, cfg.y - rh * 0.4, 9, 7);
+    });
+  },
+  cranes(cfg){
+    parRow(cfg, (x, i) => {
+      const ch = cfg.h + sgn(i, cfg.seed, 26);
+      ctx.fillStyle = cfg.c[0];
+      ctx.fillRect(x - 3, cfg.y - ch, 6, ch + 4);
+      ctx.fillRect(x - 3, cfg.y - ch, 42, 4);
+      ctx.fillRect(x - 3, cfg.y - ch - 8, 4, 8);
+      ctx.fillRect(x + 26, cfg.y - ch + 4, 3, 14);
+      ctx.fillRect(x + 24, cfg.y - ch + 16, 8, 5);
+      ctx.fillStyle = cfg.c[1];
+      ctx.fillRect(x + 1, cfg.y - ch - 14, 3, 8);
+    });
+  },
+  pods(cfg){
+    parRow(cfg, (x, i) => {
+      const ph = cfg.h + sgn(i, cfg.seed, 26);
+      const pw = cfg.w || 48;
+      ctx.fillStyle = cfg.c[0];
+      ctx.beginPath();
+      ctx.arc(x, cfg.y - ph + 5, pw * 0.52, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(x - pw / 2, cfg.y - ph, pw, ph + 6);
+      ctx.fillStyle = cfg.c[1];
+      ctx.fillRect(x - 8, cfg.y - ph + 8, 16, 6);
+      ctx.fillRect(x - 8, cfg.y - ph * 0.4, 16, 6);
+    });
+  },
+  mansions(cfg){
+    parRow(cfg, (x, i) => {
+      const mh = cfg.h + sgn(i, cfg.seed, 36);
+      const mw = cfg.w || 110;
+      ctx.fillStyle = cfg.c[0];
+      ctx.fillRect(x - mw / 2, cfg.y - mh, mw, mh + 4);
+      ctx.fillStyle = cfg.c[1];
+      ctx.beginPath();
+      ctx.moveTo(x - mw / 2 - 8, cfg.y - mh);
+      ctx.lineTo(x, cfg.y - mh - 26);
+      ctx.lineTo(x + mw / 2 + 8, cfg.y - mh);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = cfg.c[2];
+      for(let k = 0; k < 3; k++){
+        if(sgn(i * 3 + k, cfg.seed, 5) === 0) continue;
+        ctx.fillRect(x - mw / 2 + 12 + k * Math.floor(mw / 3.4), cfg.y - mh + 14, 10, 12);
+      }
+      ctx.fillRect(x - 8, cfg.y - 18, 16, 18);
+    });
+  },
+  floating(cfg){
+    const t = state.time * 0.01;
+    parRow(cfg, (x, i) => {
+      const ih = cfg.h + sgn(i, cfg.seed, 20);
+      const iw = cfg.w || 90;
+      const by = cfg.y + Math.sin(t + i * 1.7) * 2;
+      ctx.fillStyle = cfg.c[0];
+      ctx.beginPath();
+      ctx.moveTo(x - iw / 2, by);
+      ctx.lineTo(x - iw * 0.3, by - ih);
+      ctx.lineTo(x + iw * 0.3, by - ih);
+      ctx.lineTo(x + iw / 2, by);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = cfg.c[1];
+      for(let k = 0; k < 3; k++){
+        ctx.beginPath();
+        ctx.moveTo(x - iw * 0.24 + k * 18, by);
+        ctx.lineTo(x - iw * 0.24 + k * 18 + 9, by + 14 + (k % 2) * 8);
+        ctx.lineTo(x - iw * 0.24 + k * 18 + 18, by);
+        ctx.closePath();
+        ctx.fill();
+      }
+    });
+  }
+};
+
+// --- Full-screen / signature extras (always flat, no blur) ---
+const EXTRA_DRAW = {
+  embers(cfg, ph){
+    for(let i = 0; i < 40; i++){
+      const px = (i * 131 + state.time * 0.18) % W;
+      const py = (GROUND_Y - (i * 47 + state.time * 0.22) % (GROUND_Y - 40));
+      ctx.fillStyle = cfg.c1 || 'rgba(255,170,40,0.9)';
+      ctx.fillRect(px, py, 2, 2);
+    }
+  },
+  drips(cfg, ph){
+    for(let i = 0; i < 26; i++){
+      const dx = (i * 113 - camX * 0.18) % W;
+      const dy = (i * 97 + state.time * 0.35) % (GROUND_Y - 60);
+      ctx.fillStyle = cfg.c1 || 'rgba(16,185,129,0.5)';
+      ctx.fillRect(dx, dy, 3, 6 + (i % 3) * 4);
+    }
+  },
+  beams(cfg, ph){
+    const a = Math.sin(state.time * 0.0016) * 0.34;
+    ctx.fillStyle = cfg.c1 || 'rgba(0,240,255,0.10)';
+    ctx.beginPath();
+    ctx.moveTo(W * 0.3, GROUND_Y);
+    ctx.lineTo(W * 0.3 - 165 + Math.tan(a) * 320, 0);
+    ctx.lineTo(W * 0.3 + 165 + Math.tan(a) * 320, 0);
+    ctx.closePath();
+    ctx.fill();
+  },
+  rays(cfg, ph){
+    for(let i = 0; i < 5; i++){
+      const gx = (W * 0.12 + i * 170 - (camX * 0.02) % W);
+      ctx.fillStyle = cfg.c1 || 'rgba(255,210,63,0.16)';
+      ctx.beginPath();
+      ctx.moveTo(gx, 0);
+      ctx.lineTo(gx - 38, GROUND_Y);
+      ctx.lineTo(gx + 56, GROUND_Y);
+      ctx.closePath();
+      ctx.fill();
+    }
+  },
+  aurora(cfg, ph){
+    const tp = state.time * 0.004;
+    for(let band = 0; band < 3; band++){
+      ctx.fillStyle = cfg.c[band % cfg.c.length];
+      for(let yy = 24; yy < GROUND_Y * 0.6; yy += 10){
+        const wave = Math.sin(yy * 0.035 + tp + band * 1.5);
+        const w = W * (0.26 + 0.22 * wave);
+        const cx0 = W * (0.25 + band * 0.22);
+        for(let xx = cx0 - w / 2; xx < cx0 + w / 2; xx += 8){
+          if((xx + yy) % 16 < 10) ctx.fillRect(xx, yy, 6, 10);
+        }
+      }
+    }
+  },
+  matrix(cfg, ph){
+    ctx.font = 'bold 9px monospace';
+    for(let i = 0; i < 26; i++){
+      const mx = (i * 40 - camX * 0.1) % W;
+      const my = (i * 97 + state.time * 0.30) % (GROUND_Y - 80);
+      ctx.fillStyle = cfg.c1 || 'rgba(0,240,255,0.55)';
+      ctx.fillText('PRO_OBBY_2026', ((mx % W) + W) % W, my);
+    }
+  },
+  bolts(cfg, ph){
+    if(Math.sin(state.time * 0.45 + (cfg.seed || 7)) > -0.4) return;
+    ctx.strokeStyle = cfg.c1 || '#d946ef';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    let lx = (state.time * 0.1) % W;
+    let ly = 16;
+    ctx.moveTo(lx, ly);
+    for(let j = 0; j < 8; j++){
+      lx += Math.sin(state.time * 0.01 + j * 2.3 + (cfg.seed || 7)) * 42;
+      ly += 28 + Math.sin(j * 3.1 + (cfg.seed || 7)) * 14;
+      ctx.lineTo(lx, ly);
+    }
+    ctx.stroke();
+  },
+  streaks(cfg, ph){
+    ctx.strokeStyle = cfg.c1 || 'rgba(255,210,63,0.5)';
+    ctx.lineWidth = 2;
+    for(let i = 0; i < 18; i++){
+      const x = (i * 60 - state.time * 1.2) % W;
+      ctx.beginPath();
+      ctx.moveTo(((x % W) + W) % W, 0);
+      ctx.lineTo(((x % W) + W) % W, H);
+      ctx.stroke();
+    }
+  },
+  vortex(cfg, ph){
+    const cx = W * 0.3;
+    const cy = H * 0.28;
+    ctx.strokeStyle = cfg.c1 || 'rgba(168,85,247,0.6)';
+    ctx.lineWidth = 2;
+    for(let i = 0; i < 9; i++){
+      ctx.beginPath();
+      ctx.arc(cx, cy, 40 + i * 24 + Math.sin(state.time * 0.01 + i) * 3, state.time * 0.002 * (i + 1), 0.85 + state.time * 0.002 * (i + 1));
+      ctx.stroke();
+    }
+  },
+  smoke(cfg, ph){
+    for(let i = 0; i < 8; i++){
+      const sx = ((i * 240 + 60) - camX * 0.12) % (W + 200);
+      const rise = (state.time * 0.02 + i * 3) % 60;
+      const sy = GROUND_Y - 250 - rise;
+      ctx.fillStyle = cfg.c1 || 'rgba(148,163,184,0.35)';
+      ctx.fillRect(sx, sy, 12 + rise * 0.25, 9);
+      ctx.fillRect(sx + 12, sy + 9, 9 + rise * 0.18, 7);
+    }
+  },
+  orb(cfg, ph){
+    const px = W * 0.78 - (camX * 0.02) % W;
+    const py = 110;
+    const r = cfg.w || 46;
+    ctx.fillStyle = cfg.c[0];
+    ctx.beginPath();
+    ctx.arc(px, py, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = cfg.c[1];
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.ellipse(px, py, r * 1.5, r * 0.4, -0.3, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = cfg.c[2];
+    ctx.fillRect(px - 12, py - 12, 4, 4);
+    ctx.fillRect(px + 6, py + 8, 4, 4);
+    ctx.fillRect(px, py - 2, 4, 4);
+  },
+  bats(cfg, ph){
+    ctx.fillStyle = cfg.c1 || '#000000';
+    for(let i = 0; i < 6; i++){
+      const bx = ((i * 240 + state.time * 0.3) % (W + 200)) - 100;
+      const by = (i * 53 + 40) % (GROUND_Y * 0.45);
+      if(Math.sin(state.time * 0.03 + i * 2) <= -0.1) continue;
+      ctx.fillRect(bx, by, 12, 4);
+      ctx.fillRect(bx + 4, by - 5, 4, 14);
+    }
+  },
+  synth_sun(cfg, ph){
+    const sX = W * 0.5 - (camX * 0.02) % W;
+    ctx.fillStyle = '#ff4fbf';
+    ctx.beginPath();
+    ctx.arc(sX, 132, 60, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffd23f';
+    ctx.beginPath();
+    ctx.arc(sX, 132, 44, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#500057';
+    for(let y = 112; y <= 186; y += 12){
+      ctx.fillRect(sX - 62, y, 124, 4);
+    }
+  },
+  blood_moon(cfg, ph){
+    const bmX = W * 0.72 - (camX * 0.02) % W;
+    ctx.fillStyle = '#dc2626';
+    ctx.beginPath();
+    ctx.arc(bmX, 108, 64, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#7f1d1d';
+    ctx.fillRect(bmX - 22, 98, 9, 9);
+    ctx.fillRect(bmX + 14, 122, 9, 9);
+    ctx.fillRect(bmX + 4, 86, 7, 7);
+  },
+  stars_rainbow(cfg, ph){
+    const off = (camX * 0.04) % (W + 100);
+    for(let i = 0; i < 80; i++){
+      const sx = ((i * 127 + 31) % (W + 100)) - off;
+      const sy = (i * 67 + 11) % Math.floor(GROUND_Y * 0.9);
+      const hue = (i * 40 + state.time * 0.05) % 360;
+      const tw = Math.sin(state.time * 0.005 + i) * 0.4 + 0.6;
+      ctx.fillStyle = `hsla(${hue}, 90%, 62%, ${Math.max(0.1, tw)})`;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), 2, 2);
+    }
+  },
+  reactor(cfg, ph){
+    const nrX = W * 0.5 - (camX * 0.01) % W;
+    ctx.strokeStyle = '#22c55e';
+    ctx.lineWidth = 4;
+    const r = 80 + Math.sin(state.time * 0.008) * 12;
+    ctx.beginPath();
+    ctx.arc(nrX, 130, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(nrX, 130, r * 0.6, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#22c55e';
+    ctx.fillRect(nrX - 8, 118, 16, 16);
+  },
+  scanline(cfg, ph){
+    const sy = (state.time * 0.15) % H;
+    ctx.fillStyle = cfg.c1 || 'rgba(255,0,85,0.35)';
+    ctx.fillRect(0, sy, W, 3);
+  },
+  eyes(cfg, ph){
+    for(let i = -1; i < 8; i++){
+      const ex = (i * 280 - camX * 0.12) % (280 * 8);
+      if(Math.sin(state.time * 0.004 + i) <= 0) continue;
+      ctx.fillStyle = '#ff00aa';
+      ctx.fillRect(ex + 24, GROUND_Y - 200, 6, 5);
+      ctx.fillRect(ex + 40, GROUND_Y - 200, 6, 5);
+    }
+  },
+  fireworks(cfg, ph){
+    for(let i = 0; i < 50; i++){
+      const fx = (i * 137 + state.time * 0.1) % W;
+      const fy = (i * 71 + Math.sin(state.time * 0.005 + i) * 18) % (GROUND_Y - 60);
+      const hue = (i * 35 + state.time * 0.1) % 360;
+      ctx.fillStyle = `hsla(${hue}, 90%, 62%, 0.9)`;
+      ctx.fillRect(fx, fy, 3, 3);
+    }
+  },
+  fireflies(cfg, ph){
+    for(let i = 0; i < 26; i++){
+      if(Math.sin(state.time * 0.01 + i * 3) <= 0.1) continue;
+      const fx = (i * 173 + Math.sin(state.time * 0.002 + i) * 40 - camX * 0.1) % W;
+      const fy = (i * 91 + Math.sin(state.time * 0.003 + i * 2) * 30) % Math.floor(GROUND_Y * 0.6);
+      ctx.fillStyle = cfg.c1 || 'rgba(180,255,120,0.85)';
+      ctx.fillRect(((fx % W) + W) % W, fy, 2, 2);
+    }
+  },
+  lava_eye(cfg, ph){
+    const eyeX = W * 0.5 - (camX * 0.015) % W;
+    ctx.strokeStyle = '#ff3d6e';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(eyeX, 130, 72, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(eyeX, 130, 20 + Math.sin(state.time * 0.005) * 8, 0, Math.PI * 2);
+    ctx.fillStyle = '#ff0033';
+    ctx.fill();
+  }
+};
+
+const BG_THEMES = {
+  retro_mario_world: {
+    sky: ['#3a7ce0', '#5c94fc', '#7fbafc', '#a8dcff'],
+    sunColor: '#ffe600',
+    clouds: true,
+    layers: [
+      { k: 'hills', speed: 0.1, spacing: 360, h: 110, seed: 1, c: ['#4fa328', '#2f7020'] },
+      { k: 'hills', speed: 0.16, spacing: 260, h: 70, seed: 2, c: ['#73c73c', '#3f8a20'] }
+    ]
+  },
+  dusk_suburbs: {
+    sky: ['#241040', '#6a1f4c', '#c2403a', '#ffb84d'],
+    sunColor: '#ffd23f',
+    layers: [
+      { k: 'hills', speed: 0.08, spacing: 420, h: 90, seed: 3, c: ['#3c1130', '#260a20'] },
+      { k: 'city', speed: 0.16, spacing: 300, h: 150, seed: 4, hv: 90, w: 130, c: ['#150625', '#2a0f38', '#ffb84d', '#5c1d47'] }
+    ]
+  },
+  cyber: {
+    sky: ['#070a18', '#101a38', '#1d0d38'],
+    sun: false, moon: false,
+    layers: [
+      { k: 'city', speed: 0.12, spacing: 260, h: 180, seed: 5, hv: 90, w: 120, c: ['#090d1f', '#141c38', '#00f0ff', '#0a0d1a'] },
+      { k: 'city', speed: 0.2, spacing: 220, h: 130, seed: 6, hv: 70, w: 100, c: ['#0c0a1c', '#1a1040', '#ff00aa', '#120a24'] }
+    ],
+    extra: 'orb',
+    ec: ['#0e2240', '#38c6ff', '#7df9ff', '#0d1830']
+  },
+  decaying_skyscraper: {
+    sky: ['#0a0420', '#1c0a28', '#300a1c'],
+    sun: false, moon: false,
+    layers: [
+      { k: 'ruins', speed: 0.1, spacing: 260, h: 260, seed: 7, w: 70, c: ['#150a24', '#2a1438'] },
+      { k: 'city', speed: 0.18, spacing: 300, h: 170, seed: 8, hv: 90, w: 140, c: ['#0d0618', '#221030', '#ff3d3d', '#150820'] }
+    ],
+    extra: 'embers',
+    c1: 'rgba(255,90,40,0.7)'
+  },
+  horror_ruins: {
+    sky: ['#100109', '#38051a', '#5e0a2e'],
+    moonColor: '#e04040',
+    sun: false,
+    layers: [
+      { k: 'ruins', speed: 0.1, spacing: 300, h: 200, seed: 9, w: 60, c: ['#1c0411', '#2e0920'] },
+      { k: 'pillars', speed: 0.18, spacing: 260, h: 150, seed: 10, w: 44, c: ['#120313', '#240820', '#2c0a26'] }
+    ],
+    extra: 'bats',
+    c1: '#0a0010'
+  },
+  new_york_city: {
+    sky: ['#101832', '#20255c', '#581c87', '#f07a20'],
+    sunColor: '#ffdd55',
+    layers: [
+      { k: 'dunes', speed: 0.06, spacing: 420, h: 60, seed: 11, w: 320, c: ['#5a1f2a', '#7c2f2a'] },
+      { k: 'city', speed: 0.15, spacing: 240, h: 200, seed: 12, hv: 100, w: 160, c: ['#090d16', '#182440', '#fbbf24', '#1e293b'] },
+      { k: 'city', speed: 0.22, spacing: 300, h: 120, seed: 13, hv: 70, w: 130, c: ['#0a0d18', '#1a2440', '#fce39a', '#252c3c'] }
+    ]
+  },
+  desert_canyon: {
+    sky: ['#2d0e03', '#7c3a08', '#cd6f0a', '#f9bd28'],
+    sunColor: '#fff3c0',
+    layers: [
+      { k: 'peaks', speed: 0.07, spacing: 320, h: 120, seed: 14, w: 220, c: ['#5a1a08', '#7c2608', '#f9bd28'] },
+      { k: 'dunes', speed: 0.16, spacing: 300, h: 90, seed: 15, w: 300, c: ['#8a3408', '#c65a10', '#e2891a'] }
+    ]
+  },
+  volcanic_inferno: {
+    sky: ['#1c0100', '#4a0202', '#7e0a08'],
+    sun: false, moon: false,
+    layers: [
+      { k: 'volcano', speed: 0.1, spacing: 480, h: 170, seed: 16, w: 340, c: ['#220303', '#0f0202', '#ff3d2e', '#ff8c1a'] },
+      { k: 'volcano', speed: 0.18, spacing: 320, h: 100, seed: 17, w: 260, c: ['#2b0404', '#160202', '#ff5c1a', '#ffcc00'] }
+    ],
+    extra: 'embers',
+    c1: 'rgba(255,170,40,0.9)'
+  },
+  night_forest: {
+    sky: ['#020c14', '#071a28', '#0d2c3e'],
+    moonColor: '#e8f4ff',
+    sun: false,
+    layers: [
+      { k: 'trees', speed: 0.09, spacing: 220, h: 120, seed: 18, w: 70, c: ['#08201a', '#0a2a20'] },
+      { k: 'trees', speed: 0.16, spacing: 180, h: 90, seed: 19, w: 56, c: ['#0d3022', '#123c28'] }
+    ],
+    extra: 'fireflies',
+    c1: 'rgba(190,255,140,0.8)'
+  },
+  industrial_sector: {
+    sky: ['#03160c', '#09301c', '#12503a'],
+    sun: false, moon: false,
+    layers: [
+      { k: 'silos', speed: 0.08, spacing: 340, h: 150, seed: 20, w: 120, c: ['#061e13', '#0b331e', '#22c55e'] },
+      { k: 'girders', speed: 0.16, spacing: 240, h: 120, seed: 21, w: 80, c: ['#041610', '#0a2b1c', '#0f4a2d'] }
+    ]
+  },
+  frozen_tundra: {
+    sky: ['#041321', '#0c2c50', '#1a4a7a'],
+    moonColor: '#dff2ff',
+    sunColor: '#ffe9b3',
+    layers: [
+      { k: 'peaks', speed: 0.08, spacing: 360, h: 140, seed: 22, w: 200, c: ['#0a2440', '#123a60', '#9fd8ff'] },
+      { k: 'peaks', speed: 0.15, spacing: 300, h: 90, seed: 23, w: 170, c: ['#12365a', '#1c5080', '#c9eeff'] }
+    ],
+    extra: 'aurora',
+    ec: ['rgba(0,240,180,0.22)', 'rgba(80,160,255,0.18)', 'rgba(170,80,255,0.14)']
+  },
+  cosmic_void: {
+    sky: ['#03010c', '#100828', '#220e46'],
+    sun: false, moon: false,
+    layers: [],
+    extra: 'stars_rainbow',
+    ec: []
+  },
+  doomsday_city: {
+    sky: ['#12040f', '#260a1e', '#3e0f2a'],
+    moonColor: '#8f6d88',
+    sun: false,
+    layers: [
+      { k: 'ruins', speed: 0.1, spacing: 280, h: 220, seed: 24, w: 60, c: ['#160a18', '#240f24'] },
+      { k: 'city', speed: 0.18, spacing: 260, h: 150, seed: 25, hv: 80, w: 140, c: ['#0e0814', '#1c1024', '#ff4d5e', '#191020'] }
+    ],
+    extra: 'beams',
+    c1: 'rgba(0,240,255,0.10)'
+  },
+  glitch_cyberverse: {
+    sky: ['#0d0420', '#060318', '#02000a'],
+    sun: false, moon: false,
+    layers: [
+      { k: 'girders', speed: 0.1, spacing: 240, h: 200, seed: 26, w: 80, c: ['#070218', '#0e0430', '#f43f5e'] },
+      { k: 'city', speed: 0.18, spacing: 280, h: 120, seed: 27, hv: 80, w: 130, c: ['#0a031d', '#120738', '#00f0ff', '#0a0720'] }
+    ],
+    extra: 'matrix',
+    c1: 'rgba(0,240,255,0.6)'
+  },
+  toxic_sewers: {
+    sky: ['#031b14', '#083a2a', '#0f5a40'],
+    sun: false, moon: false,
+    layers: [
+      { k: 'pillars', speed: 0.1, spacing: 300, h: 170, seed: 28, w: 60, c: ['#022a1e', '#06462f'] },
+      { k: 'pillars', speed: 0.18, spacing: 240, h: 110, seed: 29, w: 44, c: ['#033d28', '#0a3a28'] }
+    ],
+    extra: 'drips',
+    c1: 'rgba(80,220,120,0.5)'
+  },
+  prehistoric_jungle: {
+    sky: ['#04240f', '#0e4e29', '#1a7a44'],
+    sunColor: '#ffd23f',
+    moonColor: '#ffc640',
+    layers: [
+      { k: 'canopy', speed: 0.08, spacing: 260, h: 130, seed: 30, w: 150, c: ['#052e18', '#0a4022'] },
+      { k: 'trees', speed: 0.14, spacing: 200, h: 120, seed: 31, kind: 'palm', c: ['#08341e', '#0f5a2e'] },
+      { k: 'trees', speed: 0.2, spacing: 170, h: 90, seed: 32, kind: 'palm', c: ['#0b4026', '#15703a'] }
+    ]
+  },
+  gothic_cemetery: {
+    sky: ['#0e0720', '#1e0e3a', '#321852'],
+    moonColor: '#fef08a',
+    sun: false,
+    layers: [
+      { k: 'graves', speed: 0.12, spacing: 220, h: 90, seed: 33, c: ['#0f071a', '#1e1030', '#2a1a40'] },
+      { k: 'trees', speed: 0.18, spacing: 190, h: 110, seed: 34, kind: 'cypress', w: 40, c: ['#0a0518', '#120a26'] },
+      { k: 'ruins', speed: 0.24, spacing: 280, h: 90, seed: 35, w: 40, c: ['#080412', '#120a20'] }
+    ],
+    extra: 'bats',
+    c1: '#050210'
+  },
+  neon_synthwave: {
+    sky: ['#250046', '#5c0060', '#a00068'],
+    sun: false, moon: false,
+    layers: [
+      { k: 'synth_city', speed: 0.14, spacing: 240, h: 120, seed: 36, hv: 80, w: 110, c: ['#1a0030', '#3a0450', '#ffd23f', '#2a0040'] },
+      { k: 'trees', speed: 0.22, spacing: 180, h: 70, seed: 37, kind: 'palm', c: ['#170028', '#2c0148'] }
+    ],
+    extra: 'synth_sun',
+    ec: []
+  },
+  alien_hive: {
+    sky: ['#150334', '#2a0752', '#470a7c'],
+    sun: false, moon: false,
+    layers: [
+      { k: 'pods', speed: 0.1, spacing: 240, h: 130, seed: 38, w: 50, c: ['#1c0440', '#3a0b5e'] },
+      { k: 'pods', speed: 0.18, spacing: 200, h: 90, seed: 39, w: 40, c: ['#24064a', '#ec4899'] }
+    ],
+    extra: 'drips',
+    c1: 'rgba(150,60,220,0.45)'
+  },
+  haunted_mansion: {
+    sky: ['#140325', '#280a44', '#45136e'],
+    moonColor: '#cfd8e8',
+    sun: false,
+    layers: [
+      { k: 'mansions', speed: 0.1, spacing: 300, h: 170, seed: 40, w: 120, c: ['#180826', '#280c3c', '#ffd23f'] },
+      { k: 'trees', speed: 0.16, spacing: 200, h: 100, seed: 41, kind: 'cypress', w: 36, c: ['#0d051a', '#170a2c'] },
+      { k: 'mansions', speed: 0.22, spacing: 340, h: 100, seed: 42, w: 120, c: ['#0c0420', '#1a0830', '#ff9d3f'] }
+    ],
+    extra: 'bats',
+    c1: '#0a0314'
+  },
+  industrial_foundry: {
+    sky: ['#1e0a02', '#421804', '#6e2a08'],
+    sun: false, moon: false,
+    layers: [
+      { k: 'silos', speed: 0.09, spacing: 300, h: 160, seed: 43, w: 110, c: ['#241004', '#3a1a08', '#ff5c1a'] },
+      { k: 'cranes', speed: 0.16, spacing: 340, h: 120, seed: 44, c: ['#180b02', '#2a1508'] },
+      { k: 'girders', speed: 0.22, spacing: 230, h: 90, seed: 45, w: 70, c: ['#120802', '#1f0e04', '#3a1a08'] }
+    ],
+    extra: 'embers',
+    c1: 'rgba(255,150,40,0.85)'
+  },
+  sky_temple: {
+    sky: ['#0e1f38', '#20436e', '#35649c'],
+    sunColor: '#ffe9b3',
+    clouds: true,
+    clouds1: '#eaf4ff',
+    clouds2: '#bed6f2',
+    layers: [
+      { k: 'floating', speed: 0.08, spacing: 360, h: 100, seed: 46, w: 100, c: ['#122c4a', '#1c4068'] },
+      { k: 'temple', speed: 0.16, spacing: 320, h: 90, seed: 47, w: 130, c: ['#0a1830', '#f0c060'] }
+    ]
+  },
+  pro_cyber_matrix: {
+    sky: ['#040214', '#110430', '#230854'],
+    sun: false, moon: false,
+    layers: [
+      { k: 'mono', speed: 0.1, spacing: 260, h: 220, seed: 48, w: 46, c: ['#0a0322', '#160a40', '#00f0ff'] },
+      { k: 'girders', speed: 0.18, spacing: 230, h: 110, seed: 49, w: 70, c: ['#080312', '#120a28', '#f43f5e'] }
+    ],
+    extra: 'matrix',
+    c1: 'rgba(0,240,255,0.6)'
+  },
+  pro_plasma_storm: {
+    sky: ['#120224', '#30065e', '#4e0a94'],
+    sun: false, moon: false,
+    layers: [
+      { k: 'peaks', speed: 0.08, spacing: 320, h: 140, seed: 50, w: 200, c: ['#1c0440', '#300a66', '#e879f9'] },
+      { k: 'city', speed: 0.16, spacing: 260, h: 120, seed: 51, hv: 90, w: 130, c: ['#140330', '#240850', '#d946ef', '#1c0638'] },
+      { k: 'ruins', speed: 0.22, spacing: 300, h: 80, seed: 52, w: 40, c: ['#10021f', '#1e0636'] }
+    ],
+    extra: 'bolts',
+    c1: '#d946ef',
+    seed: 53
+  },
+  pro_infernal_abyss: {
+    sky: ['#0a0101', '#3a0202', '#6e0505'],
+    sun: false, moon: false,
+    layers: [
+      { k: 'volcano', speed: 0.1, spacing: 440, h: 150, seed: 53, w: 320, c: ['#200202', '#0c0101', '#ff3d2e', '#ff8c1a'] }
+    ],
+    extra: 'lava_eye'
+  },
+  pro_toxic_wasteland: {
+    sky: ['#02160a', '#0b4a24', '#127a3e'],
+    sun: false, moon: false,
+    layers: [
+      { k: 'bio', speed: 0.08, spacing: 260, r: 50, seed: 54, w: 100, c: ['#0a3a1e', '#22c55e'] },
+      { k: 'silos', speed: 0.16, spacing: 300, h: 130, seed: 55, w: 100, c: ['#05301a', '#0a4a28', '#22c55e'] }
+    ],
+    extra: 'drips',
+    c1: 'rgba(34,197,94,0.5)'
+  },
+  pro_golden_god_realm: {
+    sky: ['#12120f', '#2e2a10', '#4f4518'],
+    sun: false, moon: false,
+    layers: [
+      { k: 'mono', speed: 0.1, spacing: 300, h: 200, seed: 56, w: 40, c: ['#2a2108', '#4a3a10', '#ffd23f'] },
+      { k: 'temple', speed: 0.2, spacing: 330, h: 90, seed: 57, w: 140, c: ['#1a1506', '#ffd23f'] }
+    ],
+    extra: 'rays',
+    c1: 'rgba(255,210,63,0.16)'
+  },
+  pro_laser_fortress: {
+    sky: ['#110318', '#300734', '#550c57'],
+    sun: false, moon: false,
+    layers: [
+      { k: 'city', speed: 0.1, spacing: 260, h: 150, seed: 58, hv: 90, w: 130, c: ['#180424', '#2a0838', '#ff2d6e', '#220a30'] },
+      { k: 'pillars', speed: 0.2, spacing: 230, h: 110, seed: 59, w: 42, c: ['#0c0214', '#1c0630'] }
+    ],
+    extra: 'scanline',
+    c1: 'rgba(255,0,85,0.35)'
+  },
+  pro_void_multiverse: {
+    sky: ['#02020c', '#100432', '#24065c'],
+    sun: false, moon: false,
+    layers: [],
+    extra: 'stars_rainbow',
+    ec: []
+  },
+  pro_blood_moon: {
+    sky: ['#150202', '#400606', '#6a0a0a'],
+    sun: false, moon: false,
+    layers: [
+      { k: 'hills', speed: 0.08, spacing: 400, h: 90, seed: 60, c: ['#1c0505', '#2c0a08'] },
+      { k: 'ruins', speed: 0.16, spacing: 300, h: 150, seed: 61, w: 60, c: ['#12030a', '#200a18'] }
+    ],
+    extra: 'blood_moon'
+  },
+  pro_acid_sewers: {
+    sky: ['#031b14', '#094138', '#116455'],
+    sun: false, moon: false,
+    layers: [
+      { k: 'pillars', speed: 0.1, spacing: 290, h: 160, seed: 62, w: 60, c: ['#032a22', '#08462f'] },
+      { k: 'pods', speed: 0.18, spacing: 220, h: 100, seed: 63, w: 50, c: ['#023318', '#0f8a4a'] }
+    ],
+    extra: 'drips',
+    c1: 'rgba(80,220,120,0.5)'
+  },
+  pro_volcano_magma: {
+    sky: ['#200101', '#550404', '#8c0b0b'],
+    sun: false, moon: false,
+    layers: [
+      { k: 'volcano', speed: 0.1, spacing: 500, h: 160, seed: 64, w: 360, c: ['#240303', '#100202', '#ff3d2e', '#ffcc00'] },
+      { k: 'volcano', speed: 0.18, spacing: 330, h: 110, seed: 65, w: 280, c: ['#2c0404', '#160202', '#ff5c1a', '#ffaa00'] }
+    ],
+    extra: 'embers',
+    c1: 'rgba(255,170,40,0.9)'
+  },
+  airplane_sky: {
+    sky: ['#1298e0', '#5fc4f8', '#bde9fb'],
+    sunColor: '#ffe600',
+    clouds: true,
+    clouds1: '#ffffff',
+    clouds2: '#aedcf7',
+    layers: [
+      { k: 'hills', speed: 0.06, spacing: 380, h: 60, seed: 66, c: ['#5f9e58', '#3f7a3a'] },
+      { k: 'hills', speed: 0.12, spacing: 280, h: 40, seed: 67, c: ['#7db56f', '#548f46'] }
+    ]
+  },
+  parkour_rooftops: {
+    sky: ['#1a0530', '#4c0040', '#8c1f00'],
+    sunColor: '#ffb84d',
+    layers: [
+      { k: 'city', speed: 0.14, spacing: 220, h: 170, seed: 68, hv: 100, w: 140, c: ['#16052a', '#2a0c40', '#ffd23f', '#220b34'] },
+      { k: 'city', speed: 0.22, spacing: 300, h: 100, seed: 69, hv: 80, w: 120, c: ['#0e0320', '#1c0834', '#ff9d3f', '#180628'] }
+    ]
+  },
+  pro_godzilla_arena: {
+    sky: ['#081020', '#102442', '#1b3c6e'],
+    moonColor: '#9fc4ff',
+    sun: false,
+    layers: [
+      { k: 'ruins', speed: 0.1, spacing: 280, h: 190, seed: 70, w: 60, c: ['#0a1424', '#12263c'] },
+      { k: 'city', speed: 0.18, spacing: 250, h: 130, seed: 71, hv: 90, w: 130, c: ['#0a101c', '#14243c', '#7dd3fc', '#101a2c'] }
+    ]
+  },
+  pro_demonic_realm: {
+    sky: ['#0f0120', '#2e0649', '#4f0b7c'],
+    sun: false, moon: false,
+    layers: [
+      { k: 'pillars', speed: 0.12, spacing: 260, h: 190, seed: 72, w: 44, c: ['#160330', '#26084a', '#4a0b6e'] },
+      { k: 'ruins', speed: 0.2, spacing: 300, h: 90, seed: 73, w: 50, c: ['#0c0225', '#1a0538'] }
+    ],
+    extra: 'eyes'
+  },
+  pro_hyperspeed_void: {
+    sky: ['#050109', '#16051f', '#280a36'],
+    sun: false, moon: false,
+    layers: [],
+    extra: 'streaks',
+    c1: 'rgba(255,210,63,0.5)'
+  },
+  pro_atomic_reactor: {
+    sky: ['#02180c', '#06351f', '#0b5833'],
+    sun: false, moon: false,
+    layers: [
+      { k: 'silos', speed: 0.09, spacing: 300, h: 150, seed: 74, w: 110, c: ['#042a18', '#08432a', '#22c55e'] },
+      { k: 'girders', speed: 0.16, spacing: 240, h: 100, seed: 75, w: 70, c: ['#032018', '#083a26', '#0f5a3c'] }
+    ],
+    extra: 'reactor'
+  },
+  industrial_factory: {
+    sky: ['#0a0e14', '#141a22', '#242019', '#3a2a18'],
+    sun: false, moon: false,
+    layers: [
+      { k: 'girders', speed: 0.06, spacing: 300, h: 240, seed: 76, w: 84, c: ['#0c1118', '#161e28', '#33435c'] },
+      { k: 'silos', speed: 0.12, spacing: 380, h: 110, seed: 77, w: 140, c: ['#0d0f14', '#1a1c22', '#f59e0b'] },
+      { k: 'cranes', speed: 0.2, spacing: 340, h: 100, seed: 78, c: ['#0a0c12', '#141822'] }
+    ],
+    extra: 'smoke',
+    c1: 'rgba(148,163,184,0.4)'
+  },
+  final_challenge: {
+    sky: ['#0a0422', '#240a50', '#40088a', '#06001a'],
+    sun: false, moon: false,
+    layers: [
+      { k: 'mono', speed: 0.1, spacing: 340, h: 200, seed: 79, w: 44, c: ['#1a0a30', '#2a1450', '#ffd23f'] },
+      { k: 'mono', speed: 0.18, spacing: 280, h: 120, seed: 80, w: 40, c: ['#0c0428', '#140a40', '#38c6ff'] }
+    ],
+    extra: 'fireworks',
+    ec: []
+  }
+};
+
+BG_THEMES.cyberpunk_alley = BG_THEMES.cyber;
+BG_THEMES.infernal_volcano = BG_THEMES.volcanic_inferno;
+BG_THEMES.nuclear_lab = BG_THEMES.industrial_sector;
+BG_THEMES.godzilla_ruins = BG_THEMES.doomsday_city;
+BG_THEMES.pro_rooftop_sunset = BG_THEMES.parkour_rooftops;
+BG_THEMES.pro_codezero_hall = BG_THEMES.final_challenge;
+BG_THEMES.ultimate_cosmos = BG_THEMES.final_challenge;
+
+// "synth_city" motif used by neon_synthwave
+MOTIFS.synth_city = MOTIFS.city;
+
+MOTIFS.bio = function(cfg){
+  parRow(cfg, (x, i) => {
+    const r = (cfg.r || 46) + sgn(i, cfg.seed, 14);
+    ctx.fillStyle = cfg.c[0];
+    ctx.beginPath();
+    ctx.arc(x + (cfg.w || 100) / 2, 128, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = cfg.c[1];
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x + (cfg.w || 100) / 2, 128, r * 0.66, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x + (cfg.w || 100) / 2, 128, r * 0.32, 0, Math.PI * 2);
+    ctx.stroke();
+  });
+};
+
+MOTIFS.mono = function(cfg){
+  parRow(cfg, (x, i) => {
+    const mh = cfg.h + sgn(i, cfg.seed, 30);
+    ctx.fillStyle = cfg.c[0];
+    ctx.fillRect(x - cfg.w / 2, cfg.y - mh, cfg.w, mh + 6);
+    ctx.fillStyle = cfg.c[1];
+    ctx.fillRect(x - cfg.w / 2 + 3, cfg.y - mh + 8, cfg.w - 6, 4);
+    ctx.fillRect(x - cfg.w / 2 + 3, cfg.y - mh + 18, cfg.w - 6, 4);
+    ctx.fillStyle = cfg.c[2];
+    ctx.fillRect(x - cfg.w / 2 + 2, cfg.y - mh + 28, cfg.w - 4, 3);
+    ctx.fillStyle = cfg.c[0];
+    ctx.fillRect(x - 2, cfg.y - mh - 16, cfg.w * 0.16, 16);
+  });
+};
+
+// Attach extras referenced by an "ec" (extra colors) field
+for(const themeKey of Object.keys(BG_THEMES)){
+  const cfgBg = BG_THEMES[themeKey];
+  if(cfgBg.extra && EXTRA_DRAW[cfgBg.extra] && cfgBg.ec){
+    cfgBg.ecArr = cfgBg.ec;
+  }
+  if(cfgBg.layers){
+    for(const l of cfgBg.layers){
+      l.y = GROUND_Y;
+      l.seed = l.seed || 1;
+    }
+  }
+}
+
 function drawBackground(theme){
   if(!theme || theme === 'pink' || theme === 'blue'){
     if(level && level.theme) theme = level.theme;
     else theme = 'dusk_suburbs';
   }
+  const cfg = BG_THEMES[theme] || BG_THEMES.dusk_suburbs;
+  const ph = dayPhase();
 
-  switch(theme){
-    case 'retro_mario_world': {
-      // Classic NES Sky Blue
-      ctx.fillStyle = '#5c94fc';
-      ctx.fillRect(0, 0, W, H);
+  bandedSky(cfg.sky);
 
-      // 1. Far Parallax Emerald Pixel Hills
-      ctx.save();
-      const hillSpacing = 420;
-      const hillOffset = (camX * 0.1) % hillSpacing;
-      for (let x = -hillSpacing; x < W + hillSpacing; x += hillSpacing) {
-        const hx = x - hillOffset;
-        const hy = GROUND_Y - 20;
-        
-        ctx.fillStyle = '#73c73c'; // Bright Green
-        ctx.beginPath();
-        ctx.moveTo(hx, hy);
-        ctx.lineTo(hx + 80, hy - 60);
-        ctx.lineTo(hx + 120, hy - 60);
-        ctx.lineTo(hx + 200, hy);
-        ctx.closePath();
-        ctx.fill();
+  if(ph.nightF > 0.02) skyStars(ph.nightF);
 
-        // Darker green shadowing/highlight
-        ctx.fillStyle = '#4fa328';
-        ctx.beginPath();
-        ctx.moveTo(hx + 100, hy - 60);
-        ctx.lineTo(hx + 120, hy - 60);
-        ctx.lineTo(hx + 200, hy);
-        ctx.lineTo(hx + 140, hy);
-        ctx.closePath();
-        ctx.fill();
+  drawCelestials(ph, cfg);
+
+  for(const l of cfg.layers){
+    const fn = MOTIFS[l.k];
+    if(fn) fn(l);
+  }
+
+  const extra = EXTRA_DRAW[cfg.extra];
+  if(extra){
+    const ecfg = Object.assign({}, cfg, { c: cfg.ec || cfg.ecArr || [] });
+    extra(ecfg, ph);
+  }
+}
+
+function classicGroundPalette(p, theme){
+  if(p.type === 'falling_ice'){
+    return {b1:'#bfe3f5', b2:'#a8d3ea', mortar:'#5b93b8', line:'#ffffff', cap:'#d6efff', cap2:'#9cc8e2', outline:'#1e5675'};
+  }
+  if(p.isWhite){
+    return {b1:'#eef4fa', b2:'#dde8f2', mortar:'#9fb3c5', line:'#ffffff', cap:'#f7fbff', cap2:'#cddcea', outline:'#40566b'};
+  }
+  const t = theme || '';
+  if(t === 'cyber' || t === 'cyberpunk_alley' || t === 'glitch_cyberverse' || t.indexOf('matrix') >= 0 || t.indexOf('laser') >= 0 || t.indexOf('hyperspeed') >= 0 || t.indexOf('plasma') >= 0 || t.indexOf('multiverse') >= 0){
+    return {b1:'#162c49', b2:'#10223a', mortar:'#081221', line:'#00f0ff', cap:'#1f3f66', cap2:'#142b47', outline:'#030910'};
+  }
+  if(t === 'horror_ruins' || t === 'gothic_cemetery' || t === 'doomsday_city' || t === 'haunted_mansion' || t === 'godzilla_ruins'){
+    return {b1:'#232f20', b2:'#1a2418', mortar:'#0c120c', line:'#22c55e', cap:'#2e4630', cap2:'#1d2c1c', outline:'#050a05'};
+  }
+  if(t.indexOf('cosmic') >= 0 || t === 'alien_hive' || t === 'neon_synthwave' || t === 'ultimate_cosmos'){
+    return {b1:'#251e4a', b2:'#1b153c', mortar:'#0e0a1f', line:'#d946ef', cap:'#3b3066', cap2:'#251e4a', outline:'#070411'};
+  }
+  if(t === 'desert' || t === 'desert_canyon'){
+    return {b1:'#d1923b', b2:'#c2842f', mortar:'#6b4711', line:'#ffe08a', cap:'#e6af4f', cap2:'#c98a2e', outline:'#3a2a0c'};
+  }
+  if(t === 'frozen_tundra' || t === 'sky_temple' || t.indexOf('rooftop') >= 0 || t.indexOf('temple') >= 0 || t.indexOf('realm') >= 0){
+    return {b1:'#41648a', b2:'#355478', mortar:'#1d334d', line:'#8fd3ff', cap:'#5381ad', cap2:'#3c5f83', outline:'#0d1c2b'};
+  }
+  if(t === 'industrial_factory' || t === 'industrial_sector' || t === 'industrial_foundry' || t === 'decaying_skyscraper' || t === 'nuclear_lab'){
+    return {b1:'#3b4a63', b2:'#313e54', mortar:'#1a2333', line:'#eab308', cap:'#4a5d7a', cap2:'#2a3648', outline:'#0c1118'};
+  }
+  if(t === 'night' || t === 'night_forest' || t === 'prehistoric_jungle'){
+    return {b1:'#2c3a2e', b2:'#223023', mortar:'#101a12', line:'#a3e635', cap:'#3b5c3b', cap2:'#243a26', outline:'#06100a'};
+  }
+  // default: classic grass-over-earth block like classic platformers.
+  return {b1:'#c2410c', b2:'#af3a0a', mortar:'#7c2d12', line:'#86efac', cap:'#16a34a', cap2:'#0e7a33', outline:'#3b2f1c'};
+}
+
+// Classic game ground: a crisp slab built out of square blocks with a clear
+// cap on top and a dark outline. Mirrors how classic platformers/endless
+// runners draw their floors instead of stretching a picture across the slab.
+function drawClassicGround(p, sx, extraW, theme){
+  const pal = classicGroundPalette(p, theme);
+  const X = Math.floor(sx);
+  const w = p.w + extraW;
+  const ow = 3;
+  const capH = Math.min(18, Math.max(8, Math.round(p.h * 0.18)));
+  const bodyTop = p.y + capH;
+  const bodyH = p.h - capH;
+  const blk = 30;
+
+  // 1. Body: square blocks with a subtle checker shade + bevels.
+  ctx.fillStyle = pal.b1;
+  ctx.fillRect(X, bodyTop, w, bodyH);
+  const rowsB = Math.max(1, Math.ceil(bodyH / blk));
+  const colsB = Math.max(1, Math.ceil(w / blk));
+  for(let r = 0; r < rowsB; r++){
+    for(let c = 0; c < colsB; c++){
+      if((r + c) % 2 === 1){
+        const bx = X + c * blk;
+        const by = bodyTop + r * blk;
+        const bw = Math.min(blk, X + w - bx);
+        const bh = Math.min(blk, bodyTop + bodyH - by);
+        ctx.fillStyle = pal.b2;
+        ctx.fillRect(bx, by, bw, bh);
       }
-      ctx.restore();
-
-      // 2. Mid Parallax Pixel-Art White Clouds
-      ctx.save();
-      const cloudSpacing = 300;
-      const cloudOffset = (camX * 0.15) % cloudSpacing;
-      for (let i = -1; i < 6; i++) {
-        const cx = i * cloudSpacing - cloudOffset;
-        const cy = 100 + (i % 3) * 35;
-        
-        // Classic puffy cloud blocks
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(cx, cy, 70, 20);
-        ctx.fillRect(cx + 10, cy - 10, 50, 10);
-        ctx.fillRect(cx + 20, cy - 20, 30, 10);
-        
-        // Cloud details/depth shadows
-        ctx.fillStyle = '#b0d0fc';
-        ctx.fillRect(cx + 10, cy + 16, 50, 4);
-      }
-      ctx.restore();
-      break;
-    }
-
-    case 'decaying_skyscraper': {
-      // Decaying Skyscraper Storm & Fire Background
-      const g = ctx.createLinearGradient(0, 0, 0, H);
-      g.addColorStop(0, '#0a0314');
-      g.addColorStop(0.4, '#1b0922');
-      g.addColorStop(0.8, '#2a0a18');
-      g.addColorStop(1, '#3d0c0c');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, W, H);
-
-      // Distant Lightning Flashes in Storm
-      if(Math.random() < 0.03){
-        ctx.fillStyle = 'rgba(180, 210, 255, 0.25)';
-        ctx.fillRect(0, 0, W, H);
-      }
-
-      // Parallax Distant Tower Framework Silhouettes
-      ctx.save();
-      ctx.fillStyle = 'rgba(20, 10, 28, 0.7)';
-      for(let i = -1; i < 8; i++){
-        const bx = (i * 240 - camX * 0.1) % (W + 240) - 80;
-        const h = 320 + (i % 3) * 60;
-        ctx.fillRect(bx, H - h, 140, h);
-        // Broken illuminated windows
-        ctx.fillStyle = (i % 2 === 0) ? '#ff3d3d' : '#f59e0b';
-        ctx.globalAlpha = 0.35;
-        for(let wy = H - h + 20; wy < H - 40; wy += 35){
-          ctx.fillRect(bx + 15, wy, 25, 18);
-          ctx.fillRect(bx + 80, wy, 25, 18);
-        }
-        ctx.globalAlpha = 1.0;
-        ctx.fillStyle = 'rgba(20, 10, 28, 0.7)';
-      }
-      ctx.restore();
-
-      // Flashing Emergency Beacon Light at Top Center
-      ctx.save();
-      const beaconX = W * 0.5;
-      const beaconGlow = Math.sin(state.time * 0.008) * 0.5 + 0.5;
-      const bGrad = ctx.createRadialGradient(beaconX, 60, 5, beaconX, 60, 180);
-      bGrad.addColorStop(0, `rgba(239, 68, 68, ${0.4 + beaconGlow * 0.4})`);
-      bGrad.addColorStop(1, 'rgba(239, 68, 68, 0)');
-      ctx.fillStyle = bGrad;
-      ctx.beginPath(); ctx.arc(beaconX, 60, 180, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
-
-      break;
-    }
-
-    case 'dusk_suburbs': {
-      // 1. Sunset Suburbs
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#1c0a2a');
-      g.addColorStop(0.35, '#5c1d47');
-      g.addColorStop(0.7, '#d94f38');
-      g.addColorStop(1, '#f39c12');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Giant Setting Sun
-      ctx.save();
-      const sunX = W * 0.72 - (camX * 0.03) % W;
-      const sunGrad = ctx.createRadialGradient(sunX, 160, 20, sunX, 160, 110);
-      sunGrad.addColorStop(0, '#ffffff');
-      sunGrad.addColorStop(0.4, '#ffd23f');
-      sunGrad.addColorStop(1, 'rgba(243, 156, 18, 0)');
-      ctx.fillStyle = sunGrad;
-      ctx.beginPath(); ctx.arc(sunX, 160, 110, 0, Math.PI*2); ctx.fill();
-      ctx.restore();
-
-      // Suburb Hills Parallax (Seamless)
-      for(let layer=0; layer<3; layer++){
-        const speed = 0.08 + layer*0.08;
-        const color = layer===0 ? 'rgba(74, 21, 56, 0.45)' : layer===1 ? 'rgba(110, 35, 60, 0.55)' : 'rgba(145, 45, 55, 0.65)';
-        ctx.fillStyle = color;
-        const spacing = 480;
-        const offset = (camX * speed) % spacing;
-        for(let x = -spacing; x < W + spacing; x += spacing){
-          const bx = x - offset;
-          ctx.beginPath();
-          ctx.ellipse(bx + spacing/2, GROUND_Y+40+layer*15, spacing*0.7, 120-layer*20, 0, Math.PI, Math.PI*2);
-          ctx.fill();
-        }
-      }
-      break;
-    }
-
-    case 'cyber':
-    case 'cyberpunk_alley': {
-      // 2. Neon Cyberpunk Alleyway & Techno City
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#040612');
-      g.addColorStop(0.5, '#0d1733');
-      g.addColorStop(1, '#1e0a38');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Neon Ringed Cyber Orb
-      ctx.save();
-      const orbX = W * 0.8 - (camX * 0.04) % W;
-      ctx.fillStyle = 'rgba(0, 240, 255, 0.22)';
-      ctx.beginPath(); ctx.arc(orbX, 110, 65, 0, Math.PI*2); ctx.fill();
-      ctx.strokeStyle = '#38c6ff'; ctx.lineWidth = 3; ctx.stroke();
-      ctx.strokeStyle = '#ff00aa'; ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.ellipse(orbX, 110, 95, 22, -0.2, 0, Math.PI*2); ctx.stroke();
-      ctx.restore();
-
-      // Cyber Skyscrapers (Neon City Buildings with Animated Window Lights)
-      const spacing = 280;
-      const speed = 0.15;
-      const offset = (camX * speed) % (spacing * 12);
-      for(let i=-2; i<14; i++){
-        const bx = i*spacing - offset;
-        if(bx < -spacing || bx > W + spacing) continue;
-        const bh = 220 + ((Math.abs(i)*43)%180);
-        ctx.fillStyle = '#0a0d1a';
-        ctx.fillRect(bx, GROUND_Y-bh, 180, bh+200);
-        ctx.strokeStyle = i % 2 === 0 ? 'rgba(0, 240, 255, 0.4)' : 'rgba(255, 0, 170, 0.4)';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(bx, GROUND_Y-bh, 180, bh+200);
-        
-        // Neon windows with twinkling/flickering animated lights
-        if((i % 3) !== 0) {
-          for(let wy=GROUND_Y-bh+25; wy < GROUND_Y-20; wy += 35) {
-             const blink = Math.sin(state.time * 0.005 + wy * 0.1 + i * 2) > -0.2;
-             ctx.fillStyle = blink ? (i % 2 === 0 ? '#ff00aa' : '#00f0ff') : '#1e293b';
-             if(blink){
-               ctx.shadowColor = ctx.fillStyle;
-               ctx.shadowBlur = 8;
-             } else {
-               ctx.shadowBlur = 0;
-             }
-             ctx.fillRect(bx+20, wy, 12, 18);
-             ctx.fillRect(bx+50, wy, 12, 18);
-             ctx.fillRect(bx+118, wy, 12, 18);
-             ctx.fillRect(bx+148, wy, 12, 18);
-             ctx.shadowBlur = 0;
-          }
-        }
-      }
-      break;
-    }
-    case 'horror_ruins': {
-      // 3. CodeZero Horror Library Ruins
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#0a0105');
-      g.addColorStop(0.5, '#2e0416');
-      g.addColorStop(1, '#520829');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Blood Red Moon
-      ctx.save();
-      const moonX = W * 0.7 - (camX * 0.03) % W;
-      ctx.fillStyle = '#dc2626';
-      ctx.shadowColor = '#dc2626'; ctx.shadowBlur = 35;
-      ctx.beginPath(); ctx.arc(moonX, 100, 60, 0, Math.PI*2); ctx.fill();
-      ctx.restore();
-
-      // Gothic Pillars & Red Eyes
-      for(let i=-1; i<10; i++){
-        const px = (i*280 - camX*0.18) % (280*10);
-        ctx.fillStyle = '#18030e';
-        ctx.fillRect(px, GROUND_Y-220, 45, 240);
-        ctx.fillRect(px-10, GROUND_Y-230, 65, 15);
-        ctx.fillRect(px-10, GROUND_Y-10, 65, 15);
-
-        const blink = Math.sin(state.time*0.005 + i) > 0.1;
-        if(blink){
-          ctx.fillStyle = '#ff0033';
-          ctx.fillRect(px + 12, GROUND_Y - 140, 5, 4);
-          ctx.fillRect(px + 24, GROUND_Y - 140, 5, 4);
-        }
-      }
-      break;
-    }
-
-    case 'new_york_city': {
-      // Dynamic Multi-Zone Sky (Sunset Desert -> Volcanic Glow -> Cosmic Stratosphere)
-      const isHighAltitude = camY < -200;
-      const isVolcanoZone = camX > 1800 && camX < 5200;
-      const isStratosphere = camX >= 5200 || camY < -300;
-
-      const g = ctx.createLinearGradient(0, 0, 0, H);
-      if(isStratosphere){
-        // Cosmic Stratosphere / Aurora Night Sky
-        g.addColorStop(0, '#020617');
-        g.addColorStop(0.35, '#090d16');
-        g.addColorStop(0.7, '#1e1b4b');
-        g.addColorStop(1, '#3b0764');
-      } else if(isVolcanoZone){
-        // Volcanic Inferno Sky
-        g.addColorStop(0, '#1c1917');
-        g.addColorStop(0.35, '#450a0a');
-        g.addColorStop(0.7, '#7f1d1d');
-        g.addColorStop(1, '#ea580c');
-      } else {
-        // Sunset Desert & NYC Twilight
-        g.addColorStop(0, '#0f172a');
-        g.addColorStop(0.35, '#1e1b4b');
-        g.addColorStop(0.7, '#581c87');
-        g.addColorStop(1, '#ea580c');
-      }
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, W, H);
-
-      // 1. Cosmic Twinkling Stars in Stratosphere
-      if(isStratosphere || camY < -100){
-        ctx.save();
-        for(let s = 0; s < 45; s++){
-          const starX = (s * 97 + s * 13) % W;
-          const starY = (s * 61 + 23) % (H * 0.7);
-          const starAlpha = 0.3 + 0.7 * Math.sin(state.time * 0.003 + s);
-          ctx.fillStyle = `rgba(255, 255, 255, ${Math.max(0, starAlpha)})`;
-          ctx.beginPath(); ctx.arc(starX, starY, (s % 3 === 0) ? 1.8 : 1.2, 0, Math.PI * 2); ctx.fill();
-        }
-        // Ethereal Aurora Curtains
-        const aurT = state.time * 0.001;
-        ctx.strokeStyle = 'rgba(56, 189, 248, 0.15)';
-        ctx.lineWidth = 28;
-        ctx.beginPath();
-        ctx.moveTo(0, 80 + Math.sin(aurT) * 20);
-        ctx.bezierCurveTo(W * 0.35, 40 + Math.cos(aurT) * 25, W * 0.65, 120 + Math.sin(aurT * 1.3) * 25, W, 70);
-        ctx.stroke();
-
-        ctx.strokeStyle = 'rgba(168, 85, 247, 0.12)';
-        ctx.lineWidth = 32;
-        ctx.beginPath();
-        ctx.moveTo(0, 120 + Math.cos(aurT * 0.9) * 20);
-        ctx.bezierCurveTo(W * 0.3, 160 + Math.sin(aurT) * 25, W * 0.7, 90 + Math.cos(aurT * 1.2) * 25, W, 130);
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      // 2. Blazing Sunset Sun (Visible in desert / lower zones)
-      if(!isStratosphere){
-        ctx.save();
-        const sunX = 220 - camX * 0.04;
-        if(sunX > -150 && sunX < W + 150){
-          ctx.fillStyle = '#fde047'; ctx.shadowColor = '#f59e0b'; ctx.shadowBlur = 40;
-          ctx.beginPath(); ctx.arc(sunX, 150, 55, 0, Math.PI*2); ctx.fill();
-          ctx.shadowBlur = 0;
-        }
-        ctx.restore();
-      }
-
-      // 3. Sand Dunes (Left side background x < 2000)
-      if(camX < 2500){
-        ctx.save();
-        for(let d = 0; d < 2; d++){
-          const speed = 0.08 + d * 0.06;
-          ctx.fillStyle = d === 0 ? 'rgba(217, 119, 6, 0.45)' : 'rgba(245, 158, 11, 0.6)';
-          const offset = (camX * speed);
-          const duneStart = 0 - offset;
-          const duneEnd = 2200 - offset;
-          if(duneEnd > 0 && duneStart < W){
-            ctx.beginPath();
-            ctx.moveTo(duneStart, GROUND_Y + 50);
-            ctx.quadraticCurveTo(duneStart + 350, GROUND_Y - 90 - d*25, duneStart + 700, GROUND_Y - 20);
-            ctx.quadraticCurveTo(duneStart + 1000, GROUND_Y - 100, duneEnd, GROUND_Y + 50);
-            ctx.lineTo(duneEnd, GROUND_Y + 100);
-            ctx.lineTo(duneStart, GROUND_Y + 100);
-            ctx.fill();
-          }
-        }
-        ctx.restore();
-      }
-
-      // 4. Volcanic Crags & Smoke in Zone 2
-      if(camX > 1500 && camX < 5500){
-        ctx.save();
-        const vOffset = (camX - 2000) * 0.12;
-        ctx.fillStyle = '#290707';
-        for(let vi = 0; vi < 5; vi++){
-          const vx = vi * 320 - vOffset;
-          if(vx > -200 && vx < W + 200){
-            ctx.beginPath();
-            ctx.moveTo(vx - 140, GROUND_Y + 40);
-            ctx.lineTo(vx, GROUND_Y - 190 - (vi % 2) * 50);
-            ctx.lineTo(vx + 140, GROUND_Y + 40);
-            ctx.closePath();
-            ctx.fill();
-
-            // Magma Glow at Peak
-            ctx.fillStyle = 'rgba(239, 68, 68, 0.35)';
-            ctx.beginPath();
-            ctx.arc(vx, GROUND_Y - 190 - (vi % 2) * 50, 30, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#290707';
-          }
-        }
-        ctx.restore();
-      }
-
-      // 5. NYC Skyline: Empire State Building, Chrysler Building, Water Towers & Neon Signs
-      if(camX < 2600){
-        const spacing = 260;
-        const speed = 0.15;
-        const offset = (camX * speed) % (spacing * 14);
-        ctx.save();
-        for(let i = -2; i < 16; i++){
-          const bx = i * spacing - offset;
-          if(bx < -spacing || bx > W + spacing) continue;
-          const bh = 240 + ((Math.abs(i) * 37) % 220);
-          
-          // Skyscraper Body
-          ctx.fillStyle = '#090d16';
-          ctx.fillRect(bx, GROUND_Y - bh, 180, bh + 200);
-
-          // Empire State Building Spire (every 4th building)
-          if(i % 4 === 0){
-            ctx.fillStyle = '#090d16';
-            ctx.fillRect(bx + 75, GROUND_Y - bh - 80, 30, 80);
-            ctx.fillRect(bx + 86, GROUND_Y - bh - 140, 8, 60);
-            // Red Beacon Light on top spire
-            const blink = Math.sin(state.time * 0.006 + i) > 0;
-            ctx.fillStyle = blink ? '#ef4444' : '#7f1d1d';
-            ctx.shadowColor = '#ef4444';
-            ctx.shadowBlur = blink ? 15 : 0;
-            ctx.beginPath(); ctx.arc(bx + 90, GROUND_Y - bh - 142, 5, 0, Math.PI * 2); ctx.fill();
-            ctx.shadowBlur = 0;
-          }
-
-          // Rooftop Wooden Water Tower
-          if(i % 3 === 1){
-            ctx.fillStyle = '#78350f';
-            ctx.fillRect(bx + 30, GROUND_Y - bh - 30, 35, 30);
-            ctx.beginPath();
-            ctx.moveTo(bx + 25, GROUND_Y - bh - 30);
-            ctx.lineTo(bx + 47, GROUND_Y - bh - 48);
-            ctx.lineTo(bx + 70, GROUND_Y - bh - 30);
-            ctx.fill();
-          }
-
-          // Lit Windows (Yellow Warm NYC Glow)
-          for(let wy = GROUND_Y - bh + 20; wy < GROUND_Y - 20; wy += 35){
-            const isLit = (Math.sin(wy * 0.05 + i * 1.7) > -0.1);
-            ctx.fillStyle = isLit ? '#fbbf24' : '#1e293b';
-            ctx.fillRect(bx + 20, wy, 15, 18);
-            ctx.fillRect(bx + 55, wy, 15, 18);
-            ctx.fillRect(bx + 110, wy, 15, 18);
-            ctx.fillRect(bx + 145, wy, 15, 18);
-          }
-
-          // NYC Neon Billboards
-          if(i % 5 === 2){
-            ctx.fillStyle = '#ec4899';
-            ctx.fillRect(bx + 20, GROUND_Y - bh + 40, 140, 30);
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 12px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText("🗽 TIMES SQUARE 🚕", bx + 90, GROUND_Y - bh + 60);
-          }
-        }
-
-        // NYC Yellow Taxis driving on background highway
-        const taxiY = GROUND_Y + 20;
-        ctx.fillStyle = '#1e293b';
-        ctx.fillRect(0, taxiY, W, 8);
-        for(let t = 0; t < 5; t++){
-          const tx = ((t * 350 + state.time * 0.12 - camX * 0.25) % (W + 400)) - 100;
-          ctx.fillStyle = '#f59e0b'; // NYC Yellow Cab!
-          ctx.fillRect(tx, taxiY - 10, 36, 10);
-          ctx.fillStyle = '#000000';
-          ctx.fillRect(tx + 6, taxiY - 14, 20, 5); // Taxi roof sign
-          ctx.fillStyle = '#fef08a';
-          ctx.fillRect(tx + 32, taxiY - 8, 4, 4); // Headlight
-        }
-        ctx.restore();
-      }
-
-      // 6. Floating Parallax Soft Clouds drifting below in Stratosphere
-      if(isStratosphere || camY < -200){
-        ctx.save();
-        ctx.fillStyle = 'rgba(241, 245, 249, 0.22)';
-        for(let c = 0; c < 4; c++){
-          const cloudX = ((c * 400 + state.time * 0.02 - camX * 0.08) % (W + 400)) - 150;
-          const cloudY = H * 0.65 + c * 35;
-          ctx.beginPath();
-          ctx.arc(cloudX, cloudY, 40, 0, Math.PI * 2);
-          ctx.arc(cloudX + 35, cloudY - 12, 50, 0, Math.PI * 2);
-          ctx.arc(cloudX + 75, cloudY, 40, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.restore();
-      }
-
-      break;
-    }
-
-    case 'desert_canyon': {
-      // 4. Golden Desert Canyon
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#2b0d02');
-      g.addColorStop(0.35, '#803303');
-      g.addColorStop(0.7, '#d97706');
-      g.addColorStop(1, '#fbbf24');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Blazing Sun
-      ctx.save();
-      const bSunX = W * 0.5 - (camX * 0.02) % W;
-      ctx.fillStyle = '#ffffff'; ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 40;
-      ctx.beginPath(); ctx.arc(bSunX, 120, 55, 0, Math.PI*2); ctx.fill();
-      ctx.restore();
-
-      // Red Rock Canyons (Seamless)
-      for(let layer=0; layer<3; layer++){
-        const speed = 0.07 + layer*0.07;
-        ctx.fillStyle = layer===0 ? 'rgba(120, 40, 10, 0.4)' : layer===1 ? 'rgba(160, 55, 15, 0.55)' : 'rgba(200, 75, 20, 0.7)';
-        const spacing = 420;
-        const offset = (camX * speed) % spacing;
-        for(let x = -spacing; x < W + spacing; x += spacing){
-          const cx = x - offset;
-          ctx.beginPath();
-          ctx.moveTo(cx, GROUND_Y+50);
-          ctx.lineTo(cx+spacing*0.2, GROUND_Y-90-layer*30);
-          ctx.lineTo(cx+spacing*0.6, GROUND_Y-120-layer*20);
-          ctx.lineTo(cx+spacing*0.8, GROUND_Y-70-layer*30);
-          ctx.lineTo(cx+spacing, GROUND_Y+50);
-          ctx.closePath();
-          ctx.fill();
-        }
-      }
-      break;
-    }
-
-    case 'volcanic_inferno':
-    case 'infernal_volcano': {
-      // 5 & 11. Infernal Volcanic Boss Arena
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#1a0000');
-      g.addColorStop(0.5, '#4d0000');
-      g.addColorStop(1, '#800505');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Erupting Volcanoes (Seamless)
-      const spacing = 500;
-      const speed = 0.1;
-      const offset = (camX * speed) % spacing;
-      for(let x = -spacing; x < W + spacing; x += spacing){
-        const vx = x - offset;
-        ctx.fillStyle = '#220303';
-        ctx.beginPath();
-        ctx.moveTo(vx, GROUND_Y+50);
-        ctx.lineTo(vx+140, GROUND_Y-180);
-        ctx.lineTo(vx+190, GROUND_Y-180);
-        ctx.lineTo(vx+330, GROUND_Y+50);
-        ctx.fill();
-
-        // Flowing Lava on Volcano
-        const pulse = Math.sin(state.time*0.01 + x) > 0 ? '#ff3d6e' : '#f59e0b';
-        ctx.fillStyle = pulse;
-        ctx.beginPath();
-        ctx.arc(vx+165, GROUND_Y-180, 25, 0, Math.PI*2);
-        ctx.fill();
-      }
-
-      // Floating Lava Sparks
-      ctx.fillStyle = '#ffaa00';
-      for(let i=0; i<35; i++){
-        const px = (i*137 + state.time*0.15) % W;
-        const py = (GROUND_Y - (i*43 + state.time*0.2) % (GROUND_Y - 20));
-        ctx.fillRect(px, py, 3, 3);
-      }
-      break;
-    }
-
-    case 'night_forest': {
-      // 10. Moonlit Forest
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#020a10');
-      g.addColorStop(0.5, '#051622');
-      g.addColorStop(1, '#0b2434');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Silver Moon
-      ctx.save();
-      const nMoonX = W * 0.82 - (camX * 0.025) % W;
-      ctx.fillStyle = '#f8fafc'; ctx.shadowColor = '#94a3b8'; ctx.shadowBlur = 30;
-      ctx.beginPath(); ctx.arc(nMoonX, 90, 45, 0, Math.PI*2); ctx.fill();
-      ctx.restore();
-
-      // Pine Trees Parallax
-      for(let layer=0; layer<3; layer++){
-        const speed = 0.08 + layer*0.08;
-        ctx.fillStyle = layer===0 ? 'rgba(5, 25, 20, 0.4)' : layer===1 ? 'rgba(8, 35, 25, 0.55)' : 'rgba(12, 45, 30, 0.7)';
-        for(let i=-1; i<8; i++){
-          const tx = (i*260 - camX*speed) % (260*8);
-          ctx.beginPath();
-          ctx.moveTo(tx, GROUND_Y+50);
-          ctx.lineTo(tx+60, GROUND_Y-120-layer*40);
-          ctx.lineTo(tx+120, GROUND_Y+50);
-          ctx.fill();
-        }
-      }
-      break;
-    }
-
-    case 'industrial_sector':
-    case 'nuclear_lab': {
-      // 6. Nuclear Power Plant / Laser Matrix
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#02120a');
-      g.addColorStop(0.5, '#082c1b');
-      g.addColorStop(1, '#0f4a2d');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Cooling Towers
-      for(let i=-1; i<6; i++){
-        const tx = (i*350 - camX*0.12) % (350*6);
-        ctx.fillStyle = '#061e13';
-        ctx.beginPath();
-        ctx.moveTo(tx, GROUND_Y+50);
-        ctx.lineTo(tx+40, GROUND_Y-160);
-        ctx.lineTo(tx+160, GROUND_Y-160);
-        ctx.lineTo(tx+200, GROUND_Y+50);
-        ctx.fill();
-
-        ctx.fillStyle = 'rgba(34, 197, 94, 0.25)';
-        ctx.beginPath();
-        ctx.arc(tx+100, GROUND_Y-190, 45 + Math.sin(state.time*0.005 + i)*10, 0, Math.PI*2);
-        ctx.fill();
-      }
-      break;
-    }
-
-    case 'frozen_tundra': {
-      // 7. Frozen Tundra & Aurora Borealis
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#03101e');
-      g.addColorStop(0.5, '#0a2542');
-      g.addColorStop(1, '#133d6b');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Aurora Borealis
-      ctx.save();
-      const waveT = state.time * 0.002;
-      ctx.fillStyle = 'rgba(0, 240, 255, 0.18)';
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      for(let x=0; x<=W; x+=40){
-        ctx.lineTo(x, 70 + Math.sin(x*0.01 + waveT)*35);
-      }
-      ctx.lineTo(W, 0);
-      ctx.fill();
-
-      ctx.fillStyle = 'rgba(168, 85, 247, 0.15)';
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      for(let x=0; x<=W; x+=40){
-        ctx.lineTo(x, 110 + Math.cos(x*0.012 - waveT)*40);
-      }
-      ctx.lineTo(W, 0);
-      ctx.fill();
-      ctx.restore();
-
-      // Ice Mountains (Seamless)
-      const spacing = 400;
-      const speed = 0.1;
-      const offset = (camX * speed) % spacing;
-      for(let x = -spacing; x < W + spacing; x += spacing){
-        const ix = x - offset;
-        ctx.fillStyle = '#062038';
-        ctx.beginPath();
-        ctx.moveTo(ix, GROUND_Y+50);
-        ctx.lineTo(ix+spacing*0.3, GROUND_Y-150);
-        ctx.lineTo(ix+spacing*0.6, GROUND_Y+50);
-        ctx.fill();
-
-        ctx.fillStyle = '#e0f2fe';
-        ctx.beginPath();
-        ctx.moveTo(ix+spacing*0.2, GROUND_Y-100);
-        ctx.lineTo(ix+spacing*0.3, GROUND_Y-150);
-        ctx.lineTo(ix+spacing*0.4, GROUND_Y-100);
-        ctx.fill();
-      }
-
-      // Snow
-      ctx.fillStyle = '#ffffff';
-      for(let i=0; i<40; i++){
-        const sx = (i*97 + state.time*0.1) % W;
-        const sy = (i*61 + state.time*0.15) % H;
-        ctx.beginPath(); ctx.arc(sx, sy, 1.8, 0, Math.PI*2); ctx.fill();
-      }
-      break;
-    }
-
-    case 'cosmic_void': {
-      // 8. Cosmic Deep Space Void
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#020108');
-      g.addColorStop(0.5, '#0e0624');
-      g.addColorStop(1, '#1e0a40');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Ringed Cosmic Planet
-      ctx.save();
-      const px = W * 0.75 - (camX * 0.02) % W;
-      ctx.fillStyle = '#a855f7';
-      ctx.beginPath(); ctx.arc(px, 110, 60, 0, Math.PI*2); ctx.fill();
-      ctx.strokeStyle = '#f43f5e'; ctx.lineWidth = 6;
-      ctx.beginPath(); ctx.ellipse(px, 110, 100, 20, -0.3, 0, Math.PI*2); ctx.stroke();
-      ctx.restore();
-
-      // Twinkling Starlight
-      ctx.fillStyle = '#ffffff';
-      for(let i=0; i<60; i++){
-        const sx = (i*137 - camX*0.05) % W;
-        const sy = (i*53) % H;
-        const tw = Math.sin(state.time*0.005 + i)*0.4 + 0.6;
-        ctx.globalAlpha = tw;
-        ctx.fillRect(((sx%W)+W)%W, sy, 2, 2);
-      }
-      ctx.globalAlpha = 1;
-      break;
-    }
-
-    case 'doomsday_city':
-    case 'godzilla_ruins': {
-      // 9 & 20. Doomsday City / Godzilla Ruins
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#0a0208');
-      g.addColorStop(0.5, '#1f0515');
-      g.addColorStop(1, '#380a26');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Searchlight beams
-      ctx.save();
-      const beamAngle = Math.sin(state.time * 0.0015) * 0.4;
-      ctx.fillStyle = 'rgba(0, 240, 255, 0.08)';
-      ctx.beginPath();
-      ctx.moveTo(W * 0.3, H);
-      ctx.lineTo(W * 0.3 - 150 + Math.tan(beamAngle)*300, 0);
-      ctx.lineTo(W * 0.3 + 150 + Math.tan(beamAngle)*300, 0);
-      ctx.fill();
-      ctx.restore();
-      break;
-    }
-
-    case 'glitch_cyberverse': {
-      // Premium Cyber Mainframe Depth Grid Background
-      const bgGlow = ctx.createRadialGradient(W/2, H/2, 50, W/2, H/2, Math.max(W, H));
-      bgGlow.addColorStop(0, '#0d041c');
-      bgGlow.addColorStop(0.5, '#04010a');
-      bgGlow.addColorStop(1, '#010003');
-      ctx.fillStyle = bgGlow;
-      ctx.fillRect(0, 0, W, H);
-
-      // 1. Draw 3 massive background mainframe server towers in smooth parallax vertical scroll
-      ctx.save();
-      // Translate slowly relative to camera vertical movement to produce perfect spatial depth
-      const towerScrollY = (camY * 0.25) % H;
-      const towerPositions = [0.15, 0.48, 0.82];
-      
-      towerPositions.forEach((pct, idx) => {
-        // Horizontally scroll the towers slowly as the player moves left/right
-        const tx = W * pct - (camX * 0.12) % W;
-        const tw = 150; // Pillar Width
-        
-        // Render several vertical columns to ensure full seamless coverage during camera panning
-        for (let segmentY = -H; segmentY < H * 2; segmentY += H) {
-          const drawY = segmentY - towerScrollY;
-          
-          // Outer Pillar Dark Glass Gradients
-          const towerGrad = ctx.createLinearGradient(tx, 0, tx + tw, 0);
-          towerGrad.addColorStop(0, '#090212');
-          towerGrad.addColorStop(0.5, '#16092b');
-          towerGrad.addColorStop(1, '#050109');
-          ctx.fillStyle = towerGrad;
-          ctx.fillRect(tx, drawY, tw, H);
-          
-          // Inner motherboard wire circuits on the pillar body
-          ctx.strokeStyle = 'rgba(0, 240, 255, 0.08)';
-          ctx.lineWidth = 1;
-          for (let gx = tx + 20; gx < tx + tw; gx += 25) {
-            ctx.beginPath(); 
-            ctx.moveTo(gx, drawY); 
-            ctx.lineTo(gx, drawY + H); 
-            ctx.stroke();
-          }
-          
-          // Horizontal server racks and light arrays
-          ctx.strokeStyle = 'rgba(244, 63, 94, 0.15)';
-          for (let gy = drawY + 15; gy < drawY + H; gy += 70) {
-            ctx.beginPath(); 
-            ctx.moveTo(tx, gy); 
-            ctx.lineTo(tx + tw, gy); 
-            ctx.stroke();
-            
-            // Blinking server state LEDs
-            for (let ledX = tx + 20; ledX < tx + tw - 20; ledX += 28) {
-              const blinkSeed = (ledX * 4 + gy * 9 + state.time * 0.0035);
-              const isBlinking = Math.sin(blinkSeed) > 0.25;
-              if (isBlinking) {
-                const ledColor = (ledX + gy) % 3 === 0 ? '#00f0ff' : (ledX + gy) % 3 === 1 ? '#f43f5e' : '#a855f7';
-                ctx.fillStyle = ledColor;
-                ctx.beginPath();
-                ctx.arc(ledX, gy + 14, 2.5, 0, Math.PI * 2);
-                ctx.fill();
-              }
-            }
-            
-            // Neon oscilloscope diagnostic wave panels
-            if (gy % 210 === 0) {
-              ctx.fillStyle = '#06010f';
-              ctx.fillRect(tx + 12, gy + 22, tw - 24, 26);
-              
-              ctx.strokeStyle = 'rgba(0, 240, 255, 0.45)';
-              ctx.lineWidth = 1;
-              ctx.beginPath();
-              for (let wx = 0; wx < tw - 28; wx += 4) {
-                const waveY = gy + 35 + Math.sin(state.time * 0.012 + wx * 0.24 + gy) * 7;
-                if (wx === 0) ctx.moveTo(tx + 14 + wx, waveY);
-                else ctx.lineTo(tx + 14 + wx, waveY);
-              }
-              ctx.stroke();
-            }
-          }
-        }
-      });
-      ctx.restore();
-
-      // 2. Draw sagging cybernetic fiber cables hanging between the parallax towers
-      ctx.save();
-      ctx.strokeStyle = 'rgba(0, 240, 255, 0.16)';
-      ctx.lineWidth = 1.5;
-      for (let cy = -H; cy < H * 2; cy += 140) {
-        const drawY = cy - towerScrollY;
-        const tx1 = W * 0.15 - (camX * 0.12) % W + 150;
-        const tx2 = W * 0.48 - (camX * 0.12) % W;
-        const tx3 = W * 0.48 - (camX * 0.12) % W + 150;
-        const tx4 = W * 0.82 - (camX * 0.12) % W;
-        
-        ctx.beginPath();
-        ctx.moveTo(tx1, drawY);
-        ctx.quadraticCurveTo((tx1 + tx2)/2, drawY + 28, tx2, drawY + 10);
-        ctx.stroke();
-        
-        ctx.strokeStyle = 'rgba(244, 63, 94, 0.14)';
-        ctx.beginPath();
-        ctx.moveTo(tx3, drawY + 10);
-        ctx.quadraticCurveTo((tx3 + tx4)/2, drawY + 36, tx4, drawY);
-        ctx.stroke();
-      }
-      ctx.restore();
-
-      // 3. Falling holographic matrix scan columns
-      ctx.save();
-      ctx.font = 'bold 11px monospace';
-      const characters = ['10110', '0xF5', 'ø_ø', '[[SYS_CORE]]', '0101', '∆_ERROR', '∑_CPU', '11001'];
-      for(let i=0; i<45; i++){
-        const mx = (i * 36) % W;
-        const my = (i * 113 + state.time * 0.22) % H;
-        const colorIndex = i % 3;
-        
-        if (colorIndex === 0) {
-          ctx.fillStyle = 'rgba(0, 240, 255, 0.35)'; // Cyber Cyan
-        } else if (colorIndex === 1) {
-          ctx.fillStyle = 'rgba(244, 63, 94, 0.35)';  // Neon Pink
-        } else {
-          ctx.fillStyle = 'rgba(168, 85, 247, 0.25)'; // Purple Void
-        }
-
-        const text = characters[i % characters.length];
-        ctx.fillText(text, mx, my);
-      }
-      ctx.restore();
-      break;
-    }
-
-    case 'toxic_sewers': {
-      // 12. Toxic Sewers
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#021812');
-      g.addColorStop(0.5, '#063326');
-      g.addColorStop(1, '#0a4d39');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      const spacing = 300;
-      const speed = 0.1;
-      const offset = (camX * speed) % spacing;
-      for(let x = -spacing; x < W + spacing; x += spacing){
-        const px = x - offset;
-        ctx.fillStyle = '#022118';
-        ctx.fillRect(px, GROUND_Y - 200, 70, 220);
-        ctx.fillStyle = '#10b981';
-        ctx.fillRect(px + 20, GROUND_Y - 80, 30, 100);
-      }
-      break;
-    }
-
-    case 'prehistoric_jungle': {
-      // 13. Prehistoric Dinosaur Jungle
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#031c0e');
-      g.addColorStop(0.5, '#0d4726');
-      g.addColorStop(1, '#18733e');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      ctx.save();
-      const aMoonX = W * 0.8 - (camX * 0.03) % W;
-      ctx.fillStyle = '#fbbf24';
-      ctx.beginPath(); ctx.arc(aMoonX, 90, 50, 0, Math.PI*2); ctx.fill();
-      ctx.restore();
-
-      // Seamless Trees
-      const spacing = 260;
-      const speed = 0.12;
-      const offset = (camX * speed) % spacing;
-      for(let x = -spacing; x < W + spacing; x += spacing){
-        const tx = x - offset;
-        ctx.fillStyle = '#022d17';
-        ctx.beginPath();
-        ctx.arc(tx + spacing/2, GROUND_Y - 120, 90, 0, Math.PI*2);
-        ctx.fill();
-        ctx.fillRect(tx + spacing/2 - 20, GROUND_Y - 120, 40, 180);
-      }
-      break;
-    }
-
-    case 'gothic_cemetery': {
-      // 14. Gothic Graveyard
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#090514');
-      g.addColorStop(0.5, '#180b2d');
-      g.addColorStop(1, '#2d124d');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      ctx.fillStyle = '#fef08a';
-      const moonX = (W * 0.7 - (camX * 0.02) % W);
-      ctx.beginPath(); ctx.arc(moonX, 100, 55, 0, Math.PI*2); ctx.fill();
-
-      // Seamless Gravestones / Pillars
-      const spacing = 280;
-      const speed = 0.18;
-      const offset = (camX * speed) % spacing;
-      for(let x = -spacing; x < W + spacing; x += spacing){
-        const px = x - offset;
-        ctx.fillStyle = '#0f051a';
-        ctx.fillRect(px, GROUND_Y - 180, 50, 180);
-        ctx.fillRect(px - 10, GROUND_Y - 190, 70, 15);
-      }
-      break;
-    }
-    case 'neon_synthwave': {
-      // 15. Synthwave Retro Sun
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#1e0038');
-      g.addColorStop(0.5, '#500057');
-      g.addColorStop(1, '#8c005f');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      ctx.save();
-      const sX = W * 0.5 - (camX * 0.02) % W;
-      const sunG = ctx.createLinearGradient(0, 60, 0, 200);
-      sunG.addColorStop(0, '#ff00aa');
-      sunG.addColorStop(1, '#ffcc00');
-      ctx.fillStyle = sunG;
-      ctx.beginPath(); ctx.arc(sX, 130, 70, 0, Math.PI*2); ctx.fill();
-
-      ctx.fillStyle = '#500057';
-      for(let y = 110; y <= 190; y += 12){
-        ctx.fillRect(sX - 75, y, 150, 4);
-      }
-      ctx.restore();
-      break;
-    }
-
-    case 'alien_hive': {
-      // 16. Alien Hive Mothership
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#100224');
-      g.addColorStop(0.5, '#230545');
-      g.addColorStop(1, '#3b086e');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      for(let i=-1; i<8; i++){
-        const ax = (i*240 - camX*0.12) % (240*8);
-        ctx.fillStyle = '#1a0136';
-        ctx.beginPath(); ctx.ellipse(ax, GROUND_Y - 110, 35, 60, 0, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#ec4899';
-        ctx.beginPath(); ctx.ellipse(ax, GROUND_Y - 110, 15, 30, 0, 0, Math.PI*2); ctx.fill();
-      }
-      break;
-    }
-
-    case 'haunted_mansion': {
-      // 17. Haunted Mansion
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#120320');
-      g.addColorStop(0.5, '#250740');
-      g.addColorStop(1, '#400d66');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      for(let i=-1; i<6; i++){
-        const wx = (i*320 - camX*0.15) % (320*6);
-        ctx.fillStyle = '#ff0055';
-        ctx.fillRect(wx, GROUND_Y - 210, 50, 110);
-        ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 2;
-        ctx.strokeRect(wx, GROUND_Y - 210, 50, 110);
-      }
-      break;
-    }
-
-    case 'industrial_foundry': {
-      // 18. Molten Industrial Foundry
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#180802');
-      g.addColorStop(0.5, '#3b1404');
-      g.addColorStop(1, '#662205');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      for(let i=-1; i<5; i++){
-        const fx = (i*380 - camX*0.15) % (380*5);
-        ctx.fillStyle = '#271005';
-        ctx.fillRect(fx, GROUND_Y - 240, 30, 260);
-        ctx.fillRect(fx - 40, GROUND_Y - 240, 120, 20);
-      }
-      break;
-    }
-
-    case 'sky_temple': {
-      // 19. Heavenly Sky Temple
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#0c192c');
-      g.addColorStop(0.5, '#1a365d');
-      g.addColorStop(1, '#2b5288');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      ctx.fillStyle = 'rgba(251, 191, 36, 0.25)';
-      for(let i=-1; i<8; i++){
-        const cx = (i*260 - camX*0.1) % (260*8);
-        ctx.beginPath(); ctx.arc(cx, GROUND_Y - 40, 70, 0, Math.PI*2); ctx.fill();
-      }
-      break;
-    }
-
-    // ---------- PRO OBBY EXCLUSIVE THEMES (Ep 25 - 44) ----------
-    case 'pro_cyber_matrix': {
-      // PRO 1. Neon Matrix & Cyber Perspectives
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#02000a');
-      g.addColorStop(0.5, '#0c0226');
-      g.addColorStop(1, '#1b004d');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Glowing Wireframe Horizon Grid
-      ctx.strokeStyle = 'rgba(0, 240, 255, 0.25)';
-      ctx.lineWidth = 1;
-      const horizY = 220;
-      for(let x = 0; x <= W; x += 30){
-        ctx.beginPath();
-        ctx.moveTo(W/2, horizY);
-        ctx.lineTo(x, H);
-        ctx.stroke();
-      }
-      for(let y = horizY; y <= H; y += 18){
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(W, y);
-        ctx.stroke();
-      }
-
-      // Digital Matrix Code Columns
-      ctx.fillStyle = 'rgba(0, 240, 255, 0.7)';
-      ctx.font = 'bold 10px monospace';
-      for(let i = 0; i < 25; i++){
-        const mx = (i * 40 - camX * 0.1) % W;
-        const my = (i * 97 + state.time * 0.3) % (H - 100);
-        ctx.fillText('PRO_OBBY_2026', ((mx % W) + W) % W, my);
-      }
-      break;
-    }
-
-    case 'pro_plasma_storm': {
-      // PRO 2. Violent Violet Plasma Storm
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#0c001c');
-      g.addColorStop(0.5, '#280054');
-      g.addColorStop(1, '#4a008c');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Electric Lightning Arcs in Sky
-      if(Math.random() < 0.35){
-        ctx.strokeStyle = '#d946ef';
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        let lx = (state.time * 0.1) % W;
-        let ly = 20;
-        ctx.moveTo(lx, ly);
-        for(let j=0; j<6; j++){
-          lx += (Math.random() - 0.5) * 60;
-          ly += 30 + Math.random() * 20;
-          ctx.lineTo(lx, ly);
-        }
-        ctx.stroke();
-      }
-
-      // Plasma Vortex Orb
-      ctx.save();
-      const pvX = W * 0.7 - (camX * 0.02) % W;
-      const pvGrad = ctx.createRadialGradient(pvX, 120, 10, pvX, 120, 90);
-      pvGrad.addColorStop(0, '#ffffff');
-      pvGrad.addColorStop(0.4, '#e879f9');
-      pvGrad.addColorStop(1, 'rgba(168, 85, 247, 0)');
-      ctx.fillStyle = pvGrad;
-      ctx.beginPath(); ctx.arc(pvX, 120, 90, 0, Math.PI*2); ctx.fill();
-      ctx.restore();
-      break;
-    }
-
-    case 'pro_infernal_abyss': {
-      // PRO 3. Deep Obsidian Infernal Abyss
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#050000');
-      g.addColorStop(0.5, '#2e0000');
-      g.addColorStop(1, '#660000');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Glowing Pentagram / Lava Eye Ring
-      ctx.save();
-      const eyeX = W * 0.5 - (camX * 0.015) % W;
-      ctx.strokeStyle = '#ff3d6e';
-      ctx.lineWidth = 3;
-      ctx.shadowColor = '#ff3d6e'; ctx.shadowBlur = 25;
-      ctx.beginPath(); ctx.arc(eyeX, 130, 75, 0, Math.PI*2); ctx.stroke();
-      ctx.beginPath(); ctx.arc(eyeX, 130, 20 + Math.sin(state.time*0.005)*8, 0, Math.PI*2); ctx.fillStyle='#ff0033'; ctx.fill();
-      ctx.restore();
-
-      // Lava Ember Sparks
-      ctx.fillStyle = '#ffcc00';
-      for(let i=0; i<40; i++){
-        const ex = (i*113 + state.time*0.2) % W;
-        const ey = (GROUND_Y - (i*37 + state.time*0.3) % (GROUND_Y - 10));
-        ctx.fillRect(ex, ey, 2.5, 2.5);
-      }
-      break;
-    }
-
-    case 'pro_toxic_wasteland': {
-      // PRO 4. Radioactive Acid Wasteland
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#011207');
-      g.addColorStop(0.5, '#053d1b');
-      g.addColorStop(1, '#096e30');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Biohazard Symbols & Toxic Clouds
-      ctx.fillStyle = 'rgba(16, 185, 129, 0.2)';
-      for(let i=-1; i<7; i++){
-        const tx = (i*280 - camX*0.08) % (280*7);
-        ctx.beginPath();
-        ctx.arc(tx + 100, 140, 60 + Math.sin(state.time*0.003 + i)*15, 0, Math.PI*2);
-        ctx.fill();
-      }
-
-      ctx.fillStyle = '#22c55e';
-      for(let i=0; i<30; i++){
-        const bx = (i*149 + state.time*0.1) % W;
-        const by = (i*83 + Math.sin(state.time*0.005 + i)*15) % (H - 80);
-        ctx.fillRect(bx, by, 3, 3);
-      }
-      break;
-    }
-
-    case 'pro_golden_god_realm': {
-      // PRO 5. Divine Onyx & Gold Sanctum
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#0a0a0c');
-      g.addColorStop(0.5, '#221d0a');
-      g.addColorStop(1, '#42360f');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Golden Rays from Heaven
-      ctx.save();
-      ctx.fillStyle = 'rgba(255, 210, 63, 0.12)';
-      for(let i = 0; i < 5; i++){
-        const rayX = W * 0.2 + i * 160 - (camX * 0.02) % W;
-        ctx.beginPath();
-        ctx.moveTo(rayX, 0);
-        ctx.lineTo(rayX - 40, H);
-        ctx.lineTo(rayX + 60, H);
-        ctx.closePath();
-        ctx.fill();
-      }
-      ctx.restore();
-      break;
-    }
-
-    case 'pro_laser_fortress': {
-      // PRO 7. High-Tech Cyber Fortress & Lasers
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#0a020d');
-      g.addColorStop(0.5, '#26042b');
-      g.addColorStop(1, '#4d0857');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Laser Surveillance Grid
-      ctx.strokeStyle = 'rgba(255, 0, 85, 0.3)';
-      ctx.lineWidth = 1.5;
-      const scanY = (state.time * 0.15) % H;
-      ctx.beginPath(); ctx.moveTo(0, scanY); ctx.lineTo(W, scanY); ctx.stroke();
-      break;
-    }
-
-    case 'pro_void_multiverse': {
-      // PRO 8. Multiverse Void & Cosmic Stars
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#010008');
-      g.addColorStop(0.5, '#0b0026');
-      g.addColorStop(1, '#1b0054');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Twinkling Rainbow Star Clusters
-      for(let i=0; i<70; i++){
-        const sx = (i*127 - camX*0.04) % W;
-        const sy = (i*67) % H;
-        const hue = (i * 40 + state.time * 0.05) % 360;
-        ctx.fillStyle = `hsl(${hue}, 100%, 75%)`;
-        ctx.fillRect(((sx%W)+W)%W, sy, 2, 2);
-      }
-      break;
-    }
-
-    case 'pro_blood_moon': {
-      // PRO 9. Eerie Blood Moon & Dark Clouds
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#0d0101');
-      g.addColorStop(0.5, '#330303');
-      g.addColorStop(1, '#5e0606');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Massive Blood Moon
-      ctx.save();
-      const bmX = W * 0.7 - (camX * 0.02) % W;
-      ctx.fillStyle = '#dc2626';
-      ctx.shadowColor = '#dc2626'; ctx.shadowBlur = 45;
-      ctx.beginPath(); ctx.arc(bmX, 110, 70, 0, Math.PI*2); ctx.fill();
-      ctx.restore();
-      break;
-    }
-
-    case 'pro_acid_sewers': {
-      // PRO 10. Toxic Sewer Slime Tubes
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#021812');
-      g.addColorStop(0.5, '#063b2c');
-      g.addColorStop(1, '#0c5c45');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      for(let i=-1; i<6; i++){
-        const px = (i*320 - camX*0.12) % (320*6);
-        ctx.fillStyle = '#022e22';
-        ctx.fillRect(px, GROUND_Y - 220, 80, 240);
-        ctx.fillStyle = '#10b981';
-        ctx.fillRect(px + 25, GROUND_Y - 100, 30, 120);
-      }
-      break;
-    }
-
-    case 'pro_volcano_magma': {
-      // PRO 11. Erupting Volcanic Lava
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#1c0000');
-      g.addColorStop(0.5, '#520000');
-      g.addColorStop(1, '#8a0a0a');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Magma Eruption Ash
-      ctx.fillStyle = '#ffaa00';
-      for(let i=0; i<45; i++){
-        const px = (i*131 + state.time*0.2) % W;
-        const py = (GROUND_Y - (i*47 + state.time*0.25) % (GROUND_Y - 20));
-        ctx.fillRect(px, py, 3, 3);
-      }
-      break;
-    }
-
-    case 'airplane_sky': {
-      // Airplane Sky Theme
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#0ea5e9');
-      g.addColorStop(0.5, '#7dd3fc');
-      g.addColorStop(1, '#bae6fd');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Clouds
-      ctx.fillStyle = 'rgba(255,255,255,0.7)';
-      for(let i=0; i<15; i++){
-        const cx = (i*240 + state.time*0.05) % W;
-        const cy = (i*67) % (H-100);
-        ctx.beginPath();
-        ctx.arc(cx, cy, 30, 0, Math.PI*2);
-        ctx.arc(cx+25, cy-10, 25, 0, Math.PI*2);
-        ctx.arc(cx+45, cy, 20, 0, Math.PI*2);
-        ctx.fill();
-      }
-      break;
-    }
-
-    case 'parkour_rooftops':
-    case 'pro_rooftop_sunset': {
-      // 12. Apocalyptic Skyscraper Sunset
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#150029');
-      g.addColorStop(0.5, '#45003b');
-      g.addColorStop(1, '#851d00');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      for(let i=-1; i<10; i++){
-        const bx = (i*210 - camX*0.14) % (210*10);
-        const bh = 210 + ((i*41)%120);
-        ctx.fillStyle = '#0f001c';
-        ctx.fillRect(bx, GROUND_Y-bh, 150, bh+100);
-        
-        // Windows
-        ctx.fillStyle = 'rgba(255, 210, 63, 0.3)';
-        for(let wy = GROUND_Y-bh+20; wy < GROUND_Y-20; wy += 40){
-          ctx.fillRect(bx+20, wy, 15, 20);
-          ctx.fillRect(bx+55, wy, 15, 20);
-          ctx.fillRect(bx+90, wy, 15, 20);
-          ctx.fillRect(bx+115, wy, 15, 20);
-        }
-      }
-      break;
-    }
-
-    case 'pro_godzilla_arena': {
-      // PRO 13. Godzilla Titan Arena
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#050a14');
-      g.addColorStop(0.5, '#0c1a33');
-      g.addColorStop(1, '#17305c');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Atomic Breath Charging Aura
-      ctx.save();
-      const gzX = W * 0.8 - (camX * 0.02) % W;
-      ctx.fillStyle = 'rgba(0, 240, 255, 0.2)';
-      ctx.beginPath(); ctx.arc(gzX, 120, 85 + Math.sin(state.time*0.01)*15, 0, Math.PI*2); ctx.fill();
-      ctx.restore();
-      break;
-    }
-
-    case 'pro_demonic_realm': {
-      // PRO 14. Spooky Demonic Phantom Void
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#0a0012');
-      g.addColorStop(0.5, '#24003d');
-      g.addColorStop(1, '#42006e');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Glowing Spirit Eyes in Background
-      for(let i=-1; i<8; i++){
-        const ex = (i*260 - camX*0.12) % (260*8);
-        if(Math.sin(state.time*0.004 + i) > 0){
-          ctx.fillStyle = '#ff00aa';
-          ctx.fillRect(ex + 20, GROUND_Y - 180, 6, 5);
-          ctx.fillRect(ex + 34, GROUND_Y - 180, 6, 5);
-        }
-      }
-      break;
-    }
-
-    case 'pro_hyperspeed_void': {
-      // PRO 15. Speedrun Warp Tunnel
-      ctx.fillStyle = '#000000';
-      ctx.fillRect(0,0,W,H);
-
-      ctx.strokeStyle = 'rgba(255, 210, 63, 0.4)';
-      ctx.lineWidth = 2;
-      for(let i=0; i<18; i++){
-        const x = (i * 60 - state.time * 1.2) % W;
-        ctx.beginPath(); ctx.moveTo(((x%W)+W)%W, 0); ctx.lineTo(((x%W)+W)%W, H); ctx.stroke();
-      }
-      break;
-    }
-
-    case 'pro_atomic_reactor': {
-      // PRO 16. Atomic Reactor Core
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#00140a');
-      g.addColorStop(0.5, '#00381d');
-      g.addColorStop(1, '#006133');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Pulsing Nuclear Rings
-      ctx.save();
-      const nrX = W * 0.5 - (camX * 0.01) % W;
-      ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 4;
-      ctx.shadowColor = '#22c55e'; ctx.shadowBlur = 25;
-      ctx.beginPath(); ctx.arc(nrX, 130, 80 + Math.sin(state.time*0.008)*12, 0, Math.PI*2); ctx.stroke();
-      ctx.restore();
-      break;
-    }
-
-    case 'industrial_factory': {
-      // Titan Factory: Dark industrial hall with smelters, pipes & hazard lights
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#070a0f');
-      g.addColorStop(0.45, '#11151c');
-      g.addColorStop(0.78, '#211b16');
-      g.addColorStop(1, '#332313');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Distant steel girder skeletons (slow parallax)
-      for(let i=-1; i<10; i++){
-        const px = (i*320 - camX*0.06) % (320*10);
-        ctx.fillStyle = 'rgba(51, 65, 85, 0.30)';
-        ctx.fillRect(px, GROUND_Y-360, 70, 380);
-        ctx.fillStyle = 'rgba(200, 90, 40, 0.13)';
-        ctx.fillRect(px+14, GROUND_Y-340, 10, GROUND_Y+60);
-        ctx.fillRect(px+50, GROUND_Y-340, 10, GROUND_Y+60);
-        ctx.fillStyle = 'rgba(148, 163, 184, 0.10)';
-        ctx.fillRect(px-30, GROUND_Y-260, 130, 8);
-        ctx.fillRect(px-30, GROUND_Y-180, 130, 8);
-      }
-
-      // Factory roofline with smokestacks (medium parallax)
-      for(let i=-1; i<10; i++){
-        const cx = (i*420 + 160 - camX*0.12) % (420*10);
-        ctx.fillStyle = '#0c0e13';
-        ctx.fillRect(cx-140, GROUND_Y-160, 280, 180);
-        ctx.fillRect(cx-60, GROUND_Y-250, 36, 100);
-        ctx.fillRect(cx+28, GROUND_Y-292, 42, 142);
-        ctx.fillStyle = 'rgba(239, 68, 68, 0.10)';
-        ctx.fillRect(cx-140, GROUND_Y-160, 280, 180);
-
-        // Blinking amber roof lights
-        const blink = Math.sin(state.time*0.006 + i*1.7) > 0.2;
-        ctx.fillStyle = blink ? '#f59e0b' : 'rgba(245, 158, 11, 0.25)';
-        ctx.beginPath(); ctx.arc(cx-90, GROUND_Y-178, 4, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(cx+118, GROUND_Y-178, 4, 0, Math.PI*2); ctx.fill();
-
-        // Churning smoke puffs from the tall stack
-        ctx.fillStyle = 'rgba(148, 163, 184, 0.12)';
-        ctx.beginPath();
-        ctx.arc(cx+49, GROUND_Y-330 - ((state.time*0.02 + i*3) % 60), 22 + ((state.time*0.02 + i*3) % 60)*0.3, 0, Math.PI*2);
-        ctx.fill();
-      }
-
-      // Rotating giant gear accents drifting past (fast parallax)
-      for(let i=0; i<12; i++){
-        const gx = (i*260 - camX*0.22) % (260*12);
-        const r = 14 + (i % 3) * 7;
-        const gearY = GROUND_Y - 90 - (i % 4) * 42;
-        ctx.strokeStyle = 'rgba(148, 163, 184, 0.14)';
-        ctx.lineWidth = 5;
-        ctx.beginPath(); ctx.arc(gx, gearY, r, 0, Math.PI*2); ctx.stroke();
-        ctx.fillStyle = 'rgba(148, 163, 184, 0.10)';
-        ctx.beginPath(); ctx.arc(gx, gearY, r*0.4, 0, Math.PI*2); ctx.fill();
-      }
-      break;
-    }
-
-    case 'final_challenge':
-    case 'pro_codezero_hall':
-    case 'ultimate_cosmos':
-    default: {
-      // PRO 17 / Ep 44: CODEZERO Hall of Fame Finale
-      const g = ctx.createLinearGradient(0,0,0,H);
-      g.addColorStop(0, '#030014');
-      g.addColorStop(0.35, '#190042');
-      g.addColorStop(0.7, '#3b0080');
-      g.addColorStop(1, '#02000a');
-      ctx.fillStyle = g;
-      ctx.fillRect(0,0,W,H);
-
-      // Golden & Cyan Victory Monolith Pillars
-      for(let i=-1; i<8; i++){
-        const px = (i*260 - camX*0.12) % (260*8);
-        ctx.fillStyle = i % 2 === 0 ? 'rgba(255, 210, 63, 0.25)' : 'rgba(56, 198, 255, 0.25)';
-        ctx.fillRect(px, GROUND_Y - 240, 40, 260);
-        ctx.strokeStyle = i % 2 === 0 ? '#ffd23f' : '#38c6ff';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(px, GROUND_Y - 240, 40, 260);
-      }
-
-      // Rainbow Victory Fireworks Sparks
-      for(let i=0; i<50; i++){
-        const fx = (i*137 + state.time*0.1) % W;
-        const fy = (i*71 + Math.sin(state.time*0.005 + i)*20) % (H - 60);
-        const hue = (i * 35 + state.time * 0.1) % 360;
-        ctx.fillStyle = `hsl(${hue}, 100%, 70%)`;
-        ctx.fillRect(fx, fy, 3, 3);
-      }
-      break;
     }
   }
+  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  for(let r = 0; r < rowsB; r++){
+    for(let c = 0; c < colsB; c++){
+      const bx = X + c * blk;
+      const by = bodyTop + r * blk;
+      const bw = Math.min(blk, X + w - bx);
+      const bh = Math.min(blk, bodyTop + bodyH - by);
+      ctx.fillRect(bx, by, Math.max(1, bw), 2);
+      ctx.fillRect(bx, by, 2, Math.max(1, bh));
+      ctx.fillStyle = 'rgba(0,0,0,0.18)';
+      ctx.fillRect(bx + bw - 2, by, 2, Math.max(1, bh));
+      ctx.fillRect(bx, by + bh - 2, Math.max(1, bw), 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.10)';
+    }
+  }
+  // Mortar lines separating the square blocks.
+  ctx.strokeStyle = pal.mortar;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for(let c = 1; c < colsB; c++){
+    const gx = X + c * blk + 0.5;
+    ctx.moveTo(gx, bodyTop);
+    ctx.lineTo(gx, bodyTop + bodyH);
+  }
+  for(let r = 1; r < rowsB; r++){
+    const gy = bodyTop + r * blk + 0.5;
+    ctx.moveTo(X, gy);
+    ctx.lineTo(X + w, gy);
+  }
+  ctx.stroke();
+
+  // 2. Top cap with a bright surface line (grass / theme rim).
+  ctx.fillStyle = pal.cap2;
+  ctx.fillRect(X, bodyTop - 3, w, 5);
+  ctx.fillStyle = pal.cap;
+  ctx.fillRect(X, p.y, w, Math.max(1, bodyTop - p.y - 2));
+  ctx.fillStyle = pal.line;
+  ctx.fillRect(X, p.y, w, 3);
+
+  // 3. Crisp dark outline (skip the shared edge with a right neighbour).
+  ctx.strokeStyle = pal.outline;
+  ctx.lineWidth = ow;
+  ctx.beginPath();
+  ctx.moveTo(X + ow / 2, p.y);
+  ctx.lineTo(X + ow / 2, p.y + p.h);
+  ctx.moveTo(X, p.y + ow / 2);
+  ctx.lineTo(X + w, p.y + ow / 2);
+  if(extraW <= 0){
+    ctx.moveTo(X + w - ow / 2, p.y);
+    ctx.lineTo(X + w - ow / 2, p.y + p.h);
+  }
+  ctx.moveTo(X, p.y + p.h - ow / 2);
+  ctx.lineTo(X + w, p.y + p.h - ow / 2);
+  ctx.stroke();
+  return true;
 }
 
 function drawGround(theme){
@@ -11450,46 +11673,94 @@ function drawGround(theme){
     }
 
     if(p.isTreadmill || p.isSlow){
-      const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
-      g.addColorStop(0, '#374151');
-      g.addColorStop(0.5, '#1f2937');
-      g.addColorStop(1, '#111827');
-      ctx.fillStyle = g;
-      ctx.fillRect(Math.floor(sx), Math.floor(p.y), Math.ceil(p.w + extraW), Math.ceil(p.h));
+      const bw = Math.ceil(p.w + extraW);
+      const bh = Math.ceil(p.h);
+      const X = Math.floor(sx);
+      const beltH = Math.max(14, Math.min(26, Math.floor(p.h * 0.24)));
+      const beltTop = p.y;
+      const bodyTop = p.y + beltH;
 
-      // Animated Conveyor belt stripes moving with directional motion arrows
-      ctx.fillStyle = '#f59e0b';
-      const beltOffset = Math.floor((state.time * 0.08) % 20);
-      for(let i = -20 + beltOffset; i < p.w; i += 20){
-        if(i >= 0 && i < p.w - 8){
-          ctx.fillRect(Math.floor(sx + i), p.y + 3, 8, p.h - 6);
-        }
+      // 1. Machine body — dark metallic slab with steel panel seams
+      const bodyGrad = ctx.createLinearGradient(0, bodyTop, 0, p.y + p.h);
+      bodyGrad.addColorStop(0, '#3b4557');
+      bodyGrad.addColorStop(0.4, '#242c3a');
+      bodyGrad.addColorStop(1, '#0b1120');
+      ctx.fillStyle = bodyGrad;
+      ctx.fillRect(X, bodyTop, bw, p.y + p.h - bodyTop);
+
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      for(let i = 40; i < bw; i += 40){
+        ctx.fillRect(X + i - 1, bodyTop + 4, 2, (p.y + p.h - bodyTop) - 8);
+      }
+      ctx.fillStyle = '#64748b';
+      for(let i = 40; i < bw; i += 40){
+        ctx.fillRect(X + i - 2, bodyTop + 1, 4, 2);
+        ctx.fillRect(X + i - 2, p.y + p.h - 3, 4, 2);
       }
 
-      // High-visibility neon directional arrows on treadmill top
-      ctx.fillStyle = 'rgba(254, 240, 138, 0.9)';
-      for(let i = 15; i < p.w - 15; i += 50){
+      // 2. Belt deck on top
+      const beltGrad = ctx.createLinearGradient(0, beltTop, 0, beltTop + beltH);
+      beltGrad.addColorStop(0, '#4b5563');
+      beltGrad.addColorStop(0.5, '#374151');
+      beltGrad.addColorStop(1, '#1f2937');
+      ctx.fillStyle = beltGrad;
+      ctx.fillRect(X, beltTop, bw, beltH);
+
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(X, beltTop, bw, 1);
+      ctx.fillRect(X, beltTop + beltH - 3, bw, 2);
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(X, beltTop + beltH - 1, bw, 1);
+
+      // 3. Animated chevrons sliding in the direction of travel
+      const dir = (p.beltSpeed || -3) > 0 ? 1 : -1;
+      const gstep = 30;
+      const travel = state.time * 0.06 * dir;
+      const off = ((travel % gstep) + gstep) % gstep;
+      ctx.fillStyle = 'rgba(254, 240, 138, 0.92)';
+      const midY = beltTop + beltH / 2;
+      for(let i = -1; (i * gstep + off) < bw + gstep; i++){
+        const cx = X + i * gstep + off;
+        if(cx < -gstep || cx > bw + gstep) continue;
+        const span = 9;
         ctx.beginPath();
-        if((p.beltSpeed || -3) > 0){
-          ctx.moveTo(sx + i - 6, p.y + 7);
-          ctx.lineTo(sx + i + 4, p.y + p.h/2);
-          ctx.lineTo(sx + i - 6, p.y + p.h - 7);
+        if(dir > 0){
+          ctx.moveTo(cx - span, beltTop + 3);
+          ctx.lineTo(cx + 2, midY);
+          ctx.lineTo(cx - span, beltTop + beltH - 3);
         } else {
-          ctx.moveTo(sx + i + 6, p.y + 7);
-          ctx.lineTo(sx + i - 4, p.y + p.h/2);
-          ctx.lineTo(sx + i + 6, p.y + p.h - 7);
+          ctx.moveTo(cx + span, beltTop + 3);
+          ctx.lineTo(cx - 2, midY);
+          ctx.lineTo(cx + span, beltTop + beltH - 3);
         }
         ctx.fill();
       }
 
-      // Steel end rollers
-      ctx.fillStyle = '#9ca3af';
-      ctx.fillRect(Math.floor(sx), p.y + 2, 6, p.h - 4);
-      ctx.fillRect(Math.floor(sx + p.w - 6), p.y + 2, 6, p.h - 4);
+      // 4. End rollers / drums
+      const rollerR = Math.min(7, Math.max(4, Math.floor(beltH / 3)));
+      for(const rx of [X + 7, X + bw - 7]){
+        ctx.fillStyle = '#0f172a';
+        ctx.beginPath();
+        ctx.arc(rx, midY, rollerR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#64748b';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = '#94a3b8';
+        ctx.beginPath();
+        ctx.arc(rx - 1.5, midY - 1.5, rollerR * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 5. Crisp outer outline
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(X + 0.5, p.y + 0.5, bw - 1, bh - 1);
+
       continue;
     }
 
-    if(!p.vx && !p.vy && !p.isPipe && !p.isBrick && !p.isQuestionBlock && drawPng4Tiled('platforms', Math.floor(p.x / 180) + (state.levelIndex || 0), sx, p.y, p.w, p.h, 1)){
+    if(!p.isPipe && !p.isBrick && !p.isQuestionBlock && theme !== 'new_york_city' && drawClassicGround(p, sx, extraW, theme)){
       continue;
     }
 
@@ -12126,50 +12397,110 @@ function drawJumpBox(jb){
   const sx = jb.x - camX;
   if(sx+jb.w<-20 || sx>W+20) return;
   const y = jb.y + (jb.bounceY || 0);
+  const w = jb.w, h = jb.h;
 
   if(jb.hit){
-    ctx.fillStyle='#3a3f52';
-    ctx.fillRect(sx, y, jb.w, jb.h);
-    ctx.strokeStyle='#1e2230';
+    // Used lucky block: cracked, powered-off slab
+    ctx.fillStyle = '#4b5563';
+    ctx.fillRect(sx, y, w, h);
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.fillRect(sx + 3, y + 3, w - 6, h - 6);
+    ctx.strokeStyle = '#1f2937';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(sx + w*0.26, y + h*0.16);
+    ctx.lineTo(sx + w*0.42, y + h*0.42);
+    ctx.lineTo(sx + w*0.3, y + h*0.66);
+    ctx.moveTo(sx + w*0.68, y + h*0.22);
+    ctx.lineTo(sx + w*0.58, y + h*0.5);
+    ctx.lineTo(sx + w*0.74, y + h*0.74);
+    ctx.stroke();
+    ctx.strokeStyle = '#111827';
     ctx.lineWidth = 2;
-    ctx.strokeRect(sx, y, jb.w, jb.h);
-  } else {
-    // Lucky Box - solid colors
-    let bgColor = '#d4a83f';
-    let icon = '?';
-
-    if(jb.type === 'sponsor') { bgColor = '#b8355a'; icon = '📢'; }
-    else if(jb.type === 'tank') { bgColor = '#2d4536'; icon = '🚀'; }
-    else if(jb.type === 'fastener') { bgColor = '#2a6b94'; icon = '⚡'; }
-    else if(jb.type === 'plasma') { bgColor = '#008080'; icon = '⚛'; }
-    else if(jb.type === 'flamethrower') { bgColor = '#b84500'; icon = '🔥'; }
-    else if(jb.type === 'shotgun') { bgColor = '#c4660f'; icon = '💥'; }
-    else if(jb.type === 'minigun') { bgColor = '#6b2a8f'; icon = '⚡'; }
-    else if(jb.type === 'prank_bomb') { bgColor = '#a80000'; icon = '💣'; }
-    else if(jb.type === 'prank_reverse') { bgColor = '#6b0080'; icon = '🌀'; }
-    else if(jb.type === 'prank_zombie') { bgColor = '#1a6a2f'; icon = '🧟'; }
-    else if(jb.type === 'prank_dance') { bgColor = '#a80055'; icon = '🕺'; }
-    else if(jb.type === 'prank_jumpscare_giant') { bgColor = '#330000'; icon = '👻'; }
-    else if(jb.type === 'lucky_mystery') { bgColor = '#f59e0b'; icon = '🎲'; }
-
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(sx, y, jb.w, jb.h);
-
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 22px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(icon, sx+jb.w/2, y+jb.h*0.74);
-
-    ctx.strokeStyle = '#555555';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(sx, y, jb.w, jb.h);
+    ctx.strokeRect(sx, y, w, h);
+    return;
   }
+
+  // Lucky Block — crisp metal-box with stamped emblem
+  let base = '#d4a83f', light = '#f2d97a', dark = '#926c16', edge = '#4a3610';
+  let icon = '?';
+  if(jb.type === 'sponsor') { base='#b8355a'; light='#e3759c'; dark='#7c1f3d'; edge='#3f0f20'; icon='📢'; }
+  else if(jb.type === 'tank') { base='#2d4536'; light='#4d725c'; dark='#1b2d20'; edge='#0d1711'; icon='🚀'; }
+  else if(jb.type === 'fastener') { base='#2a6b94'; light='#4f9ac4'; dark='#16405e'; edge='#0a2334'; icon='⚡'; }
+  else if(jb.type === 'plasma') { base='#008080'; light='#27b3ad'; dark='#00504f'; edge='#002828'; icon='⚛'; }
+  else if(jb.type === 'flamethrower') { base='#b84500'; light='#e4742a'; dark='#7a2c00'; edge='#3d1500'; icon='🔥'; }
+  else if(jb.type === 'shotgun') { base='#c4660f'; light='#e09a4a'; dark='#8a4402'; edge='#452003'; icon='💥'; }
+  else if(jb.type === 'minigun') { base='#6b2a8f'; light='#9a5abe'; dark='#471764'; edge='#230a31'; icon='⚡'; }
+  else if(jb.type === 'prank_bomb') { base='#a80000'; light='#d94848'; dark='#6e0000'; edge='#350000'; icon='💣'; }
+  else if(jb.type === 'prank_reverse') { base='#6b0080'; light='#a047b8'; dark='#460052'; edge='#220028'; icon='🌀'; }
+  else if(jb.type === 'prank_zombie') { base='#1a6a2f'; light='#3f9860'; dark='#0f421c'; edge='#07240f'; icon='🧟'; }
+  else if(jb.type === 'prank_dance') { base='#a80055'; light='#d8489a'; dark='#6e0038'; edge='#35001a'; icon='🕺'; }
+  else if(jb.type === 'prank_jumpscare_giant') { base='#330000'; light='#5c1a1a'; dark='#1d0000'; edge='#0e0000'; icon='👻'; }
+  else if(jb.type === 'lucky_mystery') { base='#f59e0b'; light='#ffcc5e'; dark='#a86c00'; edge='#503200'; icon='🎲'; }
+  else if(jb.type === 'triple' || jb.type === 'laser') { base='#8c2f9c'; light='#c06ad0'; dark='#5a1a66'; edge='#2c0d33'; icon='⚡'; }
+  else if(jb.type === 'rocket') { base='#c2410c'; light='#e87a3a'; dark='#8f2e04'; edge='#451505'; icon='🚀'; }
+
+  // Outer hard frame
+  ctx.fillStyle = edge;
+  ctx.fillRect(sx, y, w, h);
+
+  // Glossy gradient face
+  const grad = ctx.createLinearGradient(sx, y, sx + w, y + h);
+  grad.addColorStop(0, light);
+  grad.addColorStop(0.45, base);
+  grad.addColorStop(1, dark);
+  ctx.fillStyle = grad;
+  ctx.fillRect(sx + 3, y + 3, w - 6, h - 6);
+
+  // Diagonal shine sweep
+  ctx.fillStyle = 'rgba(255,255,255,0.22)';
+  ctx.beginPath();
+  ctx.moveTo(sx + w*0.34, y);
+  ctx.lineTo(sx + w*0.5, y);
+  ctx.lineTo(sx + w*0.22, y + h);
+  ctx.lineTo(sx + w*0.06, y + h);
+  ctx.closePath();
+  ctx.fill();
+
+  // Inner embossed border
+  ctx.strokeStyle = dark;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(sx + 5, y + 5, w - 10, h - 10);
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(sx + 6.5, y + 6.5, w - 13, h - 13);
+
+  // Corner rivets
+  ctx.fillStyle = dark;
+  for(const [rx, ry] of [[sx+8, y+8], [sx+w-8, y+8], [sx+8, y+h-8], [sx+w-8, y+h-8]]){
+    ctx.beginPath();
+    ctx.arc(rx, ry, 2.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.beginPath();
+    ctx.arc(rx - 0.7, ry - 0.7, 0.9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = dark;
+  }
+
+  // Stamped emblem
+  ctx.save();
+  const iconSize = Math.max(12, Math.min(22, Math.round(w * 0.5)));
+  ctx.font = `bold ${iconSize}px sans-serif`;
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = 2;
+  ctx.shadowOffsetY = 1;
+  ctx.fillText(icon, sx + w / 2, y + h / 2 + 1);
+  ctx.restore();
 }
 
 function drawSign(sign){
   const sx = sign.x - camX;
   if(sx<-150||sx>W+50) return;
-  const y = GROUND_Y-70;
+  const y = (sign.y !== undefined ? sign.y : GROUND_Y)-70;
   ctx.fillStyle='#8a5a2a';
   ctx.fillRect(sx+18,y+20,8,50);
   ctx.fillStyle='#e8c77a';
@@ -12597,42 +12928,69 @@ function drawPopSpike(s){
   const cycle = (state.time + (s.offset || 0)) % (s.period || 2000);
   const isUp = cycle < ((s.period || 2000) / 2);
 
-  ctx.fillStyle = '#1e293b';
+  // Hazard base rail with amber warning stripes.
+  ctx.fillStyle = '#111827';
   ctx.fillRect(sx, s.y + s.h - 8, s.w, 8);
-  ctx.strokeStyle = '#475569';
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(sx, s.y + s.h - 8, s.w, 8);
-
   for(let i = 0; i < s.w; i += 12){
     ctx.fillStyle = (i / 12) % 2 === 0 ? '#f59e0b' : '#0f172a';
     ctx.fillRect(sx + i, s.y + s.h - 7, Math.min(6, s.w - i), 6);
   }
 
+  // Status beacon.
   ctx.fillStyle = isUp ? '#ef4444' : '#22c55e';
+  ctx.shadowColor = isUp ? '#ef4444' : '#22c55e';
+  ctx.shadowBlur = 6;
   ctx.beginPath();
-  ctx.arc(sx + s.w/2, s.y + s.h - 4, 3, 0, Math.PI*2);
+  ctx.arc(sx + s.w / 2, s.y + s.h - 4, 3, 0, Math.PI * 2);
   ctx.fill();
+  ctx.shadowBlur = 0;
+
+  const n = Math.max(3, Math.floor(s.w / 16));
+  const wStep = s.w / n;
+  const baseY = s.y + s.h - 8;
 
   if(isUp){
-    ctx.fillStyle = '#ef4444';
-    const n = Math.max(3, Math.floor(s.w / 16));
-    const spikeW = s.w / n;
+    // Popped danger spikes.
+    const tipY = s.y - 8;
     for(let i = 0; i < n; i++){
+      const tipX = sx + i * wStep + wStep / 2;
+      const leftX = sx + i * wStep + 1;
+      const rightX = sx + (i + 1) * wStep - 1;
+
+      // Full triangle
       ctx.beginPath();
-      ctx.moveTo(sx + i*spikeW, s.y + s.h - 8);
-      ctx.lineTo(sx + i*spikeW + spikeW/2, s.y - 10);
-      ctx.lineTo(sx + (i+1)*spikeW, s.y + s.h - 8);
+      ctx.moveTo(leftX, baseY); ctx.lineTo(tipX, tipY); ctx.lineTo(rightX, baseY);
+      ctx.closePath();
+      ctx.fillStyle = '#ef4444';
       ctx.fill();
-      ctx.strokeStyle = '#f8fafc';
-      ctx.lineWidth = 1;
+
+      // Darker right facet + highlight left edge
+      ctx.beginPath();
+      ctx.moveTo(tipX, baseY); ctx.lineTo(tipX, tipY); ctx.lineTo(rightX, baseY);
+      ctx.closePath();
+      ctx.fillStyle = '#b91c1c';
+      ctx.fill();
+
+      ctx.strokeStyle = '#7f1d1d';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(leftX, baseY); ctx.lineTo(tipX, tipY); ctx.lineTo(rightX, baseY);
+      ctx.closePath();
       ctx.stroke();
+
+      ctx.fillStyle = '#fecaca';
+      ctx.beginPath();
+      ctx.moveTo(tipX - 2.5, tipY + 6);
+      ctx.lineTo(tipX, tipY);
+      ctx.lineTo(tipX + 2.5, tipY + 6);
+      ctx.closePath();
+      ctx.fill();
     }
   } else {
+    // Recessed harmless stubs.
     ctx.fillStyle = '#64748b';
-    const n = Math.max(3, Math.floor(s.w / 16));
-    const spikeW = s.w / n;
     for(let i = 0; i < n; i++){
-      ctx.fillRect(sx + i*spikeW + spikeW*0.3, s.y + s.h - 10, spikeW*0.4, 3);
+      ctx.fillRect(sx + i * wStep + wStep * 0.3, baseY - 3, wStep * 0.4, 3);
     }
   }
 }
@@ -12750,129 +13108,105 @@ function drawFakespike(f){
 }
 
 function drawSpike(s){
-  const sx=s.x-camX; if(sx+s.w<-30||sx>W+30) return;
+  const sx = s.x - camX; if(sx + s.w < -30 || sx > W + 30) return;
   const theme = level.theme || 'dusk_suburbs';
 
-  const spikeImage = (theme === 'horror_ruins' || theme === 'gothic_cemetery' || theme === 'pro_demonic_realm')
-    ? uploadedSpikeImages.red
-    : (theme === 'cyber' || theme === 'cyberpunk_alley' || theme === 'pro_cyber_matrix' || theme === 'pro_plasma_storm')
-      ? uploadedSpikeImages.mixed
-      : uploadedSpikeImages.steel;
-  if(spikeImage.complete && spikeImage.naturalWidth > 0){
-    const visualHeight = 42;
-    ctx.drawImage(spikeImage, sx, s.y + s.h - visualHeight, s.w, visualHeight);
-    return;
+  // Crisp classic-game spikes (no stretched pictures): a dark base rail with
+  // faceted razor blades rising out of it, outlined and tipped with a danger
+  // colour. Themed palettes keep every world readable.
+  const safe = !!(s.isWhite || s.color === 'white');
+  const cyber  = (theme === 'cyber' || theme === 'cyberpunk_alley' || theme === 'pro_cyber_matrix' || theme === 'pro_plasma_storm');
+  const bone   = (theme === 'horror_ruins' || theme === 'gothic_cemetery' || theme === 'pro_demonic_realm');
+  const volcanic = (theme === 'volcano' || theme === 'pro_volcano_magma' || theme === 'infernal_volcano' || theme === 'volcanic_inferno');
+  const cosmic = (theme === 'cosmic_void' || theme === 'alien_hive' || theme === 'neon_synthwave' || theme === 'ultimate_cosmos' || theme === 'glitch_cyberverse');
+
+  let P;
+  if(safe){
+    P = {edge:'#ffffff', shade:'#dbeafe', dark:'#93c5fd', outline:'#60a5fa', rail:'#bae6fd', railTop:'#e0f2fe', tip:'#38bdf8', glow:null};
+  } else if(cyber){
+    P = {edge:'#e0f7ff', shade:'#7dd3fc', dark:'#0284c7', outline:'#0ea5e9', rail:'#0c4a6e', railTop:'#38bdf8', tip:'#ef4444', glow:'#00f0ff'};
+  } else if(bone){
+    P = {edge:'#f8fafc', shade:'#e2e8f0', dark:'#94a3b8', outline:'#475569', rail:'#1f2937', railTop:'#64748b', tip:'#b91c1c', glow:null};
+  } else if(volcanic){
+    P = {edge:'#fee2e2', shade:'#fca5a5', dark:'#7f1d1d', outline:'#450a0a', rail:'#1c1917', railTop:'#7c2d12', tip:'#f97316', glow:'#ef4444'};
+  } else if(cosmic){
+    P = {edge:'#fae8ff', shade:'#e879f9', dark:'#86198f', outline:'#a21caf', rail:'#2e1065', railTop:'#d946ef', tip:'#f43f5e', glow:'#d946ef'};
+  } else {
+    P = {edge:'#f1f5f9', shade:'#cbd5e1', dark:'#64748b', outline:'#1e293b', rail:'#111827', railTop:'#475569', tip:'#ef4444', glow:null};
   }
 
-  if(s.isPng4 && drawPng4('hazards', Math.floor(s.x / 160), sx, s.y, s.w, s.h + 12, 1)) return;
+  const n = s.count || Math.max(3, Math.round(s.w / 18));
+  const wStep = s.w / n;
+  const baseY = s.y + s.h;
+  const tipY = s.y - 10;
+  const railH = 9;
+  const tipW = 3;
 
-  if(s.isWhite || s.color === 'white'){
-    const n = s.count || 5;
-    const wStep = s.w / n;
-    for(let i=0; i<n; i++){
-      const tipX = sx + i*wStep + wStep/2;
-      const tipY = s.y - 8;
-      const leftX = sx + i*wStep + 2;
-      const rightX = sx + (i+1)*wStep - 2;
-      const baseH = s.y + s.h;
+  // Blades rising from the floor.
+  for(let i = 0; i < n; i++){
+    const tipX = sx + i * wStep + wStep / 2;
+    const leftX = sx + i * wStep + 1;
+    const rightX = sx + (i + 1) * wStep - 1;
 
-      // Pure White Thorns with Soft Cyan Rim
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.moveTo(leftX, baseH);
-      ctx.lineTo(tipX, tipY);
-      ctx.lineTo(rightX, baseH);
-      ctx.closePath();
-      ctx.fill();
-
-      // Specular Glint
-      ctx.strokeStyle = '#bae6fd';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(leftX, baseH);
-      ctx.lineTo(tipX, tipY);
-      ctx.stroke();
-    }
-    return;
-  }
-  
-  if(theme === 'cyber' || theme === 'cyberpunk_alley' || theme === 'pro_cyber_matrix' || theme === 'pro_plasma_storm'){
-    // Laser Spikes
     ctx.save();
-    ctx.fillStyle='#00f0ff';
-    ctx.shadowColor='#00f0ff';
-    ctx.shadowBlur=12;
-    const n=5;
-    const wStep = s.w / n;
-    for(let i=0;i<n;i++){
+    if(P.glow){ ctx.shadowColor = P.glow; ctx.shadowBlur = 8; }
+
+    // Full triangle
+    ctx.beginPath();
+    ctx.moveTo(leftX, baseY); ctx.lineTo(tipX, tipY); ctx.lineTo(rightX, baseY);
+    ctx.closePath();
+    ctx.fillStyle = P.edge;
+    ctx.fill();
+
+    // Left darker facet
+    ctx.beginPath();
+    ctx.moveTo(leftX, baseY); ctx.lineTo(tipX, tipY); ctx.lineTo(tipX, baseY);
+    ctx.closePath();
+    ctx.fillStyle = P.dark;
+    ctx.fill();
+
+    // Right lighter facet
+    ctx.beginPath();
+    ctx.moveTo(tipX, baseY); ctx.lineTo(tipX, tipY); ctx.lineTo(rightX, baseY);
+    ctx.closePath();
+    ctx.fillStyle = P.shade;
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+
+    // Crisp outline
+    ctx.strokeStyle = P.outline;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(leftX, baseY); ctx.lineTo(tipX, tipY); ctx.lineTo(rightX, baseY);
+    ctx.closePath();
+    ctx.stroke();
+
+    // Danger tip (soft dot on the safe snowy spikes)
+    ctx.fillStyle = P.tip;
+    if(safe){
       ctx.beginPath();
-      ctx.moveTo(sx+i*wStep+2, s.y+s.h);
-      ctx.lineTo(sx+i*wStep+wStep/2, s.y-10);
-      ctx.lineTo(sx+(i+1)*wStep-2, s.y+s.h);
+      ctx.arc(tipX, tipY + 3, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(tipX - tipW, tipY + 7);
+      ctx.lineTo(tipX, tipY);
+      ctx.lineTo(tipX + tipW, tipY + 7);
+      ctx.closePath();
       ctx.fill();
     }
     ctx.restore();
-  } else if(theme === 'horror_ruins' || theme === 'gothic_cemetery' || theme === 'pro_demonic_realm'){
-    // Bone / Demon Spikes
-    const n=3;
-    const wStep = s.w / n;
-    for(let i=0;i<n;i++){
-      ctx.fillStyle='#f1f5f9';
-      ctx.beginPath();
-      ctx.moveTo(sx+i*wStep+4, s.y+s.h);
-      ctx.quadraticCurveTo(sx+i*wStep+wStep/2, s.y-12, sx+(i+1)*wStep-4, s.y+s.h);
-      ctx.fill();
-      ctx.fillStyle='#b91c1c'; // Bloodied spike tips
-      ctx.beginPath();
-      ctx.arc(sx+i*wStep+wStep/2, s.y-4, 3.5, 0, Math.PI*2);
-      ctx.fill();
-    }
-  } else {
-    // Premium Metallic Razor Spikes with 3D Bevel & Red Danger Tips
-    const n = s.count || 4;
-    const wStep = s.w / n;
-    for(let i=0; i<n; i++){
-      const tipX = sx + i*wStep + wStep/2;
-      const tipY = s.y - 8;
-      const leftX = sx + i*wStep + 1;
-      const rightX = sx + (i+1)*wStep - 1;
-      const baseY = s.y + s.h;
+  }
 
-      // Dark metallic shaded half
-      ctx.fillStyle = '#1e293b';
-      ctx.beginPath();
-      ctx.moveTo(leftX, baseY);
-      ctx.lineTo(tipX, tipY);
-      ctx.lineTo(tipX, baseY);
-      ctx.closePath();
-      ctx.fill();
-
-      // Light metallic illuminated half
-      ctx.fillStyle = '#475569';
-      ctx.beginPath();
-      ctx.moveTo(tipX, baseY);
-      ctx.lineTo(tipX, tipY);
-      ctx.lineTo(rightX, baseY);
-      ctx.closePath();
-      ctx.fill();
-
-      // Specular chrome edge glint
-      ctx.strokeStyle = '#f8fafc';
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.moveTo(leftX, baseY);
-      ctx.lineTo(tipX, tipY);
-      ctx.stroke();
-
-      // Crimson Razor Tip
-      ctx.fillStyle = '#ef4444';
-      ctx.beginPath();
-      ctx.moveTo(tipX - 2.5, tipY + 6);
-      ctx.lineTo(tipX, tipY);
-      ctx.lineTo(tipX + 2.5, tipY + 6);
-      ctx.closePath();
-      ctx.fill();
-    }
+  // Dark base rail the blades are anchored to.
+  ctx.fillStyle = P.rail;
+  ctx.fillRect(sx, baseY - railH, s.w, railH);
+  ctx.fillStyle = P.railTop;
+  ctx.fillRect(sx, baseY - railH, s.w, 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  for(let i = 0; i < n; i++){
+    ctx.fillRect(sx + i * wStep + wStep * 0.3, baseY - railH + 3, wStep * 0.4, 4);
   }
 }
 
@@ -13115,30 +13449,82 @@ function drawBoulder(bd){
   ctx.translate(sx, bd.y);
   ctx.rotate(bd.angle);
 
-  // Outer Barrel Body
-  ctx.fillStyle = '#d97706'; // Amber / Wooden Barrel color
+  const r = bd.r || 20;
+
+  // Wooden end-face with radial depth (bright centre, dark rim) like a
+  // classic pixel-art barrel instead of a flat colour disc.
+  const face = ctx.createRadialGradient(0, -r * 0.15, r * 0.05, 0, 0, r);
+  face.addColorStop(0, '#e8a33d');
+  face.addColorStop(0.55, '#ba6c12');
+  face.addColorStop(1, '#542505');
+  ctx.fillStyle = face;
   ctx.beginPath();
-  ctx.arc(0, 0, bd.r, 0, Math.PI * 2);
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
   ctx.fill();
 
-  // Dark Outline
-  ctx.strokeStyle = '#78350f';
+  // Dark outline
+  ctx.strokeStyle = '#361d05';
   ctx.lineWidth = 3;
   ctx.stroke();
 
-  // Metal Rings & Staves
-  ctx.strokeStyle = '#f59e0b';
-  ctx.lineWidth = 2.5;
+  // Steel rim bands
+  ctx.strokeStyle = '#fbbf24';
+  ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.arc(0, 0, bd.r * 0.65, 0, Math.PI * 2);
+  ctx.arc(0, 0, r * 0.86, 0, Math.PI * 2);
   ctx.stroke();
-
-  ctx.strokeStyle = '#451a03';
+  ctx.strokeStyle = '#78350f';
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(-bd.r * 0.8, 0); ctx.lineTo(bd.r * 0.8, 0);
-  ctx.moveTo(0, -bd.r * 0.8); ctx.lineTo(0, bd.r * 0.8);
+  ctx.arc(0, 0, r * 0.72, 0, Math.PI * 2);
   ctx.stroke();
+
+  // Inner wood ring
+  ctx.strokeStyle = 'rgba(90, 45, 8, 0.8)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.5, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Stave seams toward the rim
+  for(let i = 0; i < 6; i++){
+    const a = i * (Math.PI / 3) + 0.35;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * r * 0.68, Math.sin(a) * r * 0.68);
+    ctx.lineTo(Math.cos(a) * r * 0.86, Math.sin(a) * r * 0.86);
+    ctx.stroke();
+  }
+
+  // Rim rivets
+  ctx.fillStyle = '#111827';
+  for(let i = 0; i < 8; i++){
+    const a = i * (Math.PI / 4) + 0.4;
+    ctx.beginPath();
+    ctx.arc(Math.cos(a) * r * 0.79, Math.sin(a) * r * 0.79, 1.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Hazard diamond so the barrel reads as a danger object.
+  const s2 = r * 0.34;
+  ctx.fillStyle = '#991b1b';
+  ctx.save();
+  ctx.rotate(Math.PI / 4);
+  ctx.fillRect(-s2, -s2, s2 * 2, s2 * 2);
+  ctx.restore();
+  ctx.strokeStyle = '#fca5a5';
+  ctx.lineWidth = 1.5;
+  ctx.save();
+  ctx.rotate(Math.PI / 4);
+  ctx.strokeRect(-s2, -s2, s2 * 2, s2 * 2);
+  ctx.restore();
+  ctx.fillStyle = '#f87171';
+  ctx.beginPath();
+  ctx.moveTo(0, -r * 0.17);
+  ctx.lineTo(r * 0.15, 0);
+  ctx.lineTo(0, r * 0.17);
+  ctx.lineTo(-r * 0.15, 0);
+  ctx.closePath();
+  ctx.fill();
 
   ctx.restore();
 }
@@ -13148,71 +13534,77 @@ function drawLava(l){
   const t = state.time * 0.004;
   const theme = level.theme || 'dusk_suburbs';
 
-  let color1 = '#ff4400', color2 = '#ff8800', color3 = '#aa0000', color4 = '#330000', foamColor = 'rgba(255, 200, 0, 0.85)';
+  let deep = '#7f1d1d', mid = '#dc2626', hot = '#f97316', hotter = '#fbbf24', flash = '#fff7ed';
 
   if(theme === 'cyber' || theme === 'pro_plasma_storm' || theme === 'pro_cyber_matrix'){
-    color1 = '#8b5cf6'; color2 = '#d946ef'; color3 = '#4c1d95'; color4 = '#1e1b4b'; foamColor = 'rgba(0, 240, 255, 0.8)';
+    deep = '#1e1b4b'; mid = '#4c1d95'; hot = '#7c3aed'; hotter = '#e879f9'; flash = '#22d3ee';
   } else if(theme === 'nuclear_lab' || theme === 'pro_atomic_reactor' || theme === 'pro_toxic_wasteland'){
-    color1 = '#10b981'; color2 = '#34d399'; color3 = '#064e3b'; color4 = '#022c22'; foamColor = 'rgba(167, 243, 208, 0.8)';
+    deep = '#022c22'; mid = '#065f46'; hot = '#059669'; hotter = '#34d399'; flash = '#d9f99d';
   }
 
   // Sunk lava surface level (10px below platform/sidewalk top so it stays cleanly recessed inside pits)
   const topY = l.y + 10;
   const lavaH = Math.max(20, l.h - 10);
+  const bsx = Math.round(sx);
+  const cell = 10;
+  const cols = Math.max(1, Math.ceil(l.w / cell));
+  const rows = Math.min(40, Math.ceil(lavaH / cell));
 
-  // Realistic Molten Base with Sub-layers
-  const g = ctx.createLinearGradient(0, topY, 0, topY + lavaH);
-  g.addColorStop(0, color1);
-  g.addColorStop(0.35, color2);
-  g.addColorStop(0.75, color3);
-  g.addColorStop(1, color4);
-  
-  ctx.save();
-  ctx.fillStyle = g;
-  ctx.fillRect(sx, topY, l.w, lavaH + 40);
-
-  // Heat Distortion / Magma Glow
-  ctx.globalCompositeOperation = 'lighter';
-  for(let i=0; i<2; i++){
-    const off = Math.sin(t + i) * 10;
-    ctx.fillStyle = `rgba(255, 100, 0, ${0.14 - i*0.04})`;
-    ctx.beginPath();
-    ctx.ellipse(sx + l.w/2 + off, topY + lavaH/2, l.w*0.75, lavaH*0.4, 0, 0, Math.PI*2);
-    ctx.fill();
-  }
-  ctx.restore();
-
-  // Animated Bubbling Top with noise-like waves contained inside pit
-  ctx.fillStyle = foamColor;
-  ctx.beginPath();
-  ctx.moveTo(sx, topY + 50);
-  ctx.lineTo(sx, topY);
-  for(let x = 0; x <= l.w; x += 8){
-    const wave1 = Math.sin(t*2.2 + (l.x + x)*0.05) * 3;
-    const wave2 = Math.sin(t*1.1 + (l.x + x)*0.02) * 2;
-    ctx.lineTo(sx + x, topY + wave1 + wave2);
-  }
-  ctx.lineTo(sx + l.w, topY + 50);
-  ctx.fill();
-
-  // Floating dark volcanic crust patches
-  ctx.fillStyle = '#1c1917';
-  for(let i = 12; i < l.w - 12; i += 60){
-    const crustX = sx + ((i + state.time * 0.02) % (l.w - 20));
-    const crustY = topY + 2 + Math.sin(t + i) * 2;
-    ctx.fillRect(crustX, crustY, 18, 4);
+  // 1) Blocky banded base — hottest at the molten surface, deep below.
+  for(let r = 0; r < rows; r++){
+    const f = rows > 1 ? r / (rows - 1) : 1;
+    ctx.fillStyle = f < 0.15 ? hotter : f < 0.4 ? hot : f < 0.75 ? mid : deep;
+    ctx.fillRect(bsx, topY + r * cell, l.w, cell);
   }
 
-  // Embers / Bubbles rising
-  const bubbleCount = Math.floor(l.w / 40);
-  for(let i = 0; i < bubbleCount; i++){
-    const bID = (l.x + i*40);
-    const bx = sx + ((i * 40 + state.time * 0.04) % l.w);
-    const by = topY + 6 + ( (bID + state.time*0.08) % 50);
-    if(by < topY + lavaH) {
-      ctx.fillStyle = '#fff7ed';
-      ctx.beginPath(); ctx.arc(bx, by, 1.5 + Math.sin(t+i)*1, 0, Math.PI*2); ctx.fill();
+  // 2) Pixel dither sparkle texture (checker shimmer over the whole pool).
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.10)';
+  for(let r = 0; r < rows; r++){
+    const y = topY + r * cell + cell * 0.3;
+    for(let i = (r % 2) * 2; i < cols; i += 2){
+      ctx.fillRect(bsx + i * cell, y, 4, 4);
     }
+  }
+
+  // 3) Animated blocky magma surface — hot cells that bob on a pixel wave.
+  ctx.fillStyle = hotter;
+  const surfStep = 14;
+  for(let x = 0; x < l.w; x += surfStep){
+    const surfY = topY + 3 + Math.sin(t * 2.2 + (bsx + x) * 0.055) * 4;
+    ctx.fillRect(bsx + x, surfY, surfStep - 4, 6);
+  }
+
+  // 4) White-hot flash pockets drifting with the surface.
+  ctx.fillStyle = flash;
+  for(let x = 0; x < l.w; x += surfStep * 2){
+    const flashY = topY + 3 + Math.sin(t * 3.1 + (bsx + x) * 0.09) * 4;
+    ctx.fillRect(bsx + x + surfStep / 2, flashY + 8, 5, 4);
+  }
+
+  // 5) Floating dark volcanic crust plates.
+  for(let i = 8; i < l.w - 6; i += 58){
+    const crustX = bsx + ((i + state.time * 0.02) % (l.w - 20));
+    const crustY = topY + 4 + Math.sin(t + i) * 2;
+    ctx.fillStyle = (i % 116 === 8) ? '#292320' : '#1c1917';
+    ctx.fillRect(crustX, crustY, 16, 5);
+  }
+
+  // 6) Rising pixel bubbles (square, blocky).
+  const bubbleCount = Math.max(2, Math.floor(l.w / 50));
+  for(let i = 0; i < bubbleCount; i++){
+    const bx = bsx + ((i * 53 + state.time * 0.05) % l.w);
+    const by = topY + lavaH - 6 - ((i * 37 + state.time * 0.09) % Math.max(lavaH - 10, 10));
+    const bs = 4 + (i % 2) * 2;
+    ctx.fillStyle = i % 3 === 0 ? flash : hotter;
+    ctx.fillRect(bx, by, bs, bs);
+  }
+
+  // 7) Ember sparks — fast little motes racing up through the pool.
+  for(let i = 0; i < bubbleCount; i++){
+    const ex = bsx + ((i * 77 + state.time * 0.03) % l.w);
+    const ey = (state.time * 0.12 + i * 41) % Math.max(lavaH + 30, 30);
+    ctx.fillStyle = flash;
+    ctx.fillRect(ex, topY + lavaH - ey, 2, 3);
   }
 }
 
@@ -14563,6 +14955,246 @@ function drawImpactFx(){
   }
 }
 
+// ---- Blood splatter & persistent decals ----
+function spawnZombieBlood(x, y, opts = {}){
+  const power = opts.power || 1;
+
+  // 1) Blood GUSH everywhere (fixed particles so they spray outward & splat)
+  const palette = ['#ff0033', '#e6002a', '#c1121f', '#8f0f1f'];
+  const burstCount = Math.floor((34 + Math.random() * 22) * power);
+  for(let i = 0; i < burstCount; i++){
+    const ang = Math.random() * Math.PI * 2;
+    const spd = (2 + Math.random() * 11) * power;
+    particles.push({
+      x: x, y: y,
+      vx: Math.cos(ang) * spd,
+      vy: Math.sin(ang) * spd * 0.7 - (2 + Math.random() * 5) * power,
+      life: 38 + Math.random() * 28,
+      maxLife: 66,
+      color: palette[Math.floor(Math.random() * palette.length)],
+      size: 2.6 + Math.random() * 5.5
+    });
+  }
+  // Sideways gushes (splat off a wall / wide scatter)
+  for(let i = 0; i < Math.floor(10 * power); i++){
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    particles.push({
+      x: x, y: y,
+      vx: dir * (6 + Math.random() * 10) * power,
+      vy: -Math.random() * 6 * power,
+      life: 34 + Math.random() * 20,
+      maxLife: 54,
+      color: palette[Math.floor(Math.random() * palette.length)],
+      size: 2 + Math.random() * 4
+    });
+  }
+
+  // 2) Persistent red marks painted on the ground/blocks underneath
+  const surfaceY = y - (opts.offset || 4);
+  const decals = [];
+
+  // Main pooled splash
+  decals.push({
+    x: x + (Math.random() - 0.5) * 10 * power,
+    y: surfaceY + (Math.random() - 0.5) * 3,
+    r: (7 + Math.random() * 5) * power,
+    rot: Math.random() * Math.PI,
+    stretch: 1 + Math.random(),
+    alpha: 0.85 + Math.random() * 0.15,
+    color: '#a5031a'
+  });
+
+  // Arc of droplets splashing around
+  const dropCount = Math.floor((5 + Math.random() * 4) * power);
+  for(let i = 0; i < dropCount; i++){
+    const ang = Math.random() * Math.PI * 2;
+    const dist = (7 + Math.random() * 24) * power;
+    const up = Math.abs(Math.sin(ang)) * dist * 0.35;
+    decals.push({
+      x: x + Math.cos(ang) * dist,
+      y: surfaceY - up + (Math.random() - 0.5) * 3,
+      r: 1.6 + Math.random() * 3.2 * power,
+      rot: Math.random() * Math.PI,
+      stretch: 1 + Math.random(),
+      alpha: 0.6 + Math.random() * 0.35,
+      color: Math.random() < 0.5 ? '#a5031a' : '#c1121f'
+    });
+  }
+
+  // Drip streaks rolling down the block face
+  if(Math.random() < 0.75){
+    for(let i = 0; i < Math.floor(2 * power); i++){
+      decals.push({
+        x: x + (Math.random() - 0.5) * 22,
+        y: surfaceY - 12 - Math.random() * 8,
+        r: 1.6,
+        rot: 0,
+        streak: 10 + Math.random() * 18,
+        alpha: 0.55 + Math.random() * 0.3,
+        color: Math.random() < 0.5 ? '#8f0f1f' : '#a5031a'
+      });
+    }
+  }
+
+  for(const d of decals){
+    bloodMarks.push(d);
+  }
+  // Cap so long farming levels stay cheap
+  while(bloodMarks.length > 240) bloodMarks.shift();
+}
+
+function drawBloodMarks(){
+  if(!bloodMarks.length) return;
+  ctx.save();
+  ctx.lineCap = 'round';
+  for(const m of bloodMarks){
+    const sx = m.x - camX;
+    if(sx + 40 < -20 || sx - 40 > W + 20) continue;
+    ctx.globalAlpha = m.alpha;
+    ctx.fillStyle = m.color;
+    ctx.strokeStyle = m.color;
+    if(m.streak){
+      ctx.lineWidth = m.r * 1.6;
+      ctx.beginPath();
+      ctx.moveTo(sx, m.y);
+      ctx.lineTo(sx, m.y + m.streak);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.ellipse(sx, m.y, m.r * m.stretch, m.r, m.rot || 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+// ---- Vector explosion system (barrels & future hazards) ----
+function spawnExplosion(x, y, opts = {}){
+  explosions.push({
+    x, y,
+    t: state.time,
+    dur: opts.dur || 600,
+    radius: opts.radius || 80,
+    damaging: opts.damaging !== false,
+    hit: false
+  });
+}
+
+function spawnBarrelExplosion(x, y, radius = 90){
+  spawnExplosion(x, y, { radius, dur: 600, damaging: true });
+  shake(24); sfxDemonic();
+  triggerFlash('255,130,0', 0.45);
+  spawnParticles(x, y, '#ff6a00', 34, 3.2);
+  spawnParticles(x, y, '#ffb300', 18, 2.5);
+  spawnParticles(x, y, '#555555', 22, 2);
+  spawnParticles(x, y, '#d97706', 14, 2.4);
+  addFloatingText(x, y - 30, '💥 BOOM!', '#ff6a00');
+}
+
+function updateExplosions(){
+  for(let i = explosions.length - 1; i >= 0; i--){
+    const e = explosions[i];
+    const el = state.time - e.t;
+    if(el >= e.dur){ explosions.splice(i, 1); continue; }
+    // Damage the player once, while the blast is still expanding.
+    if(!e.hit && e.damaging && el < 260){
+      const pcx = player.x + player.w / 2;
+      const pcy = player.y + player.h / 2;
+      const d = Math.hypot(pcx - e.x, pcy - e.y);
+      if(d < e.radius + 14){
+        e.hit = true;
+        if(player.invuln <= 0 && !player.dead){
+          hurtPlayer("💥 კასრი შენთან აფეთქდა! BOOM!", "explosion");
+          const nx = (pcx - e.x) / (d || 1);
+          const ny = (pcy - e.y) / (d || 1);
+          player.vx = nx * 8;
+          player.vy = Math.min(-3, ny * 6 - 4);
+        }
+      }
+    }
+  }
+}
+
+function drawExplosions(){
+  for(const e of explosions){
+    const p = (state.time - e.t) / e.dur;
+    const sx = e.x - camX;
+    if(sx + e.radius * 2 < -60 || sx - e.radius * 2 > W + 60) continue;
+
+    const scale = p < 0.28 ? p / 0.28 : (p < 0.65 ? 1 : Math.max(0, 1 - (p - 0.65) / 0.35));
+    const R = e.radius * scale;
+    if(R <= 0.5) continue;
+
+    // White-hot flash in the first moments
+    if(p < 0.12){
+      ctx.save();
+      ctx.globalAlpha = (1 - p / 0.12) * 0.85;
+      ctx.fillStyle = '#fff7e0';
+      ctx.beginPath();
+      ctx.arc(sx, e.y, R * 1.15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    ctx.save();
+    ctx.translate(sx, e.y);
+
+    // Outer flame tongues (classic cartoon blast)
+    ctx.fillStyle = '#ff6a00';
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    ctx.fill();
+    for(let i = 0; i < 8; i++){
+      const a = (i / 8) * Math.PI * 2 + state.time * 0.001;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a - 0.22) * R * 0.78, Math.sin(a - 0.22) * R * 0.78);
+      ctx.lineTo(Math.cos(a) * R * 1.32, Math.sin(a) * R * 1.32);
+      ctx.lineTo(Math.cos(a + 0.22) * R * 0.78, Math.sin(a + 0.22) * R * 0.78);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Mid flame
+    ctx.fillStyle = '#ffb300';
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 0.68, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Hot core
+    ctx.fillStyle = '#fff3b0';
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 0.36, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Expanding shockwave ring
+    ctx.globalAlpha = Math.max(0, 1 - p);
+    ctx.strokeStyle = '#ffd23f';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(0, 0, R * (0.9 + p * 0.3), 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    // Smoke rising after the initial burst
+    if(p > 0.4){
+      ctx.save();
+      ctx.globalAlpha = Math.min(0.6, (p - 0.4) * 1.1);
+      ctx.fillStyle = '#4b5563';
+      for(let i = 0; i < 4; i++){
+        const px = sx + (Math.sin((i + 1) * 2.1) * R * 0.6);
+        const py = e.y - R * 0.5 - (p - 0.4) * 90 - i * 10;
+        const size = (14 + i * 7) * (1 - p * 0.35);
+        if(size <= 0.5) continue;
+        ctx.beginPath();
+        ctx.arc(px, py, size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+}
+
 // ---- Projectile trail (png3/{id}/{id}_projectile.png, ghost behind the shot) ----
 function png3DrawTrail(mode, b, sx, sy){
   const img = png3Img(mode, 'projectile');
@@ -14601,14 +15233,6 @@ const ZOMBIE_SETS = ['Zombie1', 'Zombie2', 'Zombie3'];
 const zombieSpriteFrames = {};
 const coinBagImage = new Image();
 coinBagImage.src = 'png2/coin_bag.png';
-const uploadedSpikeImages = {
-  steel: new Image(),
-  mixed: new Image(),
-  red: new Image()
-};
-uploadedSpikeImages.steel.src = 'spikes/spike1.png';
-uploadedSpikeImages.mixed.src = 'spikes/spike2.png';
-uploadedSpikeImages.red.src = 'spikes/character_02.png';
 
 // PNG4 world-art pack. The source files are numbered, so keep the semantic
 // mapping here instead of spreading magic filenames through every renderer.
@@ -14618,6 +15242,7 @@ const png4Images = Array.from({length: 312}, (_, index) => {
   return image;
 });
 const png4BoundsCache = new Map();
+const png4PlatformPickCache = new Map();
 const PNG4_ART = {
   backgrounds: [1, 2, 3, 4, 5, 6],
   platforms: [13, 14, 17, 18, 25, 26, 27, 28, 37, 38, 39, 40, 41, 42, 49, 50, 51, 52, 53, 61, 62, 63, 65, 66, 73, 74, 75, 76, 85, 86, 87, 88, 89, 90, 102, 113, 114, 255, 256],
@@ -14689,34 +15314,115 @@ function drawPng4Trimmed(group, index, x, y, w, h, alpha = 1){
   return true;
 }
 
+function png4PlatformPick(index, w, h){
+  const key = (Math.abs(index) % 32) + ':' + Math.round((w / h) * 2);
+  if(png4PlatformPickCache.has(key)) return png4PlatformPickCache.get(key);
+  const ids = PNG4_ART.platforms || [];
+  const ranked = [];
+  for(let i = 0; i < ids.length; i++){
+    const img = png4Images[ids[i] - 1];
+    if(!img || !img.complete || !img.naturalWidth) continue;
+    const b = png4TrimmedBounds(img);
+    if(!b.width || !b.height) continue;
+    const s = Math.min(w / b.width, h / b.height, 1.25);
+    const tileW = Math.max(1, Math.floor(b.width * s));
+    const tileH = Math.max(1, Math.floor(b.height * s));
+    const tiles = Math.max(1, Math.ceil(w / tileW)) * Math.max(1, Math.ceil(h / tileH));
+    ranked.push({img, bounds: b, tiles, delta: Math.abs(Math.log(b.width / b.height) - Math.log(w / h))});
+  }
+  let pick = null;
+  if(ranked.length){
+    // Fewest repeats wins; among near-tied sprites add variety via the platform
+    // index so neighbouring platforms don't show the same picture.
+    let bestTiles = Infinity;
+    for(const cand of ranked) if(cand.tiles < bestTiles) bestTiles = cand.tiles;
+    const near = ranked.filter(cand => cand.tiles <= bestTiles + 2);
+    near.sort((m, n) => (m.tiles - n.tiles) || (m.delta - n.delta));
+    pick = near[Math.abs(index) % near.length];
+  }
+  png4PlatformPickCache.set(key, pick);
+  return pick;
+}
+
 function drawPng4Tiled(group, index, x, y, w, h, alpha = 1){
-  const image = png4Image(group, index);
-  if(!image || !image.complete || !image.naturalWidth || w <= 0 || h <= 0) return false;
+  if(w <= 0 || h <= 0) return false;
+  let image = png4Image(group, index);
+  if(!image || !image.complete || !image.naturalWidth) return false;
+
+  const pick = png4PlatformPick(index, w, h);
+  if(pick) image = pick.img;
 
   const bounds = png4TrimmedBounds(image);
   const sw = bounds.width, sh = bounds.height;
   if(sw <= 0 || sh <= 0) return false;
 
-  // Tile the sprite in a columns x rows grid so artwork keeps its native aspect
-  // and is never stretched or blurred. Upscaling is capped at ~1.25x; anything
-  // beyond that becomes extra tiles instead of blur.
-  const aspect = sw / sh;
-  let s = Math.min(w / sw, h / sh);
-  s = Math.min(s, 1.25);
-  const tileW = Math.max(1, sw * s);
-  const tileH = Math.max(1, sh * s);
-  const cols = Math.max(1, Math.ceil(w / tileW));
-  const rows = Math.max(1, Math.ceil(h / tileH));
+  // Ground slabs (tall & wide) never repeat downward: the art plate is drawn
+  // as a single row at a capped scale so the top trim/grass only appears on
+  // the top edge. Whatever height is left over is filled with a crisp grid of
+  // square blocks instead of blowing the picture up into a blurry,
+  // "expanded" mess. Small blocks fit the art (downscaling is fine) so they
+  // stay sharp. Rendering always uses bilinear smoothing so the provided PNGs
+  // keep their quality.
+  const baseX = Math.round(x), baseY = Math.round(y);
+  const groundLike = h >= 64;
+  let s, cols, rows;
+  if(groundLike){
+    s = Math.min(h / sh, 1.15);        // cap the upscale; never stretch into a blurred picture
+    cols = Math.max(1, Math.ceil(w / Math.max(1, sw * s)));
+    rows = 1;
+  } else {
+    s = Math.min(w / sw, h / sh);      // fit the art inside the block
+    s = Math.min(s, 1.25);             // never blow small blocks up
+    cols = Math.max(1, Math.ceil(w / Math.max(1, sw * s)));
+    rows = Math.max(1, Math.ceil(h / Math.max(1, sh * s)));
+  }
+  const tileW = Math.max(1, Math.round(sw * s));
+  const tileH = Math.max(1, Math.round(sh * s));
 
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.imageSmoothingEnabled = false;
+  ctx.imageSmoothingEnabled = true;
   for(let r = 0; r < rows; r++){
+    const tileY = baseY + r * tileH;
+    const th = Math.min(tileH, baseY + h - tileY);
+    const srcEndH = (th / Math.max(1, tileH)) * sh;
     for(let c = 0; c < cols; c++){
-      const dx = x + c * tileW;
-      const dy = y + r * tileH;
-      ctx.drawImage(image, bounds.left, bounds.top, sw, sh, dx, dy, tileW + 0.5, tileH + 0.5);
+      const tileX = baseX + c * tileW;
+      const tw = Math.min(tileW, baseX + w - tileX);
+      const srcEndW = (tw / Math.max(1, tileW)) * sw;
+      ctx.drawImage(image, bounds.left, bounds.top, srcEndW, srcEndH, tileX, tileY, tw, th);
     }
+  }
+
+  // Tall ground slabs get a crisp square-block body under the art plate.
+  if(groundLike && tileH < h){
+    const blk = 30;
+    const bodyTop = baseY + tileH;
+    const bodyH = baseY + h - bodyTop;
+    const rowsB = Math.ceil(bodyH / blk);
+    const colsB = Math.ceil(w / blk);
+    for(let r = 0; r < rowsB; r++){
+      for(let c = 0; c < colsB; c++){
+        const bx = baseX + c * blk;
+        const by = bodyTop + r * blk;
+        const bw = Math.min(blk, baseX + w - bx);
+        const bh = Math.min(blk, bodyTop + bodyH - by);
+        ctx.fillStyle = ((r + c) % 2 === 0) ? '#8a643c' : '#7b5732';
+        ctx.fillRect(bx, by, bw, bh);
+        ctx.fillStyle = '#a87946';
+        ctx.fillRect(bx, by, Math.max(1, bw), 2);
+        ctx.fillRect(bx, by, 2, Math.max(1, bh));
+        ctx.fillStyle = '#462c14';
+        ctx.fillRect(bx + bw - 2, by, 2, Math.max(1, bh));
+        ctx.fillRect(bx, by + bh - 2, Math.max(1, bw), 2);
+        ctx.fillStyle = '#5b3c1f';
+        ctx.fillRect(bx + (blk >> 1), by, 1, Math.max(1, bh));
+        ctx.fillRect(bx, by + (blk >> 1), Math.max(1, bw), 1);
+      }
+    }
+    // Seam line so the art plate and block body read as one platform.
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.fillRect(baseX, bodyTop - 1, w, 1);
   }
   ctx.restore();
   return true;
@@ -14881,18 +15587,20 @@ function drawBullet(b){
       ctx.restore();
     }
     
-    // Boss HP Bar
-    const bx = boss.x - camX;
-    ctx.fillStyle = 'rgba(0,0,0,0.8)';
-    ctx.fillRect(bx, boss.y - 30, boss.w, 15);
-    ctx.fillStyle = '#ef4444';
-    ctx.fillRect(bx, boss.y - 30, boss.w * Math.max(0, boss.hp/boss.maxHp), 15);
-    ctx.fillStyle = 'white';
-    ctx.font = 'bold 12px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('MECHA-BEAR', bx + boss.w/2, boss.y - 18);
-    ctx.textAlign = 'left';
- return;
+    const boss = jetski.boss;
+    if(boss && !boss.dead){
+      const bx = boss.x - camX;
+      ctx.fillStyle = 'rgba(0,0,0,0.8)';
+      ctx.fillRect(bx, boss.y - 30, boss.w, 15);
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(bx, boss.y - 30, boss.w * Math.max(0, boss.hp/boss.maxHp), 15);
+      ctx.fillStyle = 'white';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('MECHA-BEAR', bx + boss.w/2, boss.y - 18);
+      ctx.textAlign = 'left';
+    }
+    return;
   }
   if(png3BulletDraw(b.mode, b, sx, b.y)) return;
   ctx.fillStyle = b.color || '#ffd23f';
@@ -14947,6 +15655,7 @@ function drawDetailedGun(ctx, mode = 'pistol', opts = {}) {
   ctx.save();
   ctx.scale(scale, scale);
   ctx.translate(-recoil, 0);
+  ctx.rotate(-Math.min(recoil * 0.011, 0.5));  // recoil bumps the barrel up
 
   const uploadedGunHeight = mode === 'bike' ? 54 : 42;
   if (uploadedGunDraw(ctx, mode, isFiring, time, uploadedGunHeight)) {
@@ -16023,7 +16732,8 @@ function drawPlayer(){
     scale: 0.9,
     recoil: player.gunRecoil,
     time: state.time,
-    showLaser: true
+    showLaser: true,
+    isFiring: isFireHeld()
   });
   ctx.restore();
 
@@ -16850,11 +17560,11 @@ function drawHUD(){
     const distM = Math.round((level.risingHordeY - (player.y + player.h)) / 10);
     ctx.save();
     ctx.fillStyle = distM < 25 ? 'rgba(239, 68, 68, 0.9)' : 'rgba(245, 158, 11, 0.85)';
-    ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(14, 115, 210, 24, 6); else ctx.fillRect(14, 115, 210, 24); ctx.fill();
+    ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(14, 141, 210, 24, 6); else ctx.fillRect(14, 141, 210, 24); ctx.fill();
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 11px sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText(`🔥 HORDE: ${distM > 0 ? distM + 'm BELOW' : '⚠️ OVERTAKING!'}`, 22, 131);
+    ctx.fillText(`🔥 HORDE: ${distM > 0 ? distM + 'm BELOW' : '⚠️ OVERTAKING!'}`, 22, 157);
     ctx.restore();
   }
 
@@ -16865,11 +17575,11 @@ function drawHUD(){
     ctx.fillStyle = 'rgba(245, 158, 11, 0.9)';
     ctx.strokeStyle = '#fef08a';
     ctx.lineWidth = 1.8;
-    ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(14, 144, 210, 24, 6); else ctx.fillRect(14, 144, 210, 24); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(14, 170, 210, 24, 6); else ctx.fillRect(14, 170, 210, 24); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 11px sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText(`🪽 WINGS FLIGHT: ${secLeft}s (SPACE TO FLY)`, 22, 160);
+    ctx.fillText(`🪽 WINGS FLIGHT: ${secLeft}s (SPACE TO FLY)`, 22, 186);
     ctx.restore();
   }
 
@@ -16928,31 +17638,51 @@ function drawHUD(){
   ctx.fillText(`(${state.lives}/${maxLives})`, heartX + 4, 46 + heartSize - 4);
 
   // Coins counter — png2/coin_front_large.png + total coins
-  if(drawCoinIcon(18, 90, 20, 1)){
+  if(drawCoinIcon(18, 112, 20, 1)){
     ctx.font='bold 18px sans-serif';
     ctx.fillStyle='#ffd23f';
-    ctx.fillText('× ' + (state.coinsCollected || 0), 18 + 20 * png2Aspect(PNG2.coinFront) + 8, 106);
+    ctx.fillText('× ' + (state.coinsCollected || 0), 18 + 20 * png2Aspect(PNG2.coinFront) + 8, 128);
   } else {
     ctx.font='bold 18px sans-serif';
     ctx.fillStyle='#ffd23f';
-    ctx.fillText('🪙 × ' + (state.coinsCollected || 0), 18, 106);
+    ctx.fillText('🪙 × ' + (state.coinsCollected || 0), 18, 128);
   }
 
-  // Weapon
-  const weaponNames = {
-    pistol: '🔫 პისტოლეტი',
-    guitar: '🎸 წითელ-თეთრი ელექტრო გიტარა',
-    triple: '🔥 სამმაგი ლაზერი',
-    shotgun: '💥 შოტგანი',
-    minigun: '⚡ მინიგანი',
-    plasma: '⚛ პლაზმური ზარბაზანი',
-    flamethrower: '🔥 ფლამეინგ-ცეცხლმფრქვევი',
-    tank: '🚀 ომის გიგანტური ტანკი',
-    bike: '🏍️ KAWASAKI Z750 (2007)'
-  };
-  ctx.font='bold 13px sans-serif';
-  ctx.fillStyle='#ffd23f';
-  ctx.fillText('იარაღი: ' + (weaponNames[player.weaponMode] || '🔫 პისტოლეტი'), 18, 82);
+  // Health bar (below the hearts) + Stamina bar (gun-name text removed)
+  const barW = 150, barH = 12;
+  const hpBX = 16, hpBY = 76;
+  const hpBPct = Math.max(0, state.lives / maxLives);
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+  ctx.fillRect(hpBX - 1, hpBY - 1, barW + 2, barH + 2);
+  ctx.fillStyle = hpBPct > 0.5 ? '#22c55e' : (hpBPct > 0.25 ? '#eab308' : '#ef4444');
+  ctx.fillRect(hpBX, hpBY, barW * hpBPct, barH);
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  for(let i = 1; i < 5; i++) ctx.fillRect(hpBX + barW * i / 5, hpBY, 1, barH);
+  ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(hpBX - 1, hpBY - 1, barW + 2, barH + 2);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 9px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(`❤️ ${state.lives}/${maxLives}`, hpBX + 4, hpBY + barH - 3);
+
+  // Stamina bar
+  const stBY = hpBY + barH + 5;
+  const stBPct = Math.max(0, (player.stamina || 0) / (player.maxStamina || 100));
+  const stLow = stBPct < 0.3 && Math.floor(state.time / 200) % 2 === 0;
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+  ctx.fillRect(hpBX - 1, stBY - 1, barW + 2, barH + 2);
+  ctx.fillStyle = stLow ? '#ef4444' : (stBPct > 0.5 ? '#38c6ff' : '#eab308');
+  ctx.fillRect(hpBX, stBY, barW * stBPct, barH);
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  for(let i = 1; i < 5; i++) ctx.fillRect(hpBX + barW * i / 5, stBY, 1, barH);
+  ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(hpBX - 1, stBY - 1, barW + 2, barH + 2);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 9px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(`⚡ ${Math.ceil(stBPct * 100)}%`, hpBX + 4, stBY + barH - 3);
 
   // 3. Right Side (Combo)
   ctx.textAlign = 'right';
@@ -17014,11 +17744,6 @@ function drawHUD(){
 
   // Subscribe Meter Removed
   
-  ctx.textAlign='left';
-  ctx.font='bold 15px sans-serif';
-  ctx.fillStyle='rgba(255,255,255,.9)';
-  ctx.fillText(level.name, 18, H-18);
-
   // In-Game HUD Buttons (Top-Right: Pause & Mute)
   ctx.save();
   const hudBtnH = 34;
@@ -17594,6 +18319,7 @@ function executeItemTransaction(item, type) {
     } else if (type === 'weapons') {
       state.equippedWeapon = item.id;
       player.weaponMode = item.id;
+      refillAmmo(item.id);
       saveData();
       sfxCoin();
       toast(`🔫 იარაღი არჩეულია: ${item.title}`, 1800);
@@ -17612,6 +18338,7 @@ function executeItemTransaction(item, type) {
         state.unlockedWeapons.push(item.id);
         state.equippedWeapon = item.id;
         player.weaponMode = item.id;
+        refillAmmo(item.id);
       }
       saveData();
       sfxCoin();
@@ -18146,8 +18873,7 @@ function drawSettings(){
     { key: 'screenShake', label: '📳 ეკრანის ვიბრაცია', options: ['full', 'reduced', 'off'], labels: ['სრული', 'შემცირებული', 'გამორთული'] },
     { key: 'bgmVolume', label: '🎵 მუსიკის ხმა', options: [0, 0.25, 0.5, 0.75, 1], labels: ['0%', '25%', '50%', '75%', '100%'] },
     { key: 'sfxVolume', label: '🔊 ეფექტების ხმა', options: [0, 0.25, 0.5, 0.75, 1], labels: ['0%', '25%', '50%', '75%', '100%'] },
-    { key: 'highJumpAssist', label: '🚀 მაღალი ხტომა', options: [false, true], labels: ['გამორთული', 'ჩართული'] },
-    { key: 'showFPS', label: '📊 FPS-ის ჩვენება', options: [false, true], labels: ['გამორთული', 'ჩართული'] }
+    { key: 'highJumpAssist', label: '🚀 მაღალი ხტომა', options: [false, true], labels: ['გამორთული', 'ჩართული'] }
   ];
 
   const startY = 85;
@@ -19307,8 +20033,7 @@ function handleSettingsClick(mx, my){
     { key: 'screenShake', options: ['full', 'reduced', 'off'] },
     { key: 'bgmVolume', options: [0, 0.25, 0.5, 0.75, 1] },
     { key: 'sfxVolume', options: [0, 0.25, 0.5, 0.75, 1] },
-    { key: 'highJumpAssist', options: [false, true] },
-    { key: 'showFPS', options: [false, true] }
+    { key: 'highJumpAssist', options: [false, true] }
   ];
 
   settingsList.forEach((item, idx) => {
@@ -20020,6 +20745,16 @@ function loop(now){
   } else if(state.mode==='luckywheel'){
     drawLuckyWheel();
   } else {
+    // Overscan: while the camera shakes, zoom the world slightly about the
+    // center so painted world edges always cover the canvas corners and the
+    // game never falls out of frame between shake frames. The HUD and screen
+    // overlays below are drawn outside this transform so nothing gets cropped.
+    ctx.save();
+    if(state.shake > 0){
+      ctx.translate(W / 2, H / 2);
+      ctx.scale(1.03, 1.03);
+      ctx.translate(-W / 2, -H / 2);
+    }
     if(level && level.isTrainLevel){
       drawTrainLevel();
       drawPlayer();
@@ -20061,10 +20796,14 @@ function loop(now){
       if(level.waters) level.waters.forEach(drawWater);
       drawCityBuildings();
       drawGround(level.theme || level.bgHue);
+      drawBloodMarks();
       if(level.clouds) level.clouds.forEach(drawCloud);
       if(level.crumblingPlats) level.crumblingPlats.forEach(drawCrumblingPlat);
       if(level.pushboxes) level.pushboxes.forEach(drawPushbox);
       // Instruction signs are disabled to keep the playfield clear.
+      // (Epic 11 opts in: shows its handcrafted Georgian hint signs & activated checkpoints)
+      if(level.checkpointRespawn && level.signs) level.signs.forEach(drawSign);
+      if(level.checkpointRespawn && level.checkpoints) level.checkpoints.forEach(drawCheckpoint);
       if(level.fakespikes) level.fakespikes.forEach(drawFakespike);
       if(level.spikes) level.spikes.forEach(drawSpike);
       if(level.popspikes) level.popspikes.forEach(drawPopSpike);
@@ -20098,6 +20837,7 @@ if(level.coinBags) level.coinBags.forEach(drawCoinBag);
       drawFlag(level.flag);
       drawCoinFx();
       drawImpactFx();
+      drawExplosions();
       drawGodzilla();
       drawFinalBoss();
       drawGodzillaProjectiles();
@@ -20111,6 +20851,7 @@ if(level.coinBags) level.coinBags.forEach(drawCoinBag);
       ctx.restore();
     }
 
+    ctx.restore();
     drawWeatherOverlay();
     drawNukeSequence();
     drawJumpscare();
@@ -20119,15 +20860,6 @@ if(level.coinBags) level.coinBags.forEach(drawCoinBag);
       drawDeathCamOverlay();
     }
     drawHUD();
-
-    if(state && state.settings && state.settings.showFPS){
-      ctx.save();
-      ctx.fillStyle = '#38c6ff';
-      ctx.font = 'bold 12px monospace';
-      ctx.textAlign = 'left';
-      ctx.fillText(`FPS: ${Math.round(1000/dt)}`, 10, H - 12);
-      ctx.restore();
-    }
 
     if(state.mode==='playing'){
       if(state.deathCam && state.deathCam.active){
@@ -20167,6 +20899,7 @@ if(level.coinBags) level.coinBags.forEach(drawCoinBag);
           updateGodzilla(dt);
           updateFinalBoss(dt);
           updateNukeSequence(dt);
+          updateExplosions();
         }
         updateWeather(dt);
       }
@@ -20192,3 +20925,4 @@ if(level.coinBags) level.coinBags.forEach(drawCoinBag);
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
+
