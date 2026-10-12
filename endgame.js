@@ -1237,6 +1237,7 @@ function updateEndgame(dt) {
     if (!r.taken && overlap(player, r)) {
       r.taken = true;
       level.relicCount++;
+      trackQuestProgress('relics',1);
       addScore(300);
       sfxBell();
       addFloatingText(
@@ -3311,6 +3312,7 @@ function updateAdventureRoutes(dt) {
     });
     if (inside && !route.inside) {
       route.remaining = route.duration;
+      trackQuestProgress('bridge_switches',1);
       sfxBell();
       addFloatingText(
         route.x,
@@ -3327,6 +3329,7 @@ function updateAdventureRoutes(dt) {
     if (chest.taken || !overlap(player, chest)) continue;
     chest.taken = true;
     level.treasureCount++;
+    trackQuestProgress('treasures',1);
     addScore(500);
     state.coinsCollected = (state.coinsCollected || 0) + 15;
     const max = state.upgrades.maxHp ? 10 : 8;
