@@ -90,21 +90,15 @@ function sfxReload(){ beep(180,0.08,'square',0.05); beep(260,0.12,'square',0.05,
 
 // ---------- Background Music System (Procedural Web Audio Engine) ----------
 let bgmMuted = false;
-let bgmCurrentTrack = null; // 'menu' | 'action' | 'horror' | 'godzilla'
-let bgmStep = 0;
+let bgmCurrentTrack = null; // menu, campaign themes, plus boss and legacy tracks
 let bgmMasterGain = null;
-let bgmInterval = null;
 
 function getBgmMasterGain(){
-  const a = ac();
-  const bgmVol = (typeof state !== 'undefined' && state && state.settings && state.settings.bgmVolume !== undefined) ? state.settings.bgmVolume : 1.0;
-  if(!bgmMasterGain){
-    bgmMasterGain = a.createGain();
-    bgmMasterGain.gain.setValueAtTime(bgmMuted ? 0 : (0.22 * bgmVol), a.currentTime);
-    bgmMasterGain.connect(a.destination);
-  } else {
-    bgmMasterGain.gain.setValueAtTime(bgmMuted ? 0 : (0.22 * bgmVol), a.currentTime);
-  }
+  const a=ac();
+  const volume=state?.settings?.bgmVolume ?? 1;
+  if(!bgmMasterGain){ bgmMasterGain=a.createGain(); bgmMasterGain.gain.value=0; bgmMasterGain.connect(a.destination); }
+  const target=bgmMuted?0:.5*volume;
+  if(bgmMasterGain.lastTarget!==target){bgmMasterGain.lastTarget=target;bgmMasterGain.gain.setTargetAtTime(target,a.currentTime,.06);}
   return bgmMasterGain;
 }
 
@@ -123,177 +117,7 @@ function toggleBgmMute(){
 }
 
 function startBgmEngine(){
-  if(!bgmInterval){
-    bgmInterval = setInterval(stepBgmSequence, 125);
-  }
-}
-
-function playBgmNote(freq, dur, type='square', vol=0.08, attack=0.01, decay=0.1, detune=0, filterFreq=null){
-  if(bgmMuted) return;
-  try{
-    const a = ac();
-    if(a.state === 'suspended') return;
-    const gMaster = getBgmMasterGain();
-    const t0 = a.currentTime;
-    const osc = a.createOscillator();
-    const gain = a.createGain();
-    
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, t0);
-    if(detune !== 0) osc.detune.setValueAtTime(detune, t0);
-
-    const actualVol = (state && state.mode === 'paused') ? vol * 0.35 : vol;
-
-    gain.gain.setValueAtTime(0.0001, t0);
-    gain.gain.linearRampToValueAtTime(actualVol, t0 + attack);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + attack + decay);
-
-    if(filterFreq){
-      const filter = a.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(filterFreq, t0);
-      osc.connect(filter);
-      filter.connect(gain);
-    } else {
-      osc.connect(gain);
-    }
-
-    gain.connect(gMaster);
-    osc.start(t0);
-    osc.stop(t0 + attack + decay + 0.05);
-  } catch(e){}
-}
-
-function playBgmDrums(type='kick', vol=0.1){
-  if(bgmMuted) return;
-  try{
-    const a = ac();
-    if(a.state === 'suspended') return;
-    const gMaster = getBgmMasterGain();
-    const t0 = a.currentTime;
-    const actualVol = (state && state.mode === 'paused') ? vol * 0.35 : vol;
-    
-    if(type === 'kick'){
-      const osc = a.createOscillator();
-      const gain = a.createGain();
-      osc.frequency.setValueAtTime(160, t0);
-      osc.frequency.exponentialRampToValueAtTime(30, t0 + 0.15);
-      gain.gain.setValueAtTime(actualVol, t0);
-      gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.15);
-      osc.connect(gain); gain.connect(gMaster);
-      osc.start(t0); osc.stop(t0 + 0.16);
-    } else if(type === 'godzilla_stomp'){
-      const osc = a.createOscillator();
-      const gain = a.createGain();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(220, t0);
-      osc.frequency.exponentialRampToValueAtTime(22, t0 + 0.35);
-      
-      const filter = a.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(350, t0);
-      
-      gain.gain.setValueAtTime(actualVol * 1.5, t0);
-      gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.38);
-      
-      osc.connect(filter); filter.connect(gain); gain.connect(gMaster);
-      osc.start(t0); osc.stop(t0 + 0.4);
-    } else if(type === 'hihat'){
-      const bufferSize = Math.floor(a.sampleRate * 0.04);
-      const buffer = a.createBuffer(1, bufferSize, a.sampleRate);
-      const output = buffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        output[i] = Math.random() * 2 - 1;
-      }
-      const whiteNoise = a.createBufferSource();
-      whiteNoise.buffer = buffer;
-
-      const filter = a.createBiquadFilter();
-      filter.type = 'highpass';
-      filter.frequency.value = 5000;
-
-      const gain = a.createGain();
-      gain.gain.setValueAtTime(actualVol * 0.4, t0);
-      gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.04);
-
-      whiteNoise.connect(filter);
-      filter.connect(gain);
-      gain.connect(gMaster);
-      whiteNoise.start(t0);
-    }
-  }catch(e){}
-}
-
-function stepBgmSequence(){
-  if(bgmMuted || !bgmCurrentTrack) return;
-
-  const s = bgmStep % 32;
-
-  if(bgmCurrentTrack === 'menu'){
-    // Menu Chiptune Theme
-    const bassNotes = [130.81, 130.81, 164.81, 164.81, 174.61, 174.61, 196.00, 196.00];
-    if(s % 4 === 0){
-      playBgmNote(bassNotes[Math.floor(s/4) % bassNotes.length], 0.2, 'triangle', 0.1, 0.01, 0.18);
-    }
-    const arpNotes = [261.63, 329.63, 392.00, 523.25, 659.25, 523.25, 392.00, 329.63];
-    if(s % 2 === 0){
-      playBgmNote(arpNotes[(s/2)%arpNotes.length], 0.1, 'sine', 0.05, 0.01, 0.08);
-    }
-    if(s % 8 === 4) playBgmDrums('hihat', 0.06);
-
-  } else if(bgmCurrentTrack === 'action'){
-    // Energetic 8-Bit Platformer Action BGM
-    const bassScale = [130.81, 130.81, 196.00, 130.81, 174.61, 174.61, 220.00, 196.00];
-    if(s % 2 === 0){
-      playBgmNote(bassScale[Math.floor(s/2) % bassScale.length], 0.12, 'square', 0.08, 0.005, 0.1);
-    }
-    const leadScale = [261.63, 329.63, 392.00, 466.16, 523.25, 466.16, 392.00, 329.63];
-    if(s % 3 === 0){
-      playBgmNote(leadScale[Math.floor(s/3) % leadScale.length], 0.1, 'triangle', 0.06, 0.01, 0.09);
-    }
-    if(s % 4 === 0) playBgmDrums('kick', 0.08);
-    if(s % 2 === 1) playBgmDrums('hihat', 0.05);
-
-  } else if(bgmCurrentTrack === 'horror'){
-    // Eerie Ghostly Ambient Horror Track
-    if(s === 0 || s === 16){
-      playBgmNote(43.65, 0.8, 'sawtooth', 0.12, 0.08, 0.7, -12, 250); // Low F1 rumble
-      playBgmDrums('kick', 0.12);
-    }
-    if(s === 8 || s === 24){
-      playBgmNote(41.20, 0.8, 'sawtooth', 0.12, 0.08, 0.7, 12, 220); // Low E1 rumble
-    }
-    // Random eerie bell chime
-    if(s === 4 || s === 12 || s === 20 || s === 28){
-      const chimes = [739.99, 880.00, 1046.50, 1244.51, 1479.98];
-      const bellFreq = chimes[Math.floor(s/4) % chimes.length];
-      playBgmNote(bellFreq, 0.35, 'sine', 0.05, 0.01, 0.32);
-    }
-
-  } else if(bgmCurrentTrack === 'godzilla'){
-    // Godzilla Apocalyptic Horror Boss Track
-    if(s % 8 === 0){
-      playBgmDrums('godzilla_stomp', 0.22);
-      playBgmNote(32.70, 0.6, 'sawtooth', 0.18, 0.02, 0.5, 0, 180); // Low C1
-      // Dissonant tritone brass hit
-      playBgmNote(65.41, 0.4, 'sawtooth', 0.14, 0.01, 0.35, -15, 350); // C2
-      playBgmNote(92.50, 0.4, 'sawtooth', 0.14, 0.01, 0.35, 15, 350);  // F#2
-    }
-    if(s % 2 === 0){
-      // Fast pulsing menace bass
-      const menaceNotes = [65.41, 65.41, 69.30, 65.41, 92.50, 87.31, 65.41, 69.30];
-      playBgmNote(menaceNotes[Math.floor(s/2) % menaceNotes.length], 0.08, 'square', 0.1, 0.005, 0.07);
-    }
-    if(s === 4 || s === 12 || s === 20 || s === 28){
-      // High laser/alarm siren sweep
-      playBgmNote(987.77, 0.15, 'sawtooth', 0.06, 0.01, 0.12);
-    }
-    if(s % 4 === 2){
-      playBgmDrums('hihat', 0.07);
-    }
-  }
-
-  bgmStep++;
+  AdventureScore.start();
 }
 
 function updateBgmTrack(){
@@ -307,7 +131,9 @@ function updateBgmTrack(){
   if(!state || state.mode === 'menu'){
     targetTrack = 'menu';
   } else if(state.mode === 'playing' || state.mode === 'paused'){
-    if(level && (level.isGodzillaLevel || (godzillaBoss && godzillaBoss.active))){
+    if(level && level.musicTrack){
+      targetTrack = (level.bossArena && finalBoss.awakened && finalBoss.active) ? 'boss' : level.musicTrack;
+    } else if(level && (level.isGodzillaLevel || (godzillaBoss && godzillaBoss.active))){
       targetTrack = 'godzilla';
     } else if(level && (level.name.includes('ჯამპსქეირ') || level.name.includes('დინოზავრ') || level.name.includes('საიდუმლო') || state.levelIndex === 17 || level.bgHue === 'pink')){
       targetTrack = 'horror';
@@ -320,9 +146,10 @@ function updateBgmTrack(){
     targetTrack = 'menu';
   }
 
+  AdventureScore.setTrack(targetTrack, state.mode === 'paused');
+
   if(targetTrack !== bgmCurrentTrack){
     bgmCurrentTrack = targetTrack;
-    bgmStep = 0;
   }
 }
 
@@ -333,6 +160,21 @@ window.addEventListener('mousedown', ()=>{ mouseState.isDown = true; });
 window.addEventListener('mouseup', ()=>{ mouseState.isDown = false; });
 window.addEventListener('touchstart', ()=>{ mouseState.isDown = true; }, { passive: true });
 window.addEventListener('touchend', ()=>{ mouseState.isDown = false; }, { passive: true });
+
+// Canvas-space pointer used for tactile menu hover states.
+const menuPointer = { x: -1, y: -1, active: false };
+function updateMenuPointer(clientX, clientY){
+  const rect = canvas.getBoundingClientRect();
+  const scale = Math.min(rect.width / W, rect.height / H);
+  const offsetX = (rect.width - W * scale) / 2;
+  const offsetY = (rect.height - H * scale) / 2;
+  menuPointer.x = (clientX - rect.left - offsetX) / scale;
+  menuPointer.y = (clientY - rect.top - offsetY) / scale;
+  menuPointer.active = true;
+}
+canvas.addEventListener('mousemove', e => updateMenuPointer(e.clientX, e.clientY));
+canvas.addEventListener('mouseleave', () => { menuPointer.active = false; });
+canvas.addEventListener('touchmove', e => { if(e.touches && e.touches.length) updateMenuPointer(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
 
 window.addEventListener('keydown', e=>{
   if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || (e.target.closest && e.target.closest('#promoModal')))) {
@@ -648,7 +490,7 @@ const defaultSettings = {
   highJumpAssist: false   // false | true
 };
 
-const MAX_LEVELS = 11; // Raised to 11 so Epic 11 (Volcano's Heart) stays spliced in & playable
+const MAX_LEVELS = 20;
 
 // 🪙 dino coins (earned in levels) -> 💰 shop coins (spent in the shop)
 const COIN_EXCHANGE_RATE = 10;
@@ -938,6 +780,7 @@ const FINAL_BOSS_TIERS = [
   { tier:3, name:'FLAME DEMON',   nameGeo:'ცეცხლის დემონი',  color:'#991b1b', auraColor:'#dc2626', hp:440, speed:2.6, size:2.2, atk:'fireball', reward: 350 },
   { tier:4, name:'FROST WRAITH',  nameGeo:'ყინვის ჩრდილი',   color:'#1e3a8a', auraColor:'#3b82f6', hp:600, speed:3.0, size:2.4, atk:'icebolt',  reward: 500 },
   { tier:5, name:'OMEGA OVERLORD',nameGeo:'ომეგა მმართველი', color:'#7f1d1d', auraColor:'#f97316', hp:880, speed:3.5, size:2.8, atk:'multi',    reward: 800 },
+  { tier:6, name:'THE WORLD EATER', nameGeo:'სამყაროთა მჭამელი', color:'#111827', auraColor:'#22d3ee', hp:1800, speed:3.2, size:3.4, atk:'multi', reward:5000 },
 ];
 
 let finalBoss = {
@@ -955,12 +798,15 @@ let finalBoss = {
 };
 
 function initFinalBoss(levelIndex){
-  // Boss on levels 8, 12, 16, 20, 24 (index 7,11,15,19,23)
-  const bossLevels = [7, 11, 15, 19, 23];
-  const bossIdx = bossLevels.indexOf(levelIndex);
-  if(bossIdx === -1){ finalBoss.active = false; return; }
-  const td = FINAL_BOSS_TIERS[bossIdx];
+  // Keep the campaign's regular boss milestones and finish with the true finale.
+  const bossTierByLevel = new Map([[7,0],[11,1],[19,5]]);
+  const bossTierIndex = bossTierByLevel.get(levelIndex);
+  if(bossTierIndex === undefined){ finalBoss.active = false; return; }
+  const td = FINAL_BOSS_TIERS[bossTierIndex];
   finalBoss.active = true;
+  finalBoss.awakened = !level.bossArena;
+  finalBoss.pendingAttack = null;
+  finalBoss.attackNumber = 0;
   finalBoss.dead = false;
   finalBoss.deathAnimTimer = 0;
   finalBoss.tier = td.tier;
@@ -980,14 +826,22 @@ function initFinalBoss(levelIndex){
   finalBoss.attackTimer = 0; finalBoss.enraged = false;
   finalBoss.projectiles = [];
   finalBoss.reward = td.reward;
-  shake(25); sfxDemonic();
-  triggerFlash('120,0,200', 0.7);
-  toast(`⚔️ ${td.nameGeo} — TIER ${td.tier} BOSS! ⚔️`, 3500);
+  if(!level.bossArena){
+    shake(25); sfxDemonic();
+    triggerFlash('120,0,200', 0.7);
+    toast(`⚔️ ${td.nameGeo} — TIER ${td.tier} BOSS! ⚔️`, 3500);
+  }
 }
 
 function updateFinalBoss(dt){
   if(!finalBoss.active || finalBoss.dead) return;
   const fb = finalBoss;
+  if(level.bossArena && !fb.awakened){
+    if(player.x < level.bossArena.trigger) return;
+    fb.awakened = true; fb.attackTimer = -1000;
+    sfxDemonic(); shake(10);
+    addFloatingText(player.x, player.y-65, "THE WORLD EATER", "#badbe0");
+  }
   fb.animT += dt;
 
   // Enrage at 30% HP
@@ -1022,6 +876,15 @@ function updateFinalBoss(dt){
   fb.x += fb.vx;
   fb.y += fb.vy;
 
+  if(level.bossArena){
+    fb.x = Math.max(level.bossArena.start+100, Math.min(level.bossArena.end-fb.w-60, fb.x));
+    fb.y = GROUND_Y-fb.h; fb.vy = 0;
+  }
+
+  // The final encounter has visible windups and three distinct attacks.
+  if(level.bossArena){
+    updateEndgameBossAttacks(fb, dt);
+  } else {
   // Attack system
   fb.attackTimer += dt;
   const interval = fb.enraged ? 900 : 1600;
@@ -1041,11 +904,13 @@ function updateFinalBoss(dt){
     spawnParticles(fb.x+fb.w/2, fb.y+fb.h*0.3, fb.auraColor, 15, 1.5);
   }
 
+  }
+
   // Update projectiles
   for(let i = fb.projectiles.length-1; i>=0; i--){
     const p = fb.projectiles[i];
     p.x += p.vx; p.y += p.vy; p.life--;
-    if(Math.random()<0.4) spawnParticles(p.x, p.y, p.color, 2, 0.4);
+    if(Math.random()<0.12) spawnParticles(p.x, p.y, p.color, 1, 0.4);
     // Hit player
     if(!player.dead && !player.invuln){
       const pBox = {x:p.x-p.size,y:p.y-p.size,w:p.size*2,h:p.size*2};
@@ -1084,6 +949,7 @@ function updateFinalBoss(dt){
   // Boss death
   if(fb.hp <= 0 && !fb.dead){
     fb.dead = true;
+    fb.pendingAttack = null; fb.projectiles = [];
     fb.deathAnimTimer = 120;
     for(let i=0;i<8;i++) spawnParticles(fb.x+fb.w/2+Math.random()*80-40, fb.y+Math.random()*fb.h, fb.auraColor, 30, 3);
     shake(40); sfxWin(); sfxDemonic();
@@ -1096,6 +962,7 @@ function updateFinalBoss(dt){
 }
 
 function drawFinalBoss(){
+  if(level?.bossArena){ drawEndgameBoss(); return; }
   if(!finalBoss.active && !(finalBoss.dead && finalBoss.deathAnimTimer > 0)) return;
   const fb = finalBoss;
   const sx = fb.x - camX;
@@ -1195,7 +1062,6 @@ function drawFinalBoss(){
 
   ctx.fillStyle = fb.enraged ? '#ef4444' : fb.auraColor;
   ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText(`${fb.enraged ? '💢 ENRAGED — ' : ''}${fb.name} — ${fb.nameGeo} [TIER ${fb.tier}]`, W/2, by-10);
 
   ctx.fillStyle = '#1a1a2e'; ctx.fillRect(bx, by, barW, barH);
   const hpFill = Math.max(0, fb.hp / fb.maxHp);
@@ -4201,6 +4067,7 @@ function initWeather(){
 }
 
 function applyWeatherType(newType, isInitial=false){
+  if(level?.endgameDesign){ newType = ({jungle:'clear',sky:'clear',neon:'rain',crystal:'clear',volcano:'ash',finale:'clear'})[level.musicTrack] || 'clear'; }
   weather.type = newType;
   
   // Theme-aware weather overrides
@@ -4610,7 +4477,9 @@ const player = {
   jumpCount: 0,
   wingsTimer: 0,
   hasShield: false,
-  isAdmin: false
+  isAdmin: false,
+  hurtTimer: 0,
+  landTime: -99999
 };
 
 function resetPlayer(spawn){
@@ -4629,15 +4498,17 @@ function resetPlayer(spawn){
   player.gunRecoil = 0;
   player.weaponMode = (state.equippedSkin === 'lasha') ? 'guitar' : (state.equippedWeapon || (state.upgrades.shotgun ? 'shotgun' : 'pistol'));
   player.fastenerTimer = 0; player.reverseControlsTimer = 0; player.wingsTimer = 0;
+  player.hurtTimer = 0; player.landTime = -99999;
   player.isBitten = false; player.bitePhase = 'hand'; player.biteProgress = 0; player.biteTimer = 0; player.bitingZombie = null;
   player.dashTimer = 0; player.dashCooldown = 0; player.jumpCount = 0;
   player.stamina = player.maxStamina || 100;
   if(state.upgrades.shield && player.hasShield === undefined) player.hasShield = true;
   player.floorY = player.y;
+  player.coyoteTimer = 0; player.jumpBuffer = 0; player.wasJumpHeld = false; player.jumpKeyPressed = false;
   const maxCamX = level ? Math.max(0, (level.width || 5000) - W) : 4000;
   camX = Math.max(0, Math.min(maxCamX, player.x - W * 0.38));
   if(level && level.height && level.height > 800){
-    camY = Math.max(0, player.y - H / 2);
+    camY = Math.max(-(Math.max(0, level.height - H)), player.y - H / 2);
   } else if(player.y < GROUND_Y - 120){
     camY = player.y - (GROUND_Y - 120);
   } else {
@@ -4952,9 +4823,12 @@ function shoot(){
       vx: player.facing * 10, vy: 0,
       life: 70, color: '#00ffcc', size: 14, damage: 5 * dmgMult, isPlasma: true, range: range
     });
-    sfxDemonic();
-    shakeGun(14);
-    spawnParticles(gunX, gunY, '#00ffcc', 20, 1.8);
+    if(level?.endgameDesign){
+      beep(165,0.09,'triangle',0.05,0,480); beep(90,0.06,'sine',0.03);
+      shakeGun(4); spawnParticles(gunX, gunY, '#99d7c0', 6, 1.1);
+    }else{
+      sfxDemonic(); shakeGun(14); spawnParticles(gunX, gunY, '#00ffcc', 20, 1.8);
+    }
   } else if(mode === 'flamethrower'){
     player.gunRecoil = 6;
     for(let i=0; i<3; i++){
@@ -5279,8 +5153,7 @@ function updateBullets(){
       }
     }
 
-    // Shooting barrels: ordinary barrels just break apart, only the rare explosive
-    // barrels (EXPLOSIVE) detonate when destroyed.
+    // Shooting barrels: bullets damage the barrel, it explodes at 0 HP
     if(!hit && level && level.boulders){
       for(let bi = level.boulders.length - 1; bi >= 0; bi--){
         const bd = level.boulders[bi];
@@ -5294,29 +5167,13 @@ function updateBullets(){
           spawnImpactFx(b.x, b.y, b.mode, { big: b.isRocket || b.isGrenade || b.isTankShell });
           sfxZombieHit();
           if(bd.hp <= 0){
+            bd.dead = true;
+            if(bd.adventureBarrel){
+              spawnParticles(bd.x,bd.y,'#b49872',10,1.5);
+              beep(95,0.08,'triangle',0.035);
+              addScore(35);
+            } else spawnBarrelExplosion(bd.x, bd.y);
             level.boulders.splice(bi, 1);
-            if(bd.explosive){
-              spawnBarrelExplosion(bd.x, bd.y, 105);
-              for(const z of zombies){
-                if(z.dead) continue;
-                const zcx = z.x + (z.w || 0)/2;
-                const zcy = z.y + (z.h || 0)/2;
-                if(Math.hypot(zcx - bd.x, zcy - bd.y) < 220){
-                  z.health = (z.health || 1) - 5;
-                  spawnZombieBlood(zcx, zcy + (z.h || 0)/2, { power: 1.3 });
-                  if(z.health <= 0){
-                    z.dead = true;
-                    state.zombiesKilledInLevel = (state.zombiesKilledInLevel || 0) + 1;
-                    addScore(300);
-                    addFloatingText(z.x, z.y - 20, "🔥 EXPLOSIVE KILL! +300", '#f97316');
-                  }
-                }
-              }
-            } else {
-              spawnParticles(bd.x, bd.y, '#9a6a2f', 16, 2.8);
-              spawnParticles(bd.x, bd.y, '#78350f', 12, 2.4);
-              addFloatingText(bd.x, bd.y - 30, "🪵 კასრი გატყდა!", '#d97706');
-            }
           }
           hit = true;
           break;
@@ -5750,8 +5607,8 @@ function bird(x, y, extra = {}){
     speed: extra.speed || 2.8,
     rangeX: extra.rangeX || 450,
     rangeY: extra.rangeY || 250,
-    hp: extra.hp || 1,
-    maxHp: extra.hp || 1,
+    hp: extra.hp || 3,
+    maxHp: extra.hp || 3,
     state: 'patrol',
     flapTimer: Math.random() * 10,
     type: extra.type || 'vulture', // 'vulture', 'fire_hawk', 'blood_eagle'
@@ -6232,138 +6089,32 @@ function buildLevels(){
     flag: rect(10550, GROUND_Y - 900, 30, 140, { isFireFlame: true })
   });
 
-  
-  // LEVEL 5: New York City Hoverbike Drone Assault
+  // LEVEL 5: Cyber Hoverbike vs Drones Level
   levels.push({
-    name:'ეპ.5 — ახალიyorიტო ჰოვერბაიქი ドロンის ბოროტ abductors 🚕🛸',
+    name:'ეპ.5 — კიბერ ჰოვერბაიქი დრონების წინააღმდეგ 🛸✨',
     diffRating: 'საშუალო+', diffStars: '⭐⭐⭐', diffColor: '#38c6ff',
-    gimmickTitle: '🚕 NEW YORK CITY HOVERBIKE DRONE ASSAULT',
-    diffDesc: 'მ Atlanta- styled streets-averaged hoverbike through neon-lit avenues, dodging hovering drones, flying taxis, and towering skyscrapers! Use [Space] to fire plasmа blasts and weave through the cityscape!',
+    gimmickTitle: '🛸 CYBER HOVERBIKE ATTACK ⚡',
+    diffDesc: 'ააფრენი ფიუტურიტურულ ჰოვერბაიქზე! ისროლე პლაზმური ლაზერები [Space] და გაანადგურე 25 კიბერ-დრონი!',
     isHoverbikeLevel: true,
-    width: 14000,
-    height: 1200,
-    theme: 'new_york_city',
-    spawn:{x:100, y:GROUND_Y-60},
-    checkpoints: [
-      { x: 2500, y: GROUND_Y, active: false },
-      { x: 6000, y: GROUND_Y, active: false },
-      { x: 10000, y: GROUND_Y - 400, active: false }
-    ],
+    width: 8800,
+    spawn:{x:80, y:250},
+    checkpoints: [],
     plats: [
-      // 1. Spawn: Street level with yellow taxi
-      rect(0, GROUND_Y, 400, 90),
-      // 2. Moving yellow taxi (200 to 350)
-      rect(200, GROUND_Y - 30, 80, 24, {vx: 1.5, minX: 200, maxX: 350}),
-      // 3. Alley entrance with fire escape (350 to 700)
-      rect(380, GROUND_Y - 80, 120, 24),
-      rect(520, GROUND_Y - 160, 120, 24),
-      rect(660, GROUND_Y - 240, 80, 24),
-      // 4. Elevated highway onramp (700 to 1200)
-      rect(720, GROUND_Y - 30, 200, 24),
-      // 5. Construction zone with moving beam (1200 to 1800)
-      rect(1250, GROUND_Y - 80, 180, 24),
-      rect(1450, GROUND_Y - 160, 140, 24),
-      rect(1650, GROUND_Y - 240, 120, 24),
-      // 6. Rooftop garden with satellite dish (1800 to 2200)
-      rect(1820, GROUND_Y - 120, 200, 90),
-      // 7. Flag platform at 2500 (midpoint)
-      rect(2500, GROUND_Y - 120, 200, 90),
-      // 8. Neon billboard lane (2500 to 3200)
-      rect(2550, GROUND_Y - 30, 300, 24),
-      rect(2880, GROUND_Y - 60, 120, 24, {vx: 2.0, minX: 2860, maxX: 3100}),
-      // 9. Subway entrance / vent (3200 to 4000)
-      rect(3250, GROUND_Y - 100, 150, 40),
-      rect(3450, GROUND_Y - 180, 120, 24),
-      // 10. Skyscraper facade jumps (4000 to 5000)
-      rect(4100, GROUND_Y - 80, 220, 24),
-      rect(4380, GROUND_Y - 160, 200, 24),
-      rect(4660, GROUND_Y - 240, 180, 24),
-      // 11. Sky bridge corridor (5000 to 5500)
-      rect(5100, GROUND_Y - 200, 150, 24),
-      rect(5300, GROUND_Y - 280, 120, 24),
-      // 11b. Drone swarm waypoint cluster (5400 to 5800)
-      rect(5450, GROUND_Y - 150, 200, 90),
-      // 12. Central park overlook (5800 to 6000)
-      rect(5900, GROUND_Y - 50, 300, 90),
-      // 13. Rooftop to rooftop (6000 to 7000)
-      rect(6100, GROUND_Y - 100, 250, 90),
-      rect(6400, GROUND_Y - 200, 220, 24),
-      rect(6700, GROUND_Y - 300, 180, 24),
-      rect(7000, GROUND_Y - 400, 150, 24),
-      // 14. Helipad refuel (7000 to 7500)
-      rect(7100, GROUND_Y - 300, 180, 90),
-      rect(7400, GROUND_Y - 400, 180, 24),
-      // 15. Twin tower gap (7500 to 8200)
-      rect(7550, GROUND_Y - 200, 250, 24),
-      rect(7850, GROUND_Y - 350, 180, 24),
-      rect(8100, GROUND_Y - 450, 160, 24),
-      // 16. Empire State ascent (8200 to 9000)
-      rect(8300, GROUND_Y - 150, 220, 24),
-      rect(8600, GROUND_Y - 250, 200, 24),
-      rect(8950, GROUND_Y - 350, 180, 24),
-      // 17. Final approach to flag (9000 to 10000)
-      rect(9100, GROUND_Y - 100, 250, 90),
-      // 18. Drone factory corridor (10000 to 11000)
-      rect(10100, GROUND_Y - 100, 300, 90),
-      rect(10450, GROUND_Y - 200, 250, 24),
-      rect(10800, GROUND_Y - 300, 220, 24),
-      // 19. Maze of rotating laser drones (11000 to 12000)
-      rect(11100, GROUND_Y - 150, 280, 90),
-      rect(11450, GROUND_Y - 250, 230, 24),
-      rect(11800, GROUND_Y - 350, 200, 24),
-      // 20. Final boss drone platform (12000 to 13000)
-      rect(12100, GROUND_Y - 200, 280, 90),
-      rect(12450, GROUND_Y - 350, 250, 24),
-      rect(12800, GROUND_Y - 450, 180, 24),
-      // 21. Flag at sky rooftop (13000 to 14000)
-      rect(13100, GROUND_Y - 100, 300, 90),
+      rect(0, GROUND_Y, 8800, 90)                       // Continuous neon grid road
     ],
-    spinners: [
-      { cx: 5350, cy: GROUND_Y - 100, r: 40, angle: 0, speed: 0.08 },
-      { cx: 10500, cy: GROUND_Y - 200, r: 45, angle: 0, speed: -0.1 },
-      { cx: 12500, cy: GROUND_Y - 350, r: 50, angle: 0, speed: 0.12 }
-    ],
-    drones: [
-      { x: 300, y: GROUND_Y - 100, type: 'city_patrol', speed: 1.5, pattern: 'hover' },
-      { x: 900, y: GROUND_Y - 120, type: 'city_patrol', speed: 1.7, pattern: 'hover' },
-      { x: 1500, y: GROUND_Y - 140, type: 'city_patrol', speed: 1.6, pattern: 'hover' },
-      { x: 2200, y: GROUND_Y - 110, type: 'city_patrol', speed: 1.8, pattern: 'hover' },
-      { x: 2800, y: GROUND_Y - 130, type: 'city_patrol', speed: 1.5, pattern: 'hover' },
-      { x: 3500, y: GROUND_Y - 100, type: 'delivery', speed: 2.5, pattern: 'fast_forward' },
-      { x: 4200, y: GROUND_Y - 120, type: 'delivery', speed: 2.7, pattern: 'fast_forward' },
-      { x: 4900, y: GROUND_Y - 110, type: 'delivery', speed: 2.6, pattern: 'fast_forward' },
-      { x: 5600, y: GROUND_Y - 120, type: 'police', speed: 3.0, pattern: 'swoop' },
-      { x: 6300, y: GROUND_Y - 130, type: 'police', speed: 3.2, pattern: 'swoop' },
-      { x: 7000, y: GROUND_Y - 110, type: 'police', speed: 3.1, pattern: 'swoop' },
-      { x: 8000, y: GROUND_Y - 150, type: 'elite', speed: 3.5, pattern: 'complex' },
-      { x: 9500, y: GROUND_Y - 170, type: 'elite', speed: 3.7, pattern: 'complex' },
-      { x: 11000, y: GROUND_Y - 160, type: 'elite', speed: 3.6, pattern: 'complex' },
-      { x: 13500, y: GROUND_Y - 200, type: 'boss', speed: 4.0, pattern: 'guardian' }
-    ],
-    jumpboxes: [
-      rect(1200, GROUND_Y - 120, 40, 40, {hit:false, type:'shotgun'}),
-      rect(3500, GROUND_Y - 120, 40, 40, {hit:false, type:'plasma'}),
-      rect(7200, GROUND_Y - 300, 40, 40, {hit:false, type:'minigun'}),
-      rect(9500, GROUND_Y - 500, 40, 40, {hit:false, type:'rocket'}),
-      rect(11500, GROUND_Y - 600, 40, 40, {hit:false, type:'shield'})
-    ],
+    spikes: [],
     coins: [
-      ...Array.from({length: 20}, (_, i) => {
-        const x = 400 + i * 600;
-        const y = (i % 2 === 0) ? GROUND_Y - 120 : GROUND_Y - 300;
-        return rect(x, y, 22, 22);
-      })
+      ...Array.from({length: 15}, (_, i) => rect(600 + i * 480, GROUND_Y - 120, 22, 22))
     ],
+    jumpboxes: [],
+    zombies: [],
     signs: [
-      { x: 100, y: 200, text: '🚕 ჰოვერბაიქს [W/A/S/D], ლაზერი [Space] უთავე მ_onlyin maneuvers' },
-      { x: 2500, y: 200, text: '🏙️ New York skyline - avoid construction, taxis, and neon signage!' },
-      { x: 6000, y: 200, text: '🚧 Construction zone - moving beams ahead!' },
-      { x: 10000, y: 200, text: '🏢 Drone factory - incoming elite units!' }
+      { x: 100, y: 200, text: '🛸 მართე ჰოვერბაიქი [W/A/S/D], ისროლე პლაზმური ლაზერი [Space] და გაანადგურე 25 კიბერ-დრონი!' }
     ],
-    flag: rect(13800, GROUND_Y - 100, 30, 140, { isPortal: true })
+    flag: null
   });
 
-// LEVEL 6: Apocalyptic Cyber-Skyscraper & Mutants (Epic Scale)
+  // LEVEL 6: Apocalyptic Cyber-Skyscraper & Mutants (Epic Scale)
   levels.push({
     name:'ეპ.6 — აპოკალიფსური ცათამბჯენი და ნეონის ჯოჯოხეთი 🌆🔥',
     diffRating: 'ექსტრემალური🔥', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#ef4444',
@@ -7185,186 +6936,966 @@ function buildLevels(){
     flag: rect(17600, GROUND_Y - 140, 30, 140)
   });
 
-  // LEVEL 11: Volcano's Heart - 10-Chapter Epic Volcanic Adventure
+  // LEVEL 11: Volcano's Heart - 9-Chapter Epic Volcanic Journey with GRAND FINISH LINE
   levels.push({
     name:'ეპ.11 — ვულკანის გული',
     diffRating: 'რთული', diffStars: '⭐⭐⭐⭐', diffColor: '#f97316',
-    gimmickTitle: '🌋 ლავის ზღვარზე', diffDesc: 'ვულკანი იღვიძებს! მოიპოვე ფლამეინგი, გადალახე ლავის გეიზერები, დაამარცხე არენა და ებრძოლე ვულკანის გულს!',
+    gimmickTitle: '🌋 ლავის ზღვარზე', diffDesc: 'ვულკანი იღვიძებს! მოიპოვე ფლამეინგი, გადალახე ლავის გეიზერები, დაამარცხე არენა, ადი ვულკანის გულამდე და გაიარე გრანდიოზული ფინიშის ხაზი!',
     zombieSpeedMult: 1.35, zombieHpMult: 1.4, gravityMult: 1.0, hazardType: 'lava_geysers',
     theme: 'infernal_volcano',
-    keepDesign: true, masterDesign: true, checkpointRespawn: true,
-    width: 12000, height: 2600,
+    keepDesign: true, masterDesign: true,
+    width: 15240, height: 3600,
     spawn:{x:60, y:GROUND_Y-60},
 
-    // ===== CHECKPOINTS (4 - after every major section + pre-boss) =====
-    checkpoints: [
-      { x: 1470, y: GROUND_Y - 54, active: false },     // After flamethrower shrine
-      { x: 4850, y: GROUND_Y - 54, active: false },     // After lava gauntlet
-      { x: 7350, y: GROUND_Y - 54, active: false },     // After combat arena
-      { x: 8280, y: GROUND_Y - 2354, active: false }    // Summit ash ridge (pre-boss)
-    ],
-
-    // ===== PLATFORMS & FLOORS =====
+    // ===== CHAPTER 1: Volcanic Entrance & Flamethrower Shrine (0-3050) =====
     plats: [
-      // --- SECTION A: Volcanic Entrance & Flamethrower Shrine (0-2580) ---
-      rect(0, GROUND_Y, 720, 90),                       // Spawn floor
-      rect(860, GROUND_Y, 360, 90),                     // Mid floor 1
-      rect(1380, GROUND_Y, 420, 90),                    // Flamethrower shrine floor
-      rect(1980, GROUND_Y, 520, 90),                    // Spike island floor
-      rect(2580, GROUND_Y, 260, 90),                    // Banana base floor
+      rect(0, GROUND_Y, 560, 90),               // Spawn floor
+      rect(700, GROUND_Y, 300, 90),             // Mid floor 1
+      rect(1160, GROUND_Y, 460, 90),            // Mid floor 2
+      rect(1780, GROUND_Y, 500, 90),            // Spike island floor
+      rect(2440, GROUND_Y, 610, 90),            // Flamethrower shrine floor
 
-      // --- SECTION B: Screaming Banana Staircase (2580-3600) ---
-      rect(2750, GROUND_Y-110, 130, 24),                // Banana step 1
-      rect(2950, GROUND_Y-220, 130, 24),                // Banana step 2
-      rect(3150, GROUND_Y-330, 130, 24),                // Banana top ledge
-      rect(3350, GROUND_Y-220, 130, 24),                // Banana descent 1
-      rect(3550, GROUND_Y-110, 130, 24),                // Banana descent 2
-      rect(3600, GROUND_Y, 200, 90),                    // Pre-gauntlet ledge
+      // ===== CHAPTER 2: Screaming Banana Staircase (3050-4400) =====
+      rect(3100, GROUND_Y-110, 140, 24),        // Banana step 1
+      rect(3340, GROUND_Y-220, 140, 24),        // Banana step 2
+      rect(3580, GROUND_Y-330, 170, 24),        // Banana top ledge
+      rect(3820, GROUND_Y-220, 140, 24),        // Banana descent 1
+      rect(4040, GROUND_Y-110, 140, 24),        // Banana descent 2
+      rect(4180, GROUND_Y, 220, 90),            // Pre-gauntlet ledge
 
-      // --- SECTION C: Lava Gauntlet (3800-4700) ---
-      rect(3860, GROUND_Y-60, 110, 24),                 // Stone 1
-      rect(4060, GROUND_Y-120, 110, 24),                // Stone 2
-      rect(4260, GROUND_Y-70, 110, 24),                 // Stone 3
-      rect(4460, GROUND_Y-110, 110, 24),                // Stone 4
-      rect(4700, GROUND_Y, 400, 90),                    // Gauntlet landing + checkpoint
+      // ===== CHAPTER 3: Lava Gauntlet (4400-5580) =====
+      rect(4520, GROUND_Y-60, 150, 24),         // Stone 1
+      rect(4750, GROUND_Y-130, 150, 24),        // Stone 2
+      rect(4980, GROUND_Y-70, 150, 24),         // Stone 3
+      rect(5210, GROUND_Y-140, 150, 24),        // Stone 4
+      rect(5320, GROUND_Y, 260, 90),            // Gauntlet landing
 
-      // --- SECTION D: Moving Platform Gorge (5120-5950) ---
-      rect(5180, GROUND_Y-70, 130, 24, {vx:2.6, minX:5120, maxX:5380}),   // Mover 1
-      rect(5400, GROUND_Y-120, 130, 24, {vx:-2.6, minX:5340, maxX:5620}), // Mover 2
-      rect(5580, GROUND_Y-70, 130, 24, {vx:2.6, minX:5520, maxX:5780}),   // Mover 3
-      rect(5350, GROUND_Y-260, 130, 24),                // Risk route high ledge (trophy + bell)
+      // ===== CHAPTER 4: Moving Platform Gorge (5580-6540) =====
+      rect(5680, GROUND_Y-70, 150, 24, {vx:2.6, minX:5640, maxX:5940}),   // Mover 1
+      rect(5920, GROUND_Y-120, 150, 24, {vx:-2.6, minX:5880, maxX:6180}), // Mover 2
+      rect(6080, GROUND_Y-70, 150, 24, {vx:2.6, minX:6040, maxX:6400}),   // Mover 3
+      rect(6040, GROUND_Y-260, 160, 24),        // Risk route high ledge (trophy + bell + wings)
+      rect(6540, GROUND_Y, 240, 90),            // Gorge landing
 
-      // --- SECTION E: Combat Arena (6000-7540) ---
-      rect(5950, GROUND_Y, 310, 90),                    // Gorge exit + pre-arena ledge (ends where lava begins)
-      rect(6400, GROUND_Y, 800, 90),                    // ARENA FLOOR (boss wave)
-      rect(7300, GROUND_Y, 240, 90),                    // Arena exit + checkpoint
+      // ===== CHAPTER 5: Combat Arena (6920-7960) =====
+      rect(6920, GROUND_Y, 1040, 90),           // ARENA FLOOR (boss wave)
 
-      // --- SECTION F: Deep Volcano Climb (7600-8600) ---
-      rect(7600, GROUND_Y, 2300, 90),                   // Climb base floor + rescue cradle (catches summit falls)
-      ...Array.from({length: 20}, (_, i) => rect(7780 + (i%2)*30, GROUND_Y-(110+i*115), 130, 24)),  // Ascent steps (~-110 to -2295)
-      rect(7860, GROUND_Y-2300, 130, 24),               // Top pad 1
-      rect(8000, GROUND_Y-2300, 130, 24),               // Top pad 2
-      rect(8140, GROUND_Y-2300, 460, 30),               // Ash ridge (pre-boss checkpoint)
+      // ===== CHAPTER 6: Deep Volcano Climb + Rescue Cradle (8100-10550) =====
+      rect(8100, GROUND_Y, 2450, 90),           // Climb base floor + rescue cradle
+      ...Array.from({length: 24}, (_, i) => rect(8480 + (i%2)*30, GROUND_Y-(120+i*118), 150, 24)),  // Ascent steps (~ -120 to -2249)
+      rect(8720, GROUND_Y-2900, 160, 24),       // Top pad (jump from last step)
+      rect(8900, GROUND_Y-2935, 500, 30),       // Ash ridge (pre-boss walk)
 
-      // --- SECTION G: Summit Boss Arena & Victory Descent ---
-      rect(8800, GROUND_Y-2400, 700, 40),               // SUMMIT ARENA (final boss)
-      rect(8360, GROUND_Y-2000, 130, 24),               // Climb risk alcove (plasma + bell)
-      ...Array.from({length: 20}, (_, i) => rect(9680 + (i%2)*30, GROUND_Y-(2280-i*115), 130, 24)),  // Descent steps (to ~-95)
-      rect(9550, GROUND_Y, 1950, 90)                    // Victory field + flag
+      // ===== CHAPTER 7: Summit Boss Arena (9400-10280) =====
+      rect(9400, GROUND_Y-2970, 880, 40),       // SUMMIT ARENA (final boss)
+      rect(9180, GROUND_Y-2800, 150, 24),       // Climb risk alcove (plasma + boost)
+
+      // ===== CHAPTER 8: Victory Descent (10450-13470) =====
+      rect(10450, GROUND_Y-2400, 180, 24),
+      rect(10640, GROUND_Y-2250, 170, 24),
+      rect(10830, GROUND_Y-2100, 170, 24),
+      rect(11020, GROUND_Y-1950, 170, 24),
+      rect(11210, GROUND_Y-1800, 170, 24),
+      rect(11400, GROUND_Y-1650, 170, 24),
+      rect(11590, GROUND_Y-1500, 170, 24),
+      rect(11780, GROUND_Y-1350, 170, 24),
+      rect(11970, GROUND_Y-1200, 170, 24),
+      rect(12160, GROUND_Y-1050, 170, 24),
+      rect(12350, GROUND_Y-900, 170, 24),
+      rect(12540, GROUND_Y-750, 170, 24),
+      rect(12730, GROUND_Y-600, 170, 24),
+      rect(12920, GROUND_Y-450, 170, 24),
+      rect(13110, GROUND_Y-300, 170, 24),
+      rect(13300, GROUND_Y-150, 170, 24),
+
+      // ===== CHAPTER 9: Victory Field & Grand Finish Line (13480-15240) =====
+      rect(13460, GROUND_Y, 1780, 90)           // Victory field + grand finish
     ],
 
     // ===== HAZARDS =====
     lavas: [
-      rect(720, GROUND_Y, 140, 90),                     // Entrance gap 1
-      rect(1220, GROUND_Y, 160, 90),                    // Entrance gap 2
-      rect(1800, GROUND_Y, 180, 90),                    // Entrance gap 3
-      rect(2500, GROUND_Y, 80, 90),                     // Banana base gap
-      rect(3800, GROUND_Y, 900, 90),                    // Lava gauntlet pit
-      rect(5120, GROUND_Y, 830, 90),                    // Gorge abyss
-      rect(6260, GROUND_Y, 140, 90),                    // Pre-arena gap
-      rect(7200, GROUND_Y, 100, 90)                     // Post-arena gap
+      rect(560, GROUND_Y, 140, 90),             // Entrance gap 1
+      rect(1000, GROUND_Y, 160, 90),            // Entrance gap 2
+      rect(1620, GROUND_Y, 160, 90),            // Entrance gap 3
+      rect(2280, GROUND_Y, 160, 90),            // Spike island gap
+      rect(3050, GROUND_Y, 1120, 90),           // Staircase fall-catcher
+      rect(4400, GROUND_Y, 840, 90),            // Lava gauntlet pit
+      rect(5580, GROUND_Y, 880, 90),            // Gorge abyss
+      rect(6780, GROUND_Y, 140, 90),            // Pre-arena gap
+      rect(7960, GROUND_Y, 140, 90)             // Post-arena gap
     ],
     firejets: [
-      { x: 3930, y: GROUND_Y, flameH: 120, period: 3600, offset: 0, w: 60 },      // Lava geyser between stones 1-2
-      { x: 4330, y: GROUND_Y, flameH: 125, period: 3600, offset: 1200, w: 60 }    // Lava geyser between stones 3-4
+      { x: 4710, y: GROUND_Y, flameH: 130, period: 3600, offset: 1000, w: 60 },   // Geyser between stones 1-2
+      { x: 4940, y: GROUND_Y, flameH: 135, period: 3600, offset: 2500, w: 60 },   // Geyser between stones 2-3
+      { x: 5170, y: GROUND_Y, flameH: 130, period: 3600, offset: 400, w: 60 }     // Geyser between stones 3-4
     ],
     spikes: [
-      rect(2060, GROUND_Y-24, 150, 24),                 // Spike island bed
-      rect(2640, GROUND_Y-24, 80, 24)                   // Banana base spikes
+      rect(1880, GROUND_Y-24, 260, 24),         // Spike island bed
+      rect(4200, GROUND_Y-24, 100, 24)          // Pre-gauntlet jump bed
     ],
     fakespikes: [
-      rect(4370, GROUND_Y-24, 70, 24),                  // Gauntlet pillow (prank)
-      rect(11150, GROUND_Y-24, 70, 24)                  // Victory pillow
+      rect(5360, GROUND_Y-24, 80, 24),          // Gauntlet landing pillow (prank)
+      rect(14400, GROUND_Y-24, 80, 24)          // Victory field pillow (prank)
+    ],
+    spinners: [
+      { cx: 7040, cy: GROUND_Y-130, r: 46, angle: 0, speed: 0.05 },   // Arena edge guard
+      { cx: 7840, cy: GROUND_Y-130, r: 46, angle: 0, speed: 0.06 }    // Arena edge guard
+    ],
+    crushers: [
+      { x: 9050, topY: GROUND_Y-3185, w: 120, h: 70, dropSpeed: 9, maxDrop: 140, riseSpeed: 3 }   // Ash ridge hammer
+    ],
+    steamVents: [
+      { x: 8300, y: GROUND_Y, w: 50, h: 170, period: 2200, offset: 0 },       // Climb base booster
+      { x: 8700, y: GROUND_Y-2420, w: 50, h: 210, period: 2200, offset: 700 }, // Ladder-top lift onto the pad
+      { x: 10100, y: GROUND_Y-2970, w: 50, h: 170, period: 2300, offset: 1150 } // Summit arena vent
     ],
 
     // ===== REWARDS & COLLECTIBLES =====
     coins: [
-      rect(150, GROUND_Y-40, 22, 22),
-      rect(950, GROUND_Y-40, 22, 22),
-      rect(1520, GROUND_Y-40, 22, 22),
-      rect(2080, GROUND_Y-40, 22, 22),
-      rect(2350, GROUND_Y-40, 22, 22),
-      rect(3050, GROUND_Y-250, 22, 22),
-      rect(3520, GROUND_Y-140, 22, 22),
-      rect(4320, GROUND_Y-120, 22, 22),
-      rect(5000, GROUND_Y-40, 22, 22),
-      rect(6100, GROUND_Y-40, 22, 22),
-      rect(7460, GROUND_Y-40, 22, 22),
-      rect(8950, GROUND_Y-2445, 22, 22),
-      rect(10600, GROUND_Y-40, 22, 22),
-      rect(10900, GROUND_Y-40, 22, 22),
-      ...Array.from({length: 6}, (_, i) => rect(11350 + i*45, GROUND_Y-130, 22, 22))  // Victory coin arc
+      // Chapter 1
+      rect(130, GROUND_Y-40, 22, 22),
+      rect(330, GROUND_Y-40, 22, 22),
+      rect(750, GROUND_Y-40, 22, 22),
+      rect(900, GROUND_Y-40, 22, 22),
+      rect(1250, GROUND_Y-40, 22, 22),
+      rect(1450, GROUND_Y-40, 22, 22),
+      rect(2000, GROUND_Y-40, 22, 22),
+      rect(2560, GROUND_Y-40, 22, 22),
+      rect(2800, GROUND_Y-40, 22, 22),
+      rect(2950, GROUND_Y-40, 22, 22),
+      // Chapter 2
+      rect(3170, GROUND_Y-150, 22, 22),
+      rect(3410, GROUND_Y-260, 22, 22),
+      rect(3640, GROUND_Y-370, 22, 22),
+      rect(3860, GROUND_Y-260, 22, 22),
+      rect(4090, GROUND_Y-150, 22, 22),
+      // Chapter 3
+      rect(4580, GROUND_Y-100, 22, 22),
+      rect(4810, GROUND_Y-170, 22, 22),
+      rect(5040, GROUND_Y-110, 22, 22),
+      rect(5270, GROUND_Y-180, 22, 22),
+      // Chapter 4
+      rect(5750, GROUND_Y-120, 22, 22),
+      rect(5980, GROUND_Y-170, 22, 22),
+      rect(6200, GROUND_Y-120, 22, 22),
+      rect(6420, GROUND_Y-100, 22, 22),
+      // Chapter 5
+      rect(6980, GROUND_Y-110, 22, 22),
+      rect(7220, GROUND_Y-110, 22, 22),
+      rect(7460, GROUND_Y-110, 22, 22),
+      rect(7700, GROUND_Y-110, 22, 22),
+      // Chapter 6
+      rect(8210, GROUND_Y-200, 22, 22),
+      rect(8560, GROUND_Y-600, 22, 22),
+      rect(8530, GROUND_Y-1600, 22, 22),
+      rect(9200, GROUND_Y-150, 22, 22),
+      // Chapter 7
+      rect(8900, GROUND_Y-2440, 22, 22),
+      rect(10100, GROUND_Y-2620, 22, 22),
+      // Chapter 8
+      rect(10540, GROUND_Y-2450, 22, 22),
+      rect(10730, GROUND_Y-2300, 22, 22),
+      rect(10920, GROUND_Y-2150, 22, 22),
+      rect(11110, GROUND_Y-2000, 22, 22),
+      rect(11500, GROUND_Y-1700, 22, 22),
+      rect(11870, GROUND_Y-1250, 22, 22),
+      rect(12240, GROUND_Y-900, 22, 22),
+      rect(12620, GROUND_Y-690, 22, 22),
+      rect(13000, GROUND_Y-480, 22, 22),
+      rect(13210, GROUND_Y-330, 22, 22),
+      // Chapter 9: victory coin arc
+      rect(13700, GROUND_Y-110, 22, 22),
+      ...Array.from({length: 8}, (_, i) => rect(14050 + i*45, GROUND_Y-130, 22, 22))
     ],
     coinBags: [
-      rect(11080, GROUND_Y-50, 42, 42, {taken:false})
+      rect(9250, GROUND_Y-170, 42, 42, {taken:false}),   // Climb mid reward
+      rect(14150, GROUND_Y-90, 42, 42, {taken:false})    // Victory field bag
     ],
     bells: [
-      rect(3130, GROUND_Y-370, 26, 30),                 // Banana top bell
-      rect(5370, GROUND_Y-180, 26, 30),                 // Gorge mover bell
-      rect(8480, GROUND_Y-1990, 26, 30)                 // Climb risk alcove bell
+      rect(3600, GROUND_Y-370, 26, 30),                 // Banana top bell
+      rect(6080, GROUND_Y-310, 26, 30),                 // Gorge risk ledge bell
+      rect(7280, GROUND_Y-90, 26, 30),                  // Arena bell
+      rect(10300, GROUND_Y-2740, 26, 30),               // Near summit exit
+      rect(13000, GROUND_Y-500, 26, 30),                // Descent bell
+      rect(14750, GROUND_Y-110, 26, 30)                 // Victory field bell
     ],
     goldTrophies: [
-      rect(5385, GROUND_Y-296, 42, 42, {taken:false}),  // Gorge risk route trophy
-      rect(11300, GROUND_Y-60, 42, 42, {taken:false})   // Victory celebration trophy
+      rect(6110, GROUND_Y-305, 42, 42, {taken:false}),  // Gorge risk route
+      rect(14700, GROUND_Y-90, 42, 42, {taken:false})   // Victory celebration
     ],
     energyCrystals: [
-      rect(6690, GROUND_Y-120, 42, 42, {taken:false}),  // Arena bonus crystal
-      rect(9850, GROUND_Y-60, 42, 42, {taken:false})    // Victory field crystal
+      rect(12980, GROUND_Y-495, 42, 42, {taken:false}), // Descent reward
+      rect(14600, GROUND_Y-120, 42, 42, {taken:false})  // Victory field crystal
     ],
     wings: [
-      rect(5600, GROUND_Y-340, 58, 40, {taken:false})   // Gorge optional: golden wings
+      rect(6160, GROUND_Y-345, 58, 40, {taken:false})   // Gorge optional: golden wings
     ],
 
     // ===== JUMPBOXES =====
     jumpboxes: [
-      rect(1600, GROUND_Y-150, 42, 42, {hit:false, type:'flamethrower'}),  // THE signature weapon
-      rect(3120, GROUND_Y-380, 42, 42, {hit:false, type:'lucky_mystery'}), // Banana top treat
-      rect(4290, GROUND_Y-210, 42, 42, {hit:false, type:'minigun'}),       // Gauntlet high bonus
-      rect(8420, GROUND_Y-2035, 42, 42, {hit:false, type:'plasma'}),       // Climb risk alcove
-      rect(8740, GROUND_Y-2490, 42, 42, {hit:false, type:'heart'})         // Summit jump reward (+1 life)
+      rect(2800, GROUND_Y-150, 42, 42, {hit:false, type:'flamethrower'}),  // THE signature weapon
+      rect(3680, GROUND_Y-380, 42, 42, {hit:false, type:'lucky_mystery'}), // Banana top treat
+      rect(7400, GROUND_Y-150, 42, 42, {hit:false, type:'minigun'}),       // Arena minigun
+      rect(8400, GROUND_Y-160, 42, 42, {hit:false, type:'fastener'}),      // Climb base speed boost
+      rect(9200, GROUND_Y-2845, 42, 42, {hit:false, type:'plasma'}),       // Climb risk alcove
+      rect(9900, GROUND_Y-3105, 42, 42, {hit:false, type:'heart'}),        // Summit jump reward (+1 life)
+      rect(13200, GROUND_Y-360, 42, 42, {hit:false, type:'rocket'})        // Descent reward
     ],
 
     // ===== ENEMIES =====
     zombies: [
       {x:240, y:GROUND_Y-54},
-      {x:480, y:GROUND_Y-54},
-      {x:960, y:GROUND_Y-54},
-      {x:1120, y:GROUND_Y-54},
-      {x:1500, y:GROUND_Y-54},
-      {x:1720, y:GROUND_Y-54},
-      {x:1880, y:GROUND_Y-54},
-      {x:2640, y:GROUND_Y-54},
-      {x:2900, y:GROUND_Y-54},
-      {x:6500, y:GROUND_Y-54},
-      {x:6640, y:GROUND_Y-80, type:'boss'},
-      {x:6800, y:GROUND_Y-54},
-      {x:7020, y:GROUND_Y-54},
-      {x:9000, y:GROUND_Y-2480, type:'boss'},
-      {x:9200, y:GROUND_Y-2454}
+      {x:450, y:GROUND_Y-54},
+      {x:760, y:GROUND_Y-54},
+      {x:1250, y:GROUND_Y-54},
+      {x:1480, y:GROUND_Y-54},
+      {x:2000, y:GROUND_Y-54},
+      {x:3240, y:GROUND_Y-134},
+      {x:3520, y:GROUND_Y-244},
+      {x:5440, y:GROUND_Y-54},
+      {x:6660, y:GROUND_Y-54},
+      {x:7060, y:GROUND_Y-54},
+      {x:7260, y:GROUND_Y-54},
+      {x:7480, y:GROUND_Y-80, type:'boss'},
+      {x:7760, y:GROUND_Y-54},
+      {x:8400, y:GROUND_Y-54},
+      {x:9200, y:GROUND_Y-54},
+      {x:9500, y:GROUND_Y-3024},
+      {x:9650, y:GROUND_Y-3050, type:'boss'},
+      {x:9880, y:GROUND_Y-3024}
     ],
     birds: [
-      bird(5400, GROUND_Y-300, {type:'vulture', speed:2.6, rangeX:350}),
-      bird(7900, GROUND_Y-1450, {type:'fire_hawk', speed:3.0, rangeX:320}),
-      bird(8080, GROUND_Y-2150, {type:'fire_hawk', speed:3.0, rangeX:300})
+      bird(6100, GROUND_Y-320, {type:'vulture', speed:2.6, rangeX:380}),
+      bird(8650, GROUND_Y-1900, {type:'fire_hawk', speed:3.0, rangeX:320}),
+      bird(9000, GROUND_Y-2600, {type:'fire_hawk', speed:3.0, rangeX:300}),
+      bird(12100, GROUND_Y-1400, {type:'fire_hawk', speed:2.8, rangeX:340})
     ],
 
     // ===== PROPS & TELEGRAPHY =====
     bananas: [
-      rect(2420, GROUND_Y-14, 40, 14),                  // Spike island zombie patrol
-      rect(6560, GROUND_Y-14, 40, 14),                  // Arena crowd control banana
-      rect(6880, GROUND_Y-14, 40, 14)                   // Arena crowd control banana
+      rect(2140, GROUND_Y-14, 40, 14),                  // Spike island zombie patrol
+      rect(7150, GROUND_Y-14, 40, 14),                  // Arena crowd control banana
+      rect(7600, GROUND_Y-14, 40, 14),                  // Arena crowd control banana
+      rect(15000, GROUND_Y-14, 40, 14)                  // Victory field prank near finish
     ],
     signs: [
-      {x:340, text:"🌋 ვულკანი იღვიძებს! გადახტი და აიღე ფლამეინგი!"},
-      {x:1580, text:"🔥 ფლამეინგი — ზომბების ცეცხლოვანი წმენდა!"},
-      {x:2720, text:"🍌 ყვირილის ბანანი აფეთქებს ზომბებს!"},
-      {x:3520, text:"🌋 ლავას ზღვარზე — ქვებზე გადადი, გეიზერებს დაელოდე!"},
-      {x:7050, text:"⚔️ არენა! დაამარცხე ბოსი ზომბები!"},
-      {x:8400, y:GROUND_Y-2470, text:"👹 ვულკანის გულის მცველი! ბოლო ბრძოლა!"},
-      {x:11300, text:"🏁 ვულკანი დამშვიდდა! გაიმარჯვე!"}
+      {x:340, text:"🌋 ვულკანი იღვიძებს! შერბი სიღრმეში!"},
+      {x:1580, text:"🔥 მოკალი ზომბები და აიღე ფლამეინგი!"},
+      {x:3150, text:"🍌 ყვირილის ბანანი აფეთქებს ზომბებს!"},
+      {x:4380, text:"🌋 ლავას ზღვარზე — გადახტი ქვებზე, დაელოდე გეიზერებს!"},
+      {x:7000, text:"⚔️ არენა! დაამარცხე ბოსი ზომბი!"},
+      {x:9060, y:GROUND_Y-2940, text:"👹 ვულკანის გულის უკანასკნელი მცველი!"},
+      {x:12100, y:GROUND_Y-1300, text:"🪶 ფრთხილად ცეცხლის ქორებთან!"},
+      {x:13700, text:"🏁 ვულკანი დამშვიდდა! ფინიშის ხაზამდე!"}
     ],
-    flag: rect(11200, GROUND_Y-140, 30, 140),
+    flag: rect(15000, GROUND_Y-140, 30, 140, {finishStyle:'grand', lineFrom:14600, lineTo:15160}),
     bgHue:'blue'
+  });
+
+  // ============================================================
+  // LEVEL 12: 桜 Sakura Shrine — The Oni's Garden (Japan)
+  // ============================================================
+  levels.push({
+    name:'ეპ.12 — საკურას სალოცავი',
+    diffRating: 'შეშლილი', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#f472b6',
+    gimmickTitle: '⛩️ ქარი, ტორი და საკური', diffDesc: 'გადალახე საკურას კორომი, გრიგლიანი სახურავები, პაგოდა და საკურას მოქცევა — დაამარცხე ონი სალოცავის სათავეებში და გაიარე ტორი ფინიშში!',
+    zombieSpeedMult: 1.45, zombieHpMult: 1.55, gravityMult: 1.0, hazardType: 'sakura_typhoon',
+    theme: 'sakura_japan',
+    keepDesign: true, masterDesign: true,
+    width: 9000, height: 1500,
+    spawn:{x:70, y:GROUND_Y-60},
+
+    // ===== PHASE A: Sakura Approach & Koi Pond (0-1960) =====
+    plats: [
+      rect(0, GROUND_Y, 560, 120),                            // Spawn garden path
+      rect(790, GROUND_Y, 210, 100),                          // Pond arrival bank
+      rect(1000, GROUND_Y, 960, 100),                         // Main approach ground
+      rect(1960, GROUND_Y, 260, 100),                         // Zen garden ledge
+      // ===== PHASE B: Zen Garden & Canal (2220-3340) =====
+      rect(2520, GROUND_Y, 300, 100),                         // East bank (crate puzzle)
+      rect(2940, 480, 400, 105),                              // Zen high ledge
+      // ===== PHASE C: Wind Gorge (3600-4600) =====
+      rect(3340, 480, 300, 105),                              // Pre-gorge ledge
+      rect(4120, 515, 200, 70),                               // Gorge landing rock
+      rect(4360, 415, 240, 170),                              // Bamboo cliff top
+      // ===== PHASE D: Typhoon Rooftops (4720-6100) =====
+      rect(4720, 345, 280, 60),                               // Roof 1
+      rect(5060, 345, 240, 60),                               // Roof 2
+      rect(5340, 345, 260, 60),                               // Roof 3 (popspin)
+      rect(5600, 405, 260, 60),                               // Landing shelf
+      rect(5860, 365, 240, 60),                               // Last rooftop
+      // ===== PHASE E: Pagoda Ascent (6100-7480) =====
+      rect(6100, 285, 260, 300),                              // Pagoda base (conveyor)
+      rect(6420, 165, 200, 420),                              // Pagoda mid
+      rect(6600, 45, 260, 540),                               // Pagoda crown (crusher)
+      rect(6940, 155, 240, 60),                               // Crown descent
+      rect(7220, 215, 260, 60),                               // Chrysanthemum step
+      // ===== PHASE F: Sakura Tide Chase (7400-8400) =====
+      rect(7400, 215, 80, 80),                                // Chase start pad
+      rect(7560, 245, 90, 80),                                // Tide stone 1
+      rect(7680, 265, 84, 70),                                // Tide stone 2 (crumbling)
+      rect(7800, 285, 90, 60),                                // Tide stone 3 (crumbling)
+      rect(7940, 235, 110, 70),                               // Tide stone 4 (safe)
+      rect(8060, 235, 120, 60),                               // Approaching gait
+      rect(8180, 215, 120, 60),                               // Shrine gate pad
+      // ===== PHASE G: Final Shrine Plateau (8400-9000) =====
+      rect(8400, 411, 600, 174)                               // Oni's shrine plateau
+    ],
+    waters: [
+      rect(560, 545, 230, 120),                               // Koi pond
+      rect(2220, 545, 300, 120),                               // Garden canal
+      rect(3700, 545, 420, 120)                                // Wind gorge river
+    ],
+    crumblingPlats: [
+      // Koi pond stepping stones (A)
+      rect(572, 505, 64, 80),
+      rect(648, 538, 62, 47),
+      rect(724, 503, 64, 82),
+      // Bridge stones across the garden canal (B)
+      rect(2240, 500, 78, 50),
+      rect(2330, 505, 78, 45),
+      rect(2440, 500, 78, 50),
+      // Sakura tide chase stones (F)
+      rect(7680, 265, 84, 50),
+      rect(7800, 285, 90, 40)
+    ],
+    pushboxes: [
+      { x: 2550, y: GROUND_Y-40, w: 44, h: 40, origX: 2550, origY: GROUND_Y-40 } // Shrine crate (B)
+    ],
+    birds: [
+      bird(648, 490, {type:'vulture', speed:2.4, rangeX:430, rangeY:190}),
+      bird(3900, 400, {type:'blood_eagle', speed:3.2, rangeX:360, rangeY:220}),
+      bird(5100, 300, {type:'fire_hawk', speed:2.8, rangeX:420, rangeY:120}),
+      bird(6330, 220, {type:'fire_hawk', speed:3.0, rangeX:300, rangeY:220})
+    ],
+
+    // ===== PHASE C/D: Wind Gorge & Typhoon Rooftops =====
+    winds: [
+      rect(3680, 400, 440, 220, {dir:-1, speed:1.8}),         // Gorge gust — pushes back
+      rect(4720, 160, 900, 430, {dir:-1, speed:2.2})          // Rooftop typhoon — headwind
+    ],
+
+    // ===== PHASE C: Swing Hook over the Gorge =====
+    swingPoints: [
+      { x: 3840, y: 340, radius: 170, len: 160 }
+    ],
+
+    // ===== PHASE E: Pagoda Ascent Conveyor + Crown Crusher =====
+    conveyors: [
+      rect(6160, 285, 120, 16, {speed:-2.5})                  // Koi carp loop at pagoda base
+    ],
+    crushers: [
+      { x: 6600, topY: 45, w: 178, h: 70, dropSpeed: 8, maxDrop: 260, riseSpeed: 2.5 } // Crown hammer
+    ],
+
+    // ===== PHASE D: Popup Spikes on the third roof =====
+    popspikes: [
+      rect(5410, 321, 90, 24, {period:420, offset:0})
+    ],
+
+    // ===== PHASE F: Sakura Tide Chase (rising horde) =====
+    risingHordeSpeed: 1.5,
+    hordeClearX: 7520,
+    hordeCapY: 210,
+
+    // ===== PHASE F: Shrine Gate (teleport torii) =====
+    shrineGates: [
+      { x: 8220, y: 185, w: 84, h: 120, tx: 8460, ty: 411 }
+    ],
+
+    // ===== PHASE G: Final Shrine — The Oni =====
+    bossSpawnX: 8600,
+    bossFloorY: 411,
+    bossSkin: {
+      name: 'ზარმაცი ონი',
+      nameGeo: 'ONI — SAKURA\'S GUARDIAN',
+      color: '#f97316',
+      auraColor: '#f9a8d4'
+    },
+
+    // ===== ZOMBIES =====
+    zombies: [
+      {x:1240, y:GROUND_Y-54},
+      {x:1520, y:GROUND_Y-54},
+      {x:1800, y:GROUND_Y-54},
+      {x:3060, y:480-51},
+      {x:8500, y:411-51}
+    ],
+
+    // ===== COINS =====
+    coins: [
+      // Phase A
+      rect(130, GROUND_Y-40, 22, 22),
+      rect(330, GROUND_Y-40, 22, 22),
+      rect(440, GROUND_Y-40, 22, 22),
+      rect(502, GROUND_Y-90, 22, 22),
+      rect(595, GROUND_Y-140, 22, 22),
+      rect(688, GROUND_Y-140, 22, 22),
+      rect(781, GROUND_Y-90, 22, 22),
+      rect(850, GROUND_Y-40, 22, 22),
+      rect(1080, GROUND_Y-40, 22, 22),
+      rect(1330, GROUND_Y-40, 22, 22),
+      rect(1630, GROUND_Y-40, 22, 22),
+      rect(1900, GROUND_Y-40, 22, 22),
+      // Phase B
+      rect(2245, GROUND_Y-140, 22, 22),
+      rect(2340, GROUND_Y-150, 22, 22),
+      rect(2435, GROUND_Y-140, 22, 22),
+      rect(2560, GROUND_Y-40, 22, 22),
+      rect(3020, GROUND_Y-120, 22, 22),
+      rect(3130, GROUND_Y-120, 22, 22),
+      rect(3240, GROUND_Y-120, 22, 22),
+      // Phase C
+      rect(3750, GROUND_Y-180, 22, 22),
+      rect(3830, GROUND_Y-260, 22, 22),
+      rect(3930, GROUND_Y-320, 22, 22),
+      rect(4030, GROUND_Y-260, 22, 22),
+      rect(4110, GROUND_Y-180, 22, 22),
+      rect(4210, GROUND_Y-150, 22, 22),
+      rect(4440, GROUND_Y-100, 22, 22),
+      // Phase D
+      rect(4810, 285, 22, 22),
+      rect(4890, 285, 22, 22),
+      rect(4970, 285, 22, 22),
+      rect(5380, 285, 22, 22),
+      rect(5470, 285, 22, 22),
+      rect(5720, 345, 22, 22),
+      // Phase E
+      rect(6230, 225, 22, 22),
+      rect(6320, 225, 22, 22),
+      rect(6510, 105, 22, 22),
+      rect(6650, -15, 22, 22),
+      rect(6790, -15, 22, 22),
+      // Phase F
+      rect(7580, 185, 22, 22),
+      rect(7700, 205, 22, 22),
+      rect(7820, 225, 22, 22),
+      rect(8100, 175, 22, 22),
+      // Phase G
+      rect(8510, 351, 22, 22),
+      rect(8630, 351, 22, 22),
+      rect(8740, 351, 22, 22),
+      rect(8980, 260, 22, 22)
+    ],
+
+    // ===== REWARDS =====
+    bells: [
+      rect(650, 470, 26, 30),                                 // Koi pond arch bell
+      rect(2350, 458, 26, 30),                                // Canal bridge bell
+      rect(6832, 12, 26, 30),                                 // Pagoda crown bell
+      rect(8480, 360, 26, 30)                                 // Shrine plateau bell
+    ],
+    goldTrophies: [
+      rect(3060, 438, 42, 42, {taken:false}),                 // Zen garden high ledge
+      rect(6800, 8, 42, 42, {taken:false})                    // Pagoda crown
+    ],
+    energyCrystals: [
+      rect(4200, 473, 42, 42, {taken:false}),                 // Gorge landing
+      rect(6820, 5, 42, 42, {taken:false})                    // Pagoda crown
+    ],
+    wings: [
+      rect(7910, 178, 58, 40, {taken:false})                  // Sakura tide daredevil wings
+    ],
+    jumpboxes: [
+      rect(1180, GROUND_Y-110, 42, 42, {hit:false, type:'heart'}),       // Approach heal
+      rect(3880, 300, 42, 42, {hit:false, type:'lucky_mystery'}),        // Gorge gamble
+      rect(4800, 303, 42, 42, {hit:false, type:'minigun'}),              // Rooftop typhoon gun
+      rect(6200, 243, 42, 42, {hit:false, type:'plasma'}),               // Pagoda base
+      rect(6480, 123, 42, 42, {hit:false, type:'rocket'}),               // Pagoda mid
+      rect(7500, 173, 42, 42, {hit:false, type:'fastener'})              // Tide start boost
+    ],
+
+    // ===== SIGNS =====
+    signs: [
+      {x:280, text:"🌸 საკურაა! ადი სალოცავამდე, ონმა სალოცავი შეიპყრო!"},
+      {x:1640, text:"🪷 კობის აუზი — გადახტი მტვრევად ქვებზე!"},
+      {x:2530, text:"📦 გრილე ყუთი საყრდენად — გადაწიე და აი, ბაქანი!"},
+      {x:3810, text:"🌪️ ქარის ხეობა! დაბრკოლების გასაწყვეტად ბაწარი გამოიყენე!"},
+      {x:4760, text:"🌀 ტაიფუნი! ქარი უკან გაქაჩავს — არ გაჩერდე!"},
+      {x:7530, text:"🌊 საკურას მოქცევა დაგეწია! მხოლოდ წინ!"},
+      {x:8440, y:GROUND_Y-250, text:"👹 ონი! სალოცავის უკანასკნელი მცველი!"},
+      {x:8860, y:GROUND_Y-250, text:"⛩️ ფინიშის ტორი შენ გელის!"}
+    ],
+
+    flag: rect(8900, GROUND_Y-314, 30, 140, {finishStyle:'torii', lineFrom:8720, lineTo:8980})
+  });
+
+  // LEVEL 13: China Sky City Edition 🏮
+  levels.push({
+    name:'ეპ.13 — ჩინეთის ცის ქალაქი',
+    diffRating: 'შეშლილი', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#fbbf24',
+    gimmickTitle: '🏮 ფარნები, ორთქლი და დრაკონი', diffDesc: 'ჩინეთის ცის ქალაქი: ნეონ-ფარნების ბაზარი, ორთქლის ლიფტები, ამწის მოძრავი ხიდი, დიდი კედელი და დრაკონ-იმპერატორის სასახლე — გაიარე ოქროს პაიფან ფინიშში!',
+    zombieSpeedMult: 1.55, zombieHpMult: 1.6, gravityMult: 1.0, hazardType: 'china_sky_city',
+    theme: 'china_city',
+    keepDesign: true, masterDesign: true,
+    width: 9700, height: 1500,
+    spawn:{x:70, y:GROUND_Y-60},
+
+    // ===== PHASE A: ნეონ ჩაინათაუნი & ორთქლის ქვაბი (0-1960) =====
+    plats: [
+      rect(0, GROUND_Y, 620, 120),                            // Spawn plaza
+      rect(820, GROUND_Y, 240, 100),                          // Moat bank
+      rect(1100, GROUND_Y, 120, 100),                         // Market island
+      rect(1260, GROUND_Y, 260, 100),                         // Market street
+      rect(1580, GROUND_Y, 320, 100),                         // Furnace street
+      // ===== PHASE B: ფარნების სახურავები (1900-3580) =====
+      rect(1900, GROUND_Y-120, 120, 60),                      // Furnace step
+      rect(2020, GROUND_Y-170, 220, 60),                      // Roof 1
+      rect(2240, GROUND_Y-170, 200, 60),                      // Roof 2
+      rect(2500, GROUND_Y-130, 260, 60),                      // Roof 3 (belt + popspikes)
+      rect(2820, GROUND_Y-190, 240, 60),                      // Roof 4
+      rect(3120, GROUND_Y-150, 420, 60),                      // Roof 5
+      // ===== PHASE C: ამწის ხიდი & ხეობა (3560-5760) =====
+      rect(3560, GROUND_Y-60, 200, 60),                       // Gorge ledge L
+      rect(3860, GROUND_Y-60, 130, 40, {vx: 2.2, minX: 3740, maxX: 4460, dwell: 110}), // Crane pallet
+      rect(4600, GROUND_Y-60, 150, 60),                       // Gorge ledge R
+      rect(4860, GROUND_Y-60, 120, 26, {vx: 2.1, minX: 4730, maxX: 5150, dwell: 110}), // Ferry pallet
+      rect(5140, GROUND_Y, 320, 90),                          // Temple court 1
+      rect(5520, GROUND_Y, 240, 90),                          // Temple court 2
+      // ===== PHASE D: დიდი ჩინეთის კედელი (5780-7200) =====
+      rect(5780, GROUND_Y-28, 200, 140),                      // Wall 1
+      rect(6004, GROUND_Y-60, 200, 140),                      // Wall 2
+      rect(6228, GROUND_Y-92, 200, 140),                      // Wall 3 (popspikes)
+      rect(6452, GROUND_Y-124, 200, 140),                     // Wall 4 (hammer gate)
+      rect(6676, GROUND_Y-156, 200, 140),                     // Wall 5
+      rect(6900, GROUND_Y-188, 240, 160),                     // Wall crown
+      // ===== PHASE E: დრაკონის სასახლე & პაიფან ფინიში (7240-9700) =====
+      rect(7300, GROUND_Y-188, 130, 26, {vx: 2.4, minX: 7120, maxX: 7790, dwell: 170}), // Palace ferry
+      rect(7680, GROUND_Y-188, 620, 260),                     // Dragon palace floor
+      rect(8360, GROUND_Y-140, 250, 80),                      // Chase start pad
+      rect(8640, GROUND_Y-185, 90, 60),                       // Chase stone 1
+      rect(8760, GROUND_Y-219, 90, 60),                       // Chase stone 2
+      rect(8880, GROUND_Y-253, 100, 60),                      // Chase stone 3
+      rect(9020, GROUND_Y-300, 130, 70),                      // Paifang approach (flush with plateau)
+      rect(9180, GROUND_Y-300, 520, 80)                       // Final plateau
+    ],
+    waters: [
+      rect(620, 585, 200, 90),                                // Plaza moat
+      rect(3700, 585, 1040, 90)                               // Gorge river
+    ],
+    crumblingPlats: [
+      rect(632, 540, 62, 45),                                 // Moat stone 1
+      rect(706, 552, 62, 33),                                 // Moat stone 2
+      rect(5560, GROUND_Y-65, 72, 22)                         // Temple spike plank
+    ],
+    pushboxes: [
+      { x: 7940, y: GROUND_Y-265, w: 44, h: 40, origX: 7940, origY: GROUND_Y-265 } // Palace gold crate
+    ],
+    birds: [
+      bird(4300, 410, {type:'fire_hawk', speed:3.1, rangeX:520, rangeY:150}),
+      bird(6450, 320, {type:'vulture', speed:2.6, rangeX:430, rangeY:210}),
+      bird(8100, 260, {type:'blood_eagle', speed:3.3, rangeX:420, rangeY:140})
+    ],
+    winds: [
+      rect(5820, 240, 360, 340, {dir:-1, speed:1.9})          // Wall headwind
+    ],
+    swingPoints: [
+      { x: 5590, y: 350, radius: 170, len: 160 }              // Temple spike swing
+    ],
+    conveyors: [
+      rect(2540, GROUND_Y-130, 130, 16, {speed:2.4})          // Roof 3 market belt
+    ],
+    crushers: [
+      { x: 6520, topY: 20, w: 64, h: 80, dropSpeed: 6, maxDrop: 348, riseSpeed: 3.2 } // City-gate timing column
+    ],
+    popspikes: [
+      rect(2620, GROUND_Y-154, 70, 24, {period:420, offset:0}),   // Roof 3
+      rect(5600, GROUND_Y-24, 70, 24, {period:380, offset:260}),   // Temple court 2
+      rect(6300, GROUND_Y-129, 60, 24, {period:480, offset:160})   // Wall 3
+    ],
+    steamVents: [
+      { x: 1660, y: GROUND_Y, w: 60, h: 175, period: 2100, offset: 0 } // Street → Roof 1 lift
+    ],
+
+    // ===== PHASE D/E: Rising molten horde chase =====
+    risingHordeSpeed: 1.5,
+    hordeClearX: 8600,
+    hordeCapY: 250,
+shrineGates: [
+      { x: 8180, y: 300, w: 84, h: 120, tx: 9060, ty: 230 }    // Palace → approach
+    ],
+
+    // ===== PHASE E: Dragon Emperor Boss =====
+    bossSpawnX: 8000,
+    bossFloorY: 360,
+    bossSkin: {
+      name: 'დრაკონი იემპერატორი',
+      nameGeo: 'DRAGON EMPEROR — CHINA SKY CITY',
+      color: '#ef4444',
+      auraColor: '#fbbf24'
+    },
+
+    // ===== ZOMBIES =====
+    zombies: [
+      {x:1120, y:GROUND_Y-54},
+      {x:2650, y:GROUND_Y-130-54},
+      {x:3300, y:GROUND_Y-150-54},
+      {x:5280, y:GROUND_Y-54},
+      {x:8060, y:GROUND_Y-225-54},
+      {x:9280, y:GROUND_Y-300-54}
+    ],
+
+    // ===== COINS =====
+    coins: [
+      // Phase A: street
+      rect(130, GROUND_Y-40, 22, 22),
+      rect(330, GROUND_Y-40, 22, 22),
+      rect(440, GROUND_Y-90, 22, 22),
+      rect(645, GROUND_Y-95, 22, 22),
+      rect(726, GROUND_Y-95, 22, 22),
+      rect(905, GROUND_Y-40, 22, 22),
+      rect(1080, GROUND_Y-40, 22, 22),
+      rect(1140, GROUND_Y-40, 22, 22),
+      rect(1330, GROUND_Y-40, 22, 22),
+      rect(1610, GROUND_Y-40, 22, 22),
+      rect(1700, GROUND_Y-130, 22, 22),
+      // Phase B: roofs
+      rect(2050, GROUND_Y-220, 22, 22),
+      rect(2300, GROUND_Y-220, 22, 22),
+      rect(2620, GROUND_Y-180, 22, 22),
+      rect(2920, GROUND_Y-240, 22, 22),
+      rect(3030, GROUND_Y-240, 22, 22),
+      rect(3240, GROUND_Y-200, 22, 22),
+      rect(3370, GROUND_Y-200, 22, 22),
+      // Phase C: gorge & temple
+      rect(3650, GROUND_Y-110, 22, 22),
+      rect(4040, GROUND_Y-140, 22, 22),
+      rect(4240, GROUND_Y-140, 22, 22),
+      rect(4690, GROUND_Y-110, 22, 22),
+      rect(4990, GROUND_Y-130, 22, 22),
+      rect(5240, GROUND_Y-50, 22, 22),
+      rect(5420, GROUND_Y-90, 22, 22),
+      rect(5610, GROUND_Y-50, 22, 22),
+      rect(5690, GROUND_Y-165, 22, 22),
+      // Phase D: great wall
+      rect(5860, GROUND_Y-75, 22, 22),
+      rect(6110, GROUND_Y-115, 22, 22),
+      rect(6350, GROUND_Y-155, 22, 22),
+      rect(6570, GROUND_Y-195, 22, 22),
+      rect(6790, GROUND_Y-235, 22, 22),
+      rect(6970, GROUND_Y-275, 22, 22),
+      // Phase E: palace & finish
+      rect(7740, GROUND_Y-275, 22, 22),
+      rect(7880, GROUND_Y-275, 22, 22),
+      rect(8240, GROUND_Y-275, 22, 22),
+      rect(8560, GROUND_Y-190, 22, 22),
+      rect(8680, GROUND_Y-235, 22, 22),
+      rect(8820, GROUND_Y-269, 22, 22),
+      rect(9070, GROUND_Y-335, 22, 22),
+      rect(9290, GROUND_Y-340, 22, 22),
+      rect(9410, GROUND_Y-340, 22, 22)
+    ],
+
+    // ===== REWARDS =====
+    bells: [
+      rect(1600, GROUND_Y-60, 26, 30),                        // Street furnace bell
+      rect(3140, GROUND_Y-192, 26, 30),                       // Roof 5 bell
+      rect(6600, GROUND_Y-187, 26, 30),                       // Wall 4 bell
+      rect(9380, GROUND_Y-342, 26, 30)                        // Final plateau bell
+    ],
+    goldTrophies: [
+      rect(4680, GROUND_Y-116, 42, 42, {taken:false}),        // Gorge ledge R
+      rect(9250, GROUND_Y-342, 42, 42, {taken:false})         // Final plateau
+    ],
+    energyCrystals: [
+      rect(2760, GROUND_Y-172, 42, 42, {taken:false}),        // Roof 3
+      rect(8110, GROUND_Y-267, 42, 42, {taken:false}),        // Dragon palace
+      rect(9500, GROUND_Y-342, 42, 42, {taken:false})         // Final plateau
+    ],
+    wings: [
+      rect(8800, GROUND_Y-285, 58, 40, {taken:false})         // Chase daredevil wings
+    ],
+    jumpboxes: [
+      rect(340, GROUND_Y-110, 42, 42, {hit:false, type:'heart'}),       // Street heal
+      rect(3040, GROUND_Y-262, 42, 42, {hit:false, type:'lucky_mystery'}), // Roof 4 gamble
+      rect(4720, GROUND_Y-132, 42, 42, {hit:false, type:'minigun'}),       // Gorge gun
+      rect(6900, GROUND_Y-297, 42, 42, {hit:false, type:'plasma'}),        // Wall crown
+      rect(8000, GROUND_Y-297, 42, 42, {hit:false, type:'rocket'}),        // Palace rocket
+      rect(8520, GROUND_Y-212, 42, 42, {hit:false, type:'fastener'}),      // Chase boost
+      rect(9220, GROUND_Y-372, 42, 42, {hit:false, type:'sponsor'})        // Plateau sponsor
+    ],
+    checkpoints: [
+      { x: 3300, y: GROUND_Y-150, active: false },            // Roof 5
+      { x: 7000, y: GROUND_Y-225, active: false }             // Wall crown
+    ],
+
+    // ===== SIGNS =====
+    signs: [
+      {x:280, text:"🏮 ჩინეთის ცის ქალაქი! მტვრევად ქვებზე გადაკვეთე თხრილი!"},
+      {x:2000, text:"🏙️ ფარნების ქუჩა! ორთქლით ადი სახურავებზე!"},
+      {x:3820, text:"🏗️ ამწის ხიდი! მოძრავი ბაქნები გადაგიყვანენ ხეობაზე!"},
+      {x:5940, y:GROUND_Y-110, text:"🧱 დიდი ჩინეთის კედელი! ადი კედლით და არ გაჩერდე!"},
+      {x:6990, y:GROUND_Y-270, text:"👹 დრაკონ-იმპერატორი! დაამარცხე სასახლეში!"},
+      {x:8450, y:GROUND_Y-195, text:"🐉 ფინიშის პაიფანი გელის! მხოლოდ წინ!"}
+    ],
+
+    flag: rect(9300, GROUND_Y-440, 30, 140, {finishStyle:'paifang', lineFrom:9120, lineTo:9580})
+  });
+
+  // LEVEL 14: NEW YORK CITY Edition 🗽
+  levels.push({
+    name:'ეპ.14 — ნიუ-იორკი: ცათამბჯენების კანიონი 🗽🚕',
+    diffRating: 'სასიკვდილო🔥', diffStars: '⭐⭐⭐⭐⭐', diffColor: '#dc2626',
+    gimmickTitle: '🗽 NEW YORK CITY FINALE — SKYLINE GAUNTLET', diffDesc: 'ნიუ-იორკის ქუჩებიდან ცათამბჯენების მწვერვალებამდე! ტაიმ-სქვერის მოძრავი ავტობუსი, ამწეების ფრენები, ნეონ-კანიონი, კინგ-კონგის ფინალური არენა და ზომბების ამოწევა — ემპაირ-სთეითის მწვერვალზე ვერტმფრენი გელოდება!',
+    zombieSpeedMult: 1.7, zombieHpMult: 1.7, gravityMult: 1.0, hazardType: 'new_york_city',
+    theme: 'new_york_city',
+    keepDesign: true, masterDesign: true,
+    width: 17900, height: 2300,
+    checkpointRespawn: true,
+    spawn:{x:70, y:GROUND_Y-60},
+
+    // ===== PHASE A: ბრუკლინის ქუჩა (0-2030) =====
+    plats: [
+      rect(0, GROUND_Y, 820, 90),                            // Spawn sidewalk
+      rect(840, GROUND_Y, 300, 90),                          // Crosswalk block
+      rect(1200, GROUND_Y, 200, 90),                         // Curb block
+      rect(1420, GROUND_Y, 260, 90),                         // Run-up sidewalk
+      rect(1680, GROUND_Y - 60, 70, 24),                     // Fire-escape stair 1
+      rect(1750, GROUND_Y - 120, 70, 24),                    // Fire-escape stair 2
+      rect(1820, GROUND_Y - 180, 70, 24),                    // Fire-escape stair 3
+      rect(1890, GROUND_Y - 240, 130, 24),                   // Fire-escape stair 4 (roof level)
+      rect(2020, GROUND_Y - 240, 510, 60),                   // ROOFTOP 1
+      // ===== PHASE B: ტაიმ-სქვერი (2560-6760) =====
+      rect(2530, GROUND_Y - 300, 340, 24),                   // Billboard step (wide catch)
+      rect(2810, GROUND_Y - 300, 220, 24, {vx: 2.6, minX: 2810, maxX: 4300, dwell: 130}), // Aerial bus
+      rect(4360, GROUND_Y - 300, 260, 24),                   // Avenue receive
+      rect(4660, GROUND_Y - 370, 150, 24),                   // Stair 1
+      rect(4860, GROUND_Y - 440, 150, 24),                   // Stair 2
+      rect(5060, GROUND_Y - 440, 260, 24, {isTreadmill: true, beltSpeed: 3.1}), // Conveyor roof
+      rect(5360, GROUND_Y - 440, 160, 24),                   // Conveyor exit
+      rect(5560, GROUND_Y - 440, 180, 24, {vx: 2.5, minX: 5500, maxX: 6380, dwell: 130}), // Ferry shuttle
+      rect(6440, GROUND_Y - 440, 320, 70),                   // ROOFTOP 2
+      // ===== PHASE C: მიდთაუნის ასვლა (6780-10260) =====
+      rect(6780, GROUND_Y - 560, 140, 24),
+      rect(6960, GROUND_Y - 640, 140, 24),
+      rect(7130, GROUND_Y - 720, 140, 24),
+      rect(7300, GROUND_Y - 800, 130, 24),                   // Trampoline pad
+      rect(7600, GROUND_Y - 1100, 300, 24),                  // Crusher-gate ledge
+      rect(7960, GROUND_Y - 1100, 140, 24),
+      rect(8180, GROUND_Y - 1160, 140, 24),
+      rect(8360, GROUND_Y - 1220, 140, 24),                  // Booster pad
+      rect(8520, GROUND_Y - 1380, 150, 24),                  // Boosted ledge (catch)
+      rect(8760, GROUND_Y - 1420, 1100, 24),                 // Roof bridge to Tower 3
+      rect(9860, GROUND_Y - 1420, 400, 70),                  // ROOFTOP 3
+      // ===== PHASE D: ნეონ-კანიონი (10340-12900) =====
+      rect(10340, GROUND_Y - 1400, 150, 24),
+      rect(10550, GROUND_Y - 1450, 70, 20),                  // Crumbling bridge A
+      rect(10650, GROUND_Y - 1470, 70, 20),                  // Crumbling bridge B
+      rect(10760, GROUND_Y - 1470, 160, 24),
+      rect(10980, GROUND_Y - 1490, 130, 24),
+      rect(11140, GROUND_Y - 1470, 160, 24),
+      rect(11340, GROUND_Y - 1470, 160, 24),
+      rect(11530, GROUND_Y - 1550, 150, 24),
+      rect(11710, GROUND_Y - 1550, 160, 24),
+      rect(11890, GROUND_Y - 1550, 300, 24),
+      rect(12240, GROUND_Y - 1600, 130, 24),                 // Canyon trampoline pad
+      rect(12440, GROUND_Y - 1620, 460, 70),                 // ROOFTOP 4
+      // ===== PHASE E: ემპაირ-რაიზი + ბოს არენა + ზომბების ჩეისი =====
+      rect(13000, GROUND_Y - 1600, 150, 24),
+      rect(13200, GROUND_Y - 1520, 150, 24),
+      rect(13400, GROUND_Y - 1440, 150, 24),
+      rect(13620, GROUND_Y - 1280, 260, 24),
+      rect(13960, GROUND_Y - 1000, 260, 24),
+      rect(14280, GROUND_Y - 760, 300, 24),
+      rect(14700, GROUND_Y - 320, 1500, 90),                 // EMPIRE ARENA
+      rect(16320, GROUND_Y - 400, 200, 60),                  // Chase stone 1
+      rect(16580, GROUND_Y - 480, 120, 60),                  // Chase stone 2
+      rect(16740, GROUND_Y - 540, 120, 60),                  // Chase stone 3
+      rect(16880, GROUND_Y - 580, 700, 80)                   // FINAL PLATEAU
+    ],
+    crumblingPlats: [
+      rect(10550, GROUND_Y - 1450, 70, 20),
+      rect(10650, GROUND_Y - 1470, 70, 20)
+    ],
+    trampolines: [
+      rect(7300, GROUND_Y - 815, 130, 18, {bouncePower: 2.4}),  // Sky-launch to the gate
+      rect(8380, GROUND_Y - 1235, 70, 18, {bouncePower: 2.0}),  // Tower-climb hop to the roof bridge
+      rect(12270, GROUND_Y - 1615, 55, 18, {bouncePower: 2.5}) // Canyon hop to Rooftop 4
+    ],
+    boosters: [],
+    popspikes: [
+      rect(1240, GROUND_Y - 24, 90, 24, {period: 500, offset: 0}),
+      rect(2100, GROUND_Y - 264, 60, 24, {period: 520, offset: 80}),
+      rect(6600, GROUND_Y - 464, 60, 24, {period: 520, offset: 80}),
+      rect(7700, GROUND_Y - 1124, 60, 24, {period: 480, offset: 0}),
+      rect(11750, GROUND_Y - 1574, 60, 24, {period: 520, offset: 60}),
+      rect(14000, GROUND_Y - 1024, 90, 24, {period: 600, offset: 0}),
+      rect(15200, GROUND_Y - 344, 90, 24, {period: 600, offset: 0}),
+      rect(15950, GROUND_Y - 344, 90, 24, {period: 600, offset: 300})
+    ],
+    crushers: [
+      { x: 520, topY: 20, w: 64, h: 80, dropSpeed: 6, maxDrop: 485, riseSpeed: 3.2 }
+    ],
+    lasers: [
+      { x: 4920, y: GROUND_Y - 455, w: 120, h: 14, timer: 0, activeTime: 240, offTime: 130, active: false },
+      { x: 5140, y: GROUND_Y - 455, w: 130, h: 14, timer: 0, activeTime: 240, offTime: 130, active: false },
+      { x: 11420, y: GROUND_Y - 1505, w: 130, h: 14, timer: 0, activeTime: 220, offTime: 150, active: false }
+    ],
+    acidGeysers: [
+      { x: 830, y: GROUND_Y, w: 30, h: 180, timer: 0, activeTime: 140, offTime: 220, active: false }
+    ],
+    firejets: [
+      { x: 11890, y: GROUND_Y - 1000, w: 24, h: 150, timer: 0, activeTime: 90, offTime: 160, active: false }
+    ],
+    electroOrbs: [
+      { x: 4780, y: GROUND_Y - 400, w: 26, h: 26 },
+      { x: 12290, y: GROUND_Y - 1630, w: 28, h: 28 }
+    ],
+    swingingAxes: [
+      { cx: 4960, cy: GROUND_Y - 580, len: 230, angle: 0, speed: 0.0035, range: 1.5, offset: 0 },
+      { cx: 7200, cy: GROUND_Y - 900, len: 240, angle: 0, speed: 0.0035, range: 1.5, offset: 2.2 },
+      { cx: 11640, cy: GROUND_Y - 1700, len: 250, angle: 0, speed: 0.0035, range: 1.6, offset: 0 }
+    ],
+    spinners: [
+      { cx: 11220, cy: GROUND_Y - 1600, r: 46, angle: 0, speed: 0.045 },
+      { cx: 6960, cy: GROUND_Y - 640, r: 44, angle: 0, speed: 0.05 }
+    ],
+    winds: [
+      rect(10600, -200, 900, 480, {dir: -1, speed: 2.2}),   // Neon-canyon headwind
+      rect(7000, -300, 500, 260, {dir: -1, speed: 1.6})     // Tower climb wind
+    ],
+    boulders: [
+      { x: 12120, startX: 12120, minX: 10900, y: GROUND_Y - 945, r: 22, vx: -3.2, angle: 0 }
+    ],
+    barrelSpawners: [
+      { x: 12040, y: GROUND_Y - 945 }
+    ],
+    birds: [
+      { x: 810, y: GROUND_Y - 260, w: 40, h: 30, vx: 2.2, vy: 0, speed: 2.2, rangeX: 220, startX: 810, startY: GROUND_Y - 260, type: 'mutant_crow', state: 'patrol', flapTimer: 0, startSwoop: 999999 },
+      { x: 5200, y: GROUND_Y - 560, w: 42, h: 30, vx: 2.4, vy: 0, speed: 2.4, rangeX: 400, startX: 5200, startY: GROUND_Y - 560, type: 'fire_hawk', state: 'patrol', flapTimer: 0, startSwoop: 25000 },
+      { x: 10650, y: GROUND_Y - 1600, w: 40, h: 30, vx: 2.6, vy: 0, speed: 2.6, rangeX: 500, startX: 10650, startY: GROUND_Y - 1600, type: 'mutant_crow', state: 'patrol', flapTimer: 0, startSwoop: 20000 }
+    ],
+    zombies: [
+      { x: 900, y: GROUND_Y - 54 },
+      { x: 4400, y: GROUND_Y - 354 },
+      { x: 5150, y: GROUND_Y - 494 },
+      { x: 8420, y: GROUND_Y - 689 },
+      { x: 12050, y: GROUND_Y - 1019 },
+      { x: 15050, y: GROUND_Y - 319 },
+      { x: 17150, y: GROUND_Y - 59 }
+    ],
+
+    // ===== REWARDS & COLLECTIBLES =====
+    coins: [
+      rect(120, GROUND_Y - 40, 22, 22), rect(340, GROUND_Y - 40, 22, 22), rect(560, GROUND_Y - 40, 22, 22),
+      rect(960, GROUND_Y - 40, 22, 22), rect(1280, GROUND_Y - 60, 22, 22), rect(1450, GROUND_Y - 60, 22, 22),
+      rect(1670, GROUND_Y - 490, 22, 22), rect(1740, GROUND_Y - 430, 22, 22),
+      rect(1810, GROUND_Y - 370, 22, 22), rect(1880, GROUND_Y - 305, 22, 22),
+      rect(2120, GROUND_Y - 270, 22, 22), rect(2300, GROUND_Y - 270, 22, 22), rect(2400, GROUND_Y - 300, 22, 22),
+      rect(2640, GROUND_Y - 330, 22, 22),
+      rect(4460, GROUND_Y - 330, 22, 22),
+      rect(4680, GROUND_Y - 400, 22, 22),
+      rect(4900, GROUND_Y - 470, 22, 22), rect(4960, GROUND_Y - 490, 22, 22),
+      rect(5120, GROUND_Y - 480, 22, 22), rect(5200, GROUND_Y - 500, 22, 22), rect(5400, GROUND_Y - 470, 22, 22),
+      rect(6500, GROUND_Y - 470, 22, 22), rect(6720, GROUND_Y - 470, 22, 22),
+      rect(6800, GROUND_Y - 590, 22, 22),
+      rect(7000, GROUND_Y - 670, 22, 22),
+      rect(7180, GROUND_Y - 750, 22, 22),
+      rect(7340, GROUND_Y - 830, 22, 22),
+      rect(7700, GROUND_Y - 1130, 22, 22), rect(7830, GROUND_Y - 1130, 22, 22),
+      rect(8000, GROUND_Y - 1130, 22, 22),
+      rect(8230, GROUND_Y - 1190, 22, 22),
+      rect(8420, GROUND_Y - 1250, 22, 22),
+      rect(8560, GROUND_Y - 1410, 22, 22),
+      rect(8800, GROUND_Y - 1450, 22, 22),
+      rect(9950, GROUND_Y - 1450, 22, 22), rect(10070, GROUND_Y - 1450, 22, 22),
+      rect(10400, GROUND_Y - 1430, 22, 22),
+      rect(10600, GROUND_Y - 1480, 22, 22), rect(10695, GROUND_Y - 1500, 22, 22),
+      rect(10820, GROUND_Y - 1500, 22, 22),
+      rect(11030, GROUND_Y - 1520, 22, 22),
+      rect(11200, GROUND_Y - 1500, 22, 22), rect(11400, GROUND_Y - 1500, 22, 22),
+      rect(11600, GROUND_Y - 1580, 22, 22),
+      rect(11750, GROUND_Y - 1590, 22, 22), rect(11820, GROUND_Y - 1610, 22, 22),
+      rect(12060, GROUND_Y - 1580, 22, 22),
+      rect(12280, GROUND_Y - 1630, 22, 22),
+      rect(12620, GROUND_Y - 1650, 22, 22), rect(12800, GROUND_Y - 1650, 22, 22),
+      rect(13040, GROUND_Y - 1630, 22, 22),
+      rect(13240, GROUND_Y - 1550, 22, 22),
+      rect(13440, GROUND_Y - 1470, 22, 22),
+      rect(13700, GROUND_Y - 1310, 22, 22),
+      rect(14020, GROUND_Y - 1030, 22, 22), rect(14140, GROUND_Y - 1030, 22, 22),
+      rect(14400, GROUND_Y - 790, 22, 22),
+      rect(15050, GROUND_Y - 380, 22, 22), rect(15300, GROUND_Y - 350, 22, 22), rect(15500, GROUND_Y - 350, 22, 22),
+      rect(15700, GROUND_Y - 350, 22, 22), rect(16000, GROUND_Y - 380, 22, 22),
+      rect(16450, GROUND_Y - 430, 22, 22),
+      rect(16620, GROUND_Y - 510, 22, 22),
+      rect(16780, GROUND_Y - 570, 22, 22),
+      rect(17150, GROUND_Y - 620, 22, 22), rect(17300, GROUND_Y - 610, 22, 22), rect(17500, GROUND_Y - 610, 22, 22)
+    ],
+    bells: [
+      rect(4520, GROUND_Y - 330, 26, 30),
+      rect(5320, GROUND_Y - 500, 26, 30),
+      rect(10200, GROUND_Y - 1480, 26, 30),
+      rect(11450, GROUND_Y - 1530, 26, 30),
+      rect(15900, GROUND_Y - 360, 26, 30),
+      rect(17600, GROUND_Y - 630, 26, 30)
+    ],
+    goldTrophies: [
+      rect(12880, GROUND_Y - 1665, 36, 40),
+      rect(17140, GROUND_Y - 620, 36, 40)
+    ],
+    energyCrystals: [
+      rect(8320, GROUND_Y - 1240, 24, 28),
+      rect(11950, GROUND_Y - 1580, 24, 28),
+      rect(15700, GROUND_Y - 360, 24, 28)
+    ],
+    wings: [
+      rect(11260, GROUND_Y - 1550, 36, 36),
+      rect(15800, GROUND_Y - 400, 36, 36)
+    ],
+    coinBags: [
+      rect(1400, GROUND_Y - 40, 42, 42, {taken: false}),
+      rect(7060, GROUND_Y - 690, 42, 42, {taken: false}),
+      rect(14500, GROUND_Y - 790, 42, 42, {taken: false})
+    ],
+    traps: [
+      rect(520, GROUND_Y - 95, 26, 26, {taken: false, type: 'poison_skull'}),
+      rect(4460, GROUND_Y - 340, 26, 26, {taken: false, type: 'poison_skull'}),
+      rect(10400, GROUND_Y - 1450, 26, 26, {taken: false, type: 'poison_skull'}),
+      rect(14020, GROUND_Y - 1040, 26, 26, {taken: false, type: 'poison_skull'})
+    ],
+    jumpboxes: [
+      rect(430, GROUND_Y - 110, 42, 42, {hit: false, type: 'shotgun'}),
+      rect(2250, GROUND_Y - 300, 42, 42, {hit: false, type: 'heart'}),
+      rect(2640, GROUND_Y - 355, 42, 42, {hit: false, type: 'shield'}),
+      rect(4900, GROUND_Y - 495, 42, 42, {hit: false, type: 'minigun'}),
+      rect(6600, GROUND_Y - 495, 42, 42, {hit: false, type: 'plasma'}),
+      rect(7180, GROUND_Y - 775, 42, 42, {hit: false, type: 'lucky_mystery'}),
+      rect(9950, GROUND_Y - 1490, 42, 42, {hit: false, type: 'rocket'}),
+      rect(11750, GROUND_Y - 1615, 42, 42, {hit: false, type: 'fastener'}),
+      rect(15150, GROUND_Y - 375, 42, 42, {hit: false, type: 'shield'}),
+      rect(16300, GROUND_Y - 455, 42, 42, {hit: false, type: 'weapon'})
+    ],
+    bushes: [],
+    signs: [
+      { x: 180, y: GROUND_Y - 120, text: '🗽 ბრუკლინი! გადახტი ქუჩის ორმოებს და ზემოთ აივანზე! ფაირ-ესქეიფი გელის!' },
+      { x: 2660, y: GROUND_Y - 340, text: '🕰️ ტაიმ-სქვერი! მოძრავი ავტობუსით გადაკვეთე გამზირი, მერე ტრედმილი + შატლი!' },
+      { x: 6840, y: GROUND_Y - 595, text: '🏙️ მიდთაუნის კოშკები! ბატუტი + ბუსტერი + ამწის ხიდი = ცა!' },
+      { x: 10500, y: GROUND_Y - 1460, text: '🌆 ნეონ-კანიონი! მტვრევადი ხიდები, ქარი და ლულები მოგდევენ!' },
+      { x: 14980, y: GROUND_Y - 360, text: '👑 ემპაირ-სთეითი! კინგ-კონგი + ზომბების მოზღვავება! ⏳ იჩქარე!' },
+      { x: 17180, y: GROUND_Y - 620, text: '🚁 ვერტმფრენი გელოდება მწვერვალზე! ფინიშში! 🏁' }
+    ],
+    checkpoints: [
+      { x: 2140, y: GROUND_Y - 294, active: false },
+      { x: 6550, y: GROUND_Y - 494, active: false },
+      { x: 10100, y: GROUND_Y - 1474, active: false },
+      { x: 12850, y: GROUND_Y - 1674, active: false }
+    ],
+
+    // ===== PHASE F: Rising horde chase + King Kong =====
+    risingHordeSpeed: 1.3,
+    hordeClearX: 15200,
+    hordeCapY: 240,
+    bossSpawnX: 15000,
+    bossFloorY: 240,
+    bossSkin: {
+      name: 'კინგ-კონგი',
+      nameGeo: 'KING KONG — NEW YORK CITY',
+      color: '#b45309',
+      auraColor: '#f59e0b'
+    },
+
+    flag: rect(17300, GROUND_Y - 720, 30, 140, {finishStyle:'grand', lineFrom:17100, lineTo:17700})
   });
 
   // LEVEL 12: CodeZero Cyber-Matrix
@@ -8575,6 +9106,14 @@ function buildLevels(){
     ]
   });
 
+  // Six complete stages authored in endgame.js.
+  levels.push(...buildEndgameLevels());
+
+  // The old file contains archived episodes after the original 14-stage campaign.
+  // Move these six new stages directly after Episode 14, preserving the existing levels.
+  const newCampaignLevels = levels.splice(-6, 6);
+  levels.splice(14, 0, ...newCampaignLevels);
+
   const levelThemes = [
     'dusk_suburbs',       // Ep 1: Welcome & Basic Controls Tutorial
     'cyberpunk_alley',    // Ep 2: Neon Cyberpunk Alleyway
@@ -9000,7 +9539,19 @@ function activateJumpbox(jb){
 
 // ---------- Update Mechanics ----------
 function updatePlayer(dt){
+  if(level.endgameDesign && !player.dead && !player.isFalling){
+    const duckHeld = keys.KeyS || keys.ArrowDown || keys.ControlLeft || keys.ControlRight || touchDuckState;
+    const feet = player.y + player.h;
+    const standing = {x:player.x,y:feet-54,w:player.w,h:54};
+    const underBeam = level.obstacles.some(o => o.kind === 'crawl' && overlap(standing,o));
+    player.isDucking = !!duckHeld || (player.isDucking && underBeam);
+    player.h = player.isDucking ? 24 : 54;
+    player.y = feet - player.h;
+  }
+
   if(player.dead) return;
+
+  if(player.hurtTimer > 0) player.hurtTimer = Math.max(0, player.hurtTimer - dt);
 
   // Lasha Skin Weapon Lock (Lasha strictly uses his Electric Guitar)
   if(state.equippedSkin === 'lasha'){
@@ -9285,10 +9836,18 @@ function updatePlayer(dt){
     }
   }
 
+  // The authored stages allow a small margin for late and early jump presses.
+  const jumpHeld = !!(keys['Space']||keys['ArrowUp']||keys['KeyW']);
+  if(level.endgameDesign){
+    player.coyoteTimer = player.onGround ? 90 : Math.max(0,(player.coyoteTimer||0)-dt);
+    player.jumpBuffer = jumpHeld && !player.wasJumpHeld ? 110 : Math.max(0,(player.jumpBuffer||0)-dt);
+    player.wasJumpHeld = jumpHeld;
+  }
   // Jump, Double Jump & Wall Jump
-  if(keys['Space']||keys['ArrowUp']||keys['KeyW']){
-    if(player.onGround && !player.jumpKeyPressed){
+  if(jumpHeld || (level.endgameDesign && player.jumpBuffer>0)){
+    if((player.onGround || (level.endgameDesign && player.coyoteTimer>0)) && (!player.jumpKeyPressed || (level.endgameDesign && player.jumpBuffer>0))){
       player.vy = jumpPower;
+      player.coyoteTimer = 0; player.jumpBuffer = 0;
       player.onGround = false;
       player.jumpCount = 1;
       player.jumpKeyPressed = true;
@@ -9338,6 +9897,7 @@ function updatePlayer(dt){
   const wasOnGround = player.onGround;
   player.onGround = false;
   for(const p of (level.plats || [])){
+    if(p.adventureBridge && !p.enabled) continue;
     // Check if player was standing on this platform in the previous frame
     const playerWasAtop = wasOnGround &&
                           (player.x + player.w > p.x &&
@@ -9346,10 +9906,15 @@ function updatePlayer(dt){
 
     // Update platform movement
     if(p.vx){
-      p.x += p.vx;
-      if(playerWasAtop) player.x += p.vx;
-      if((p.vx < 0 && p.x <= p.minX) || (p.vx > 0 && p.x >= p.maxX)){
-        p.vx *= -1;
+      if(p.dwellTimer > 0){
+        p.dwellTimer -= 1;
+      } else {
+        p.x += p.vx;
+        if(playerWasAtop) player.x += p.vx;
+        if((p.vx < 0 && p.x <= p.minX) || (p.vx > 0 && p.x >= p.maxX)){
+          p.vx *= -1;
+          if(p.dwell) p.dwellTimer = Math.round(p.dwell);
+        }
       }
     }
     if(p.vy){
@@ -9515,67 +10080,24 @@ function updatePlayer(dt){
     }
   }
 
-  // Rolling Boulders & Barrels — real-time spawning from barrel spawners.
-  // Each spawner machine ejects a new barrel on a timer (no teleport-loop), and
-  // about 1 in 5 barrels is the rare EXPLOSIVE variant.
-  for(const sp of (level.barrelSpawners || [])){
-    if(sp.timer === undefined || sp.dir === undefined) initBarrelSpawners();
-    sp.timer = (sp.timer || 0) - dt;
-    if(sp.timer <= 0){
-      const live = (level.boulders || []).filter(
-        b => Math.abs((b.startX !== undefined ? b.startX : b.x) - sp.x) < 2
-      ).length;
-      if(live < (sp.maxConcurrent || 3)){
-        sp.timer += 2000 + Math.random() * 900;
-        const r = sp.r || 20;
-        const startX = sp.x;
-        const spx = startX + (sp.dir === 1 ? 1 : -1) * (r + 6);
-        level.boulders.push({
-          x: spx,
-          y: sp.y0 !== undefined ? sp.y0 : (sp.y !== undefined ? sp.y : GROUND_Y) - r,
-          r: r,
-          startX: startX,
-          minX: sp.rngMin !== undefined ? sp.rngMin : startX - 900,
-          maxX: sp.rngMax !== undefined ? sp.rngMax : startX + 900,
-          vx: sp.vx !== undefined ? sp.vx : (sp.dir === 1 ? 0.8 : -0.8),
-          angle: 0,
-          explosive: Math.random() < 0.2,
-          spawnT: state.time
-        });
-        spawnParticles(spx, (sp.y0 !== undefined ? sp.y0 : (sp.y !== undefined ? sp.y : GROUND_Y) - r), '#64748b', 8, 1.5);
-      } else {
-        sp.timer += 300;
-      }
-    }
-  }
-
-  // Move barrels — once a barrel rolls past its boundary it is removed for good
-  // (the machine keeps the stream alive in real action instead of looping).
-  for(let bi = (level.boulders || []).length - 1; bi >= 0; bi--){
-    const bd = level.boulders[bi];
+  // Rolling Boulders & Barrels
+  for(const bd of (level.boulders || [])){
+    if(bd.adventureBarrel) continue;
     bd.x += bd.vx || -0.8;
     bd.angle = (bd.angle || 0) + (bd.vx || -0.8) * 0.05;
 
-    const base = bd.startX !== undefined ? bd.startX : bd.x;
-    const gone = bd.vx > 0
-      ? bd.x > (bd.maxX !== undefined ? bd.maxX : base + 900)
-      : bd.x < (bd.minX !== undefined ? bd.minX : base - 900);
-    if(gone){
-      level.boulders.splice(bi, 1);
-      continue;
+    // Reset rolling barrels when reaching boundary to keep continuous stream of barrels
+    if(bd.vx > 0 && bd.startX !== undefined && bd.maxX !== undefined && bd.x > bd.maxX){
+      bd.x = bd.startX;
+    } else if((!bd.vx || bd.vx < 0) && bd.startX !== undefined && bd.minX !== undefined && bd.x < bd.minX){
+      bd.x = bd.startX;
     }
 
     const bBox = { x: bd.x - bd.r, y: bd.y - bd.r, w: bd.r * 2, h: bd.r * 2 };
     if(overlap(player, bBox) && player.invuln <= 0){
-      if(bd.explosive){
-        bd.dead = true;
-        level.boulders.splice(bi, 1);
-        spawnBarrelExplosion(bd.x, bd.y, 90);
-      } else {
-        hurtPlayer("💥 მოგორავე კასრის დარტყმა!");
-        player.vx = -6;
-        shake(14);
-      }
+      hurtPlayer("💥 მოგორავე კასრის დარტყმა!");
+      player.vx = -6;
+      shake(14);
     }
   }
 
@@ -9710,6 +10232,35 @@ function updatePlayer(dt){
     }
   }
 
+  // Wind zones (Japanese typhoon gusts) — horizontal push while inside
+  for(const w of (level.winds || [])){
+    if(overlap(player, w)){
+      const push = (w.dir || 1) * (w.speed || 2.0);
+      player.x += push;
+    }
+  }
+
+  // Shrine gate teleporters (torii) — instant shrine-to-shrine transport
+  for(const sg of (level.shrineGates || [])){
+    const now = Date.now();
+    if(sg.last && now - sg.last < 800) continue;
+    if(overlap(player, {x:sg.x, y:sg.y, w:sg.w || 84, h:sg.h || 120})){
+      player.x = (sg.tx !== undefined ? sg.tx : sg.x);
+      player.y = (sg.ty !== undefined ? sg.ty : (sg.y - player.h)) - 2;
+      player.vx = 0; player.vy = 0;
+      player.isSwinging = null;
+      sg.last = now;
+      if(typeof sfxJump === 'function') sfxJump();
+      if(typeof sfxBell === 'function') sfxBell();
+      shake(8);
+      triggerFlash('251,207,232', 0.35);
+      spawnParticles(player.x + player.w/2, player.y + player.h/2, '#f9a8d4', 30, 3.2);
+      spawnParticles(player.x + player.w/2, player.y + player.h/2, '#ffffff', 16, 2.0);
+      addFloatingText(sg.x + sg.w/2, sg.y - 20, "⛩️ გასავალი!", '#fbcfe8');
+      toast("⛩️ ტორი სალოცავის პორტალი!", 900);
+    }
+  }
+
   // PRO OBBY: Acid Geysers
   for(const ag of (level.acidGeysers || [])){
     const cycle = (state.time + (ag.offset || 0)) % (ag.period || 2000);
@@ -9760,6 +10311,7 @@ function updatePlayer(dt){
 
   // Dust cloud landing effect when player hits ground after falling
   if(!wasOnGround && player.onGround){
+    player.landTime = state.time;
     spawnParticles(player.x + player.w/2, player.y + player.h, '#d4b483', 18, 1.6);
     spawnParticles(player.x + player.w/2, player.y + player.h, '#ffffff', 10, 1.2);
     spawnParticles(player.x + player.w/2, player.y + player.h, '#a08560', 12, 1.4);
@@ -10044,8 +10596,12 @@ function updatePlayer(dt){
   // Continuous Chase Dynamic: Escalating Rising Horde / Collapse
   if(level && level.risingHordeSpeed && state.mode === 'playing' && !player.dead){
     if(level.risingHordeY === undefined) level.risingHordeY = GROUND_Y + 120;
-    level.risingHordeY -= (level.risingHordeSpeed || 0.88) * (dt * 0.06);
-    if(player.y + player.h >= level.risingHordeY && player.invuln <= 0){
+    const chaseActive = (level.hordeClearX === undefined || player.x >= level.hordeClearX);
+    const capY = (level.hordeCapY !== undefined) ? level.hordeCapY : -99999;
+    if(chaseActive && level.risingHordeY > capY){
+      level.risingHordeY -= (level.risingHordeSpeed || 0.88) * (dt * 0.06);
+    }
+    if(chaseActive && player.y + player.h >= level.risingHordeY && player.invuln <= 0){
       spawnParticles(player.x + player.w/2, player.y + player.h, '#ef4444', 30, 3.0);
       sfxHurt();
       shake(22);
@@ -10098,7 +10654,19 @@ function updatePlayer(dt){
   player.animT += dt;
 
   camX = Math.max(0, Math.min(level.width - W, player.x - W*0.38));
-  if(!player.isFalling){
+  if(level.endgameDesign && !player.isFalling){
+    // Follow the landing height, while reserving space beneath the HUD.
+    // Flying, rope swings and assisted jumps may rise above map geometry.
+    if(player.onGround || player.floorY === undefined) player.floorY = player.y;
+    const safeTop = 118, safeBottom = H - 64;
+    let target = Math.min(0, player.floorY - (GROUND_Y - 120));
+    target = Math.min(target, player.y - safeTop);
+    target = Math.max(target, player.y + player.h - safeBottom);
+    camY += (target - camY) * (1 - Math.exp(-dt / 115));
+    // Hard visibility guard when a spring or dash outruns the smooth follow.
+    camY = Math.min(camY, player.y - safeTop);
+    camY = Math.max(camY, player.y + player.h - safeBottom);
+  } else if(!player.isFalling){
     let targetCamY = 0;
     if(player.wingsTimer > 0 || (level && level.isVerticalLevel)){
       targetCamY = player.y - H * 0.45;
@@ -10122,9 +10690,10 @@ function updatePlayer(dt){
         targetCamY = Math.max(targetCamY, player.y - (H - 150));
       }
     }
-    targetCamY = Math.max(0, targetCamY);
+    const camYMin = (level && level.height) ? -(Math.max(0, level.height - H)) : 0;
+    targetCamY = Math.max(camYMin, targetCamY);
     camY += (targetCamY - camY) * 0.08;
-    camY = Math.max(0, camY);
+    camY = Math.max(camYMin, camY);
   }
   
   updateZombies(dt);
@@ -10137,7 +10706,7 @@ function getCheckpointSpawn(){
   let spawn = (level && level.spawn) || null;
   if(level && level.checkpointRespawn && level.checkpoints){
     (level.checkpoints || []).forEach(cp => {
-      if(cp.active) spawn = { x: cp.x, y: cp.y };
+      if(cp.active) spawn = { x: cp.x, y: cp.y-54 };
     });
   }
   return spawn;
@@ -10170,6 +10739,7 @@ function hurtPlayer(msg, cause='zombie'){
 
   const isHardcore = state.settings && state.settings.difficulty === 'hardcore';
   player.invuln = isHardcore ? 30 : 60; // Reduced invuln frames in hardcore
+  player.hurtTimer = 26;
 
   if(isPit){
     player.hasShield = false;
@@ -10224,7 +10794,7 @@ function hurtPlayer(msg, cause='zombie'){
     }
     if(level.isGodzillaLevel) player.weaponMode = 'tank';
     camX = Math.max(0, player.x - W/3);
-    camY = (level && level.height && level.height > 800) ? Math.max(0, player.y - H/2) : 0;
+    camY = (level && level.height && level.height > 800) ? Math.max(-(Math.max(0, level.height - H)), player.y - H/2) : 0;
   }
 }
 
@@ -10243,6 +10813,10 @@ function doJumpscare(type='face'){
 
 function levelClear(){
   if(state.mode!=='playing') return;
+  if(state.levelIndex === 19 && !finalBoss.dead){
+    toast('👑 ჯერ სამყაროთა მჭამელი უნდა დაამარცხო!', 2200);
+    return;
+  }
   sfxWin();
   trackQuestProgress('level_win', 1);
   
@@ -10278,15 +10852,8 @@ function loadLevel(idx){
   if(state.deathCam) state.deathCam.active = false;
   
   level = LEVELS[idx];
-
-  // Reset rolling barrels & set up their real-time machine spawners.
-  (level.boulders || []).forEach(b => {
-    if(b.initX === undefined) b.initX = b.x;
-    if(b.dead) b.x = b.startX !== undefined ? b.startX : b.initX;
-    b.dead = false;
-    if(b.explosive === undefined) b.explosive = Math.random() < 0.2;
-  });
-  initBarrelSpawners();
+  state.levelIndex = idx;
+  resetEndgame(level);
 
   // Each level starts with a full magazine and reserve for every weapon.
   refillAllWeapons();
@@ -10323,6 +10890,23 @@ function loadLevel(idx){
   if(level.traps){
     level.traps.forEach(t => t.taken = false);
   }
+  if(level.crumblingPlats){
+    level.crumblingPlats.forEach(cp => {
+      cp.broken = false;
+      cp.stepped = false;
+      cp.stepTimer = 0;
+      cp.respawnTimer = 0;
+    });
+  }
+  if(level.doubleJumpPlatforms){
+    level.doubleJumpPlatforms.forEach(p => { p.used = false; p.respawnTimer = 0; });
+  }
+  if(level.risingHordeSpeed){
+    level.risingHordeY = undefined;
+  }
+  if(level.shrineGates){
+    level.shrineGates.forEach(gs => { gs.last = 0; });
+  }
   if(level.plats){
     level.plats.forEach(p => {
       if(p.type === 'falling_ice'){
@@ -10349,7 +10933,7 @@ function loadLevel(idx){
       b.dead = false;
       b.hp = b.maxHp || 3;
       b.state = 'patrol';
-      b.swoopCooldown = 0;
+      b.swoopCooldown = b.startSwoop || 0;
       b.vx = -Math.abs(b.speed || 2.8);
     });
   }
@@ -10389,8 +10973,24 @@ function loadLevel(idx){
     godzillaBoss.active = false;
   }
 
-  // Final Boss every 4 levels (levels 4, 8, 12, 16, 20)
+  // Campaign boss milestones, ending with the Episode 20 world boss.
   initFinalBoss(idx);
+
+  // Level-defined boss placement + Oni re-skin override
+  if(level.bossSpawnX !== undefined && finalBoss && finalBoss.active){
+    finalBoss.x = level.bossSpawnX;
+    const floorY = (level.bossFloorY !== undefined) ? level.bossFloorY : GROUND_Y - 140;
+    finalBoss.y = floorY - finalBoss.h;
+  }
+  if(level.bossSkin && finalBoss && finalBoss.active){
+    if(level.bossSkin.name) finalBoss.name = level.bossSkin.name;
+    if(level.bossSkin.nameGeo) finalBoss.nameGeo = level.bossSkin.nameGeo;
+    if(level.bossSkin.color) finalBoss.color = level.bossSkin.color;
+    if(level.bossSkin.auraColor) finalBoss.auraColor = level.bossSkin.auraColor;
+    if(level.bossSkin.speed !== undefined) finalBoss.speed = level.bossSkin.speed;
+    if(level.bossSkin.reward !== undefined) finalBoss.reward = level.bossSkin.reward;
+    if(level.bossSkin.hp !== undefined){ finalBoss.hp = level.bossSkin.hp; finalBoss.maxHp = level.bossSkin.hp; }
+  }
 
   // Special vehicle level init
   if(level.isTrainLevel){
@@ -11557,8 +12157,242 @@ BG_THEMES.pro_rooftop_sunset = BG_THEMES.parkour_rooftops;
 BG_THEMES.pro_codezero_hall = BG_THEMES.final_challenge;
 BG_THEMES.ultimate_cosmos = BG_THEMES.final_challenge;
 
+// ===== Japan / Sakura night theme =====
+BG_THEMES.sakura_japan = {
+  sky: ['#0b0724', '#251347', '#5c1f4e', '#b84a63', '#e8a3a8'],
+  sunColor: '#ffd9c0',
+  moonColor: '#f5e9ff',
+  clouds: true,
+  clouds1: '#f9bfd8',
+  clouds2: '#d98cb4',
+  layers: [
+    { k: 'peaks', speed: 0.05, spacing: 640, h: 150, seed: 61, w: 520, c: ['#1a0f2e', '#38204e', '#f0d8ff'] },
+    { k: 'pagoda', speed: 0.09, spacing: 430, h: 170, seed: 62, w: 150, c: ['#120a24', '#5c1f4e', '#e8a3a8'] },
+    { k: 'torii', speed: 0.13, spacing: 320, h: 130, seed: 63, w: 160, c: ['#1b0f24', '#8f1f3f'] },
+    { k: 'sakura', speed: 0.18, spacing: 210, h: 120, seed: 64, w: 110, c: ['#160b1e', '#b84a63', '#e8a3a8', '#7a2a4e'] }
+  ],
+  extra: 'sakura_petals',
+  ec: []
+};
+
+BG_THEMES.tokyo_night = BG_THEMES.sakura_japan;
+
+BG_THEMES.china_city = {
+  sky: ['#05030f', '#120a20', '#2a0f1e', '#5a1520', '#9c3a28', '#e8a73c'],
+  sunColor: '#ffe6a3',
+  moonColor: '#ffedc0',
+  clouds: true,
+  clouds1: '#cf8d8d',
+  clouds2: '#7a4350',
+  layers: [
+    { k: 'peaks', speed: 0.04, spacing: 700, h: 170, seed: 71, w: 560, c: ['#0d0a1c', '#201330', '#4a2036'] },
+    { k: 'china_skyline', speed: 0.09, spacing: 640, h: 200, seed: 72, w: 300, c: ['#120b1c', '#7a1e2c', '#eab308', '#f2c879'] },
+    { k: 'china_wall', speed: 0.13, spacing: 190, h: 95, seed: 73, w: 150, c: ['#1c0d12', '#8f1d22', '#f0c86b'] },
+    { k: 'lanterns', speed: 0.18, spacing: 160, h: 70, seed: 74, w: 80, c: ['#2a0f16', '#ef4444', '#fcd34d'] }
+  ],
+  extra: 'lantern_float',
+  ec: ['#ff5d5d', '#f2c879']
+};
+
 // "synth_city" motif used by neon_synthwave
 MOTIFS.synth_city = MOTIFS.city;
+
+// ===== Japan / Sakura-themed motifs =====
+// Lush layered cherry-blossom canopy tree
+MOTIFS.sakura = function(cfg){
+  parRow(cfg, (x, i) => {
+    const th = cfg.h + sgn(i, cfg.seed, 40);
+    const w = cfg.w || 110;
+    // dark trunk
+    ctx.fillStyle = cfg.c[0];
+    ctx.fillRect(x - 4, cfg.y - th * 0.4, 10, th * 0.4 + 6);
+    ctx.fillStyle = cfg.c[1];
+    // layered pink blossom canopy puffs
+    for(let layer = 0; layer < 3; layer++){
+      const r = w * (0.34 - layer * 0.05);
+      const cyPuff = cfg.y - th * 0.66 + layer * (th * 0.16);
+      ctx.beginPath();
+      ctx.arc(x, cyPuff, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // lighter top highlight puff + deep pink lobe accents
+    ctx.fillStyle = cfg.c[2];
+    ctx.beginPath();
+    ctx.arc(x - w * 0.1, cfg.y - th * 0.88, w * 0.18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = cfg.c[3] || cfg.c[2];
+    for(let k = -1; k <= 1; k++){
+      ctx.fillRect(x - 3 + k * 9, cfg.y - th * 0.5 + Math.abs(k) * 15, 6, 4);
+    }
+  });
+};
+
+// Vermillion torii gate silhouettes
+MOTIFS.torii = function(cfg){
+  parRow(cfg, (x, i) => {
+    const th = cfg.h + sgn(i, cfg.seed, 36);
+    const w = cfg.w || 150;
+    const wCol = 12;
+    // two pillars
+    ctx.fillStyle = cfg.c[0];
+    ctx.fillRect(x - w / 2, cfg.y - th, wCol, th);
+    ctx.fillRect(x + w / 2 - wCol, cfg.y - th, wCol, th);
+    // upper lintel (kasagi) - the curved top bar
+    ctx.fillStyle = cfg.c[1];
+    ctx.fillRect(x - w / 2 - 10, cfg.y - th - 16, w + 20, 12);
+    ctx.fillRect(x - w / 2 - 6, cfg.y - th + 2, w + 12, 10);
+    // second beam (nuki)
+    ctx.fillStyle = cfg.c[0];
+    ctx.fillRect(x - w / 2 - 2, cfg.y - th * 0.62, w + 4, 9);
+  });
+};
+
+// Tiered pagoda silhouettes
+MOTIFS.pagoda = function(cfg){
+  parRow(cfg, (x, i) => {
+    const th = cfg.h + sgn(i, cfg.seed, 30);
+    const w = cfg.w || 150;
+    const tiers = 4;
+    ctx.fillStyle = cfg.c[0];
+    for(let t = 0; t < tiers; t++){
+      const ty = cfg.y - th + t * (th / tiers);
+      const tw = w * (1 - t * 0.13);
+      // eave flare
+      ctx.fillRect(x - tw / 2 - 8, ty, tw + 16, 7);
+      ctx.fillRect(x - tw / 2 + 4, ty + 7, tw - 8, th / tiers - 5);
+      // eave corner curl
+      ctx.fillRect(x - tw / 2 - 8, ty + 2, 8, 3);
+      ctx.fillRect(x + tw / 2, ty + 2, 8, 3);
+    }
+    // lantern tip
+    ctx.fillStyle = cfg.c[1];
+    ctx.fillRect(x - 3, cfg.y - th - 10, 6, 10);
+    ctx.fillRect(x - 7, cfg.y - th - 14, 14, 6);
+    ctx.fillStyle = cfg.c[2];
+    ctx.fillRect(x - 8, cfg.y - th * 0.96, 4, 4);
+  });
+};
+
+// Tiered Chinese city towers with curved golden roofs & glowing windows (china_city)
+MOTIFS.china_skyline = function(cfg){
+  parRow(cfg, (x, i) => {
+    const th = cfg.h + sgn(i, cfg.seed, 40);
+    const w = cfg.w || 260;
+    // dark tower body
+    ctx.fillStyle = cfg.c[0];
+    ctx.fillRect(x - w / 2, cfg.y - th, w, th);
+    // stepped tower crown
+    const tw = w * 0.42;
+    ctx.fillRect(x - tw / 2, cfg.y - th * 0.78, tw, th * 0.78);
+    // upturned vermillion eave flairs
+    ctx.fillStyle = cfg.c[1];
+    ctx.beginPath();
+    ctx.arc(x - tw / 2 - 12, cfg.y - th * 0.78 + 8, 9, 0, Math.PI * 2);
+    ctx.arc(x + tw / 2 + 12, cfg.y - th * 0.78 + 8, 9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(x - tw / 2 - 14, cfg.y - th * 0.78, tw + 28, 7);
+    // golden curved roof on the main body
+    ctx.fillStyle = cfg.c[2];
+    ctx.beginPath();
+    ctx.moveTo(x - w / 2, cfg.y - th);
+    ctx.quadraticCurveTo(x, cfg.y - th - 24, x + w / 2, cfg.y - th);
+    ctx.lineTo(x + w / 2, cfg.y - th + 10);
+    ctx.quadraticCurveTo(x, cfg.y - th, x - w / 2, cfg.y - th + 10);
+    ctx.fill();
+    // glowing gold windows
+    ctx.fillStyle = cfg.c[3];
+    for(let r = 0; r < 3; r++){
+      for(let cc = 0; cc < 3; cc++){
+        if((r + cc) % 2 === 0){
+          ctx.fillRect(x - w / 4 + cc * 30 - 18, cfg.y - th + 16 + r * 32, 12, 9);
+        }
+      }
+    }
+    // red beacon lantern on the tip
+    ctx.fillStyle = cfg.c[1];
+    ctx.fillRect(x - 3, cfg.y - th - 14, 6, 12);
+    ctx.beginPath();
+    ctx.arc(x, cfg.y - th - 17, 6, 0, Math.PI * 2);
+    ctx.fill();
+  });
+};
+
+// Crenellated Great Wall band (china_city)
+MOTIFS.china_wall = function(cfg){
+  parRow(cfg, (x, i) => {
+    const th = cfg.h + sgn(i, cfg.seed, 14);
+    const w = cfg.w || 150;
+    ctx.fillStyle = cfg.c[0];
+    ctx.fillRect(Math.round(x - w / 2), cfg.y - th, w, th);
+    // crenellated battlements
+    ctx.fillStyle = cfg.c[1];
+    for(let cx = Math.round(x - w / 2) + 6; cx < x + w / 2 - 8; cx += 30){
+      ctx.fillRect(cx, cfg.y - th - 12, 14, 12);
+    }
+    // gold rim + brick seams
+    ctx.fillStyle = cfg.c[2];
+    ctx.fillRect(Math.round(x - w / 2), cfg.y - th + 4, w, 4);
+    ctx.fillRect(Math.round(x - w / 2) + 8, cfg.y - th * 0.56, w - 16, 3);
+  });
+};
+
+// Hanging red paper lanterns with gold caps (china_city)
+MOTIFS.china_lanterns = function(cfg){
+  parRow(cfg, (x, i) => {
+    const hg = (cfg.h || 70) + sgn(i, cfg.seed, 14);
+    ctx.strokeStyle = cfg.c[0];
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x, cfg.y);
+    ctx.lineTo(x, cfg.y - hg);
+    ctx.stroke();
+    const r = (cfg.w || 80) * 0.3;
+    const ly = cfg.y - hg - r;
+    // tassel
+    ctx.strokeStyle = cfg.c[0];
+    ctx.beginPath();
+    ctx.moveTo(x, ly + r);
+    ctx.lineTo(x, ly + r + 10);
+    ctx.stroke();
+    // glowing lantern body
+    ctx.fillStyle = cfg.c[1];
+    ctx.beginPath();
+    ctx.arc(x, ly, r, 0, Math.PI * 2);
+    ctx.fill();
+    // gold caps
+    ctx.fillStyle = cfg.c[2];
+    ctx.fillRect(x - r * 0.55, ly - 3, r * 1.1, 4);
+    ctx.fillRect(x - r * 0.55, ly + r - 6, r * 1.1, 4);
+  });
+};
+
+// Floating sky-lantern ambiance (china_city)
+EXTRA_DRAW.lantern_float = function(cfg, ph){
+  for(let i = 0; i < 26; i++){
+    const px = ((i * 211 + state.time * 0.22) % (W + 140)) - 70;
+    const py = 40 + ((i * 97 + state.time * 0.12) % (GROUND_Y - 180));
+    const sway = Math.sin(state.time * 0.005 + i * 1.7) * 4;
+    ctx.fillStyle = (i % 2 === 0) ? 'rgba(248,113,113,0.8)' : 'rgba(252,211,77,0.72)';
+    ctx.beginPath();
+    ctx.ellipse(px + sway, py, 7, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillRect(px + sway - 3, py - 9, 6, 3);
+  }
+};
+
+// Falling blossom petal ambiance
+EXTRA_DRAW.sakura_petals = function(cfg, ph){
+  for(let i = 0; i < 34; i++){
+    const px = ((i * 173 + state.time * 0.16) % (W + 160)) - 80;
+    const py = ((i * 89 + state.time * 0.42) % (GROUND_Y - 30)) + 6;
+    const sway = Math.sin(state.time * 0.006 + i * 1.3) * 3;
+    ctx.fillStyle = (i % 3 === 0) ? 'rgba(244,114,182,0.85)' : 'rgba(251,207,232,0.7)';
+    ctx.beginPath();
+    ctx.ellipse(px + sway, py, 3, 2, Math.sin(state.time * 0.01 + i) * 0.7, 0, Math.PI * 2);
+    ctx.fill();
+  }
+};
 
 MOTIFS.bio = function(cfg){
   parRow(cfg, (x, i) => {
@@ -11661,6 +12495,12 @@ function classicGroundPalette(p, theme){
   }
   if(t === 'night' || t === 'night_forest' || t === 'prehistoric_jungle'){
     return {b1:'#2c3a2e', b2:'#223023', mortar:'#101a12', line:'#a3e635', cap:'#3b5c3b', cap2:'#243a26', outline:'#06100a'};
+  }
+  if(t === 'sakura_japan' || t === 'tokyo_night'){
+    return {b1:'#5b2a42', b2:'#482137', mortar:'#23101c', line:'#fbcfe8', cap:'#a8486b', cap2:'#7a2a4e', outline:'#170a12'};
+  }
+  if(t === 'china_city'){
+    return {b1:'#991b1b', b2:'#831616', mortar:'#2a0707', line:'#fde68a', cap:'#ef4444', cap2:'#b91c1c', outline:'#1c0505'};
   }
   // default: classic grass-over-earth block like classic platformers.
   return {b1:'#c2410c', b2:'#af3a0a', mortar:'#7c2d12', line:'#86efac', cap:'#16a34a', cap2:'#0e7a33', outline:'#3b2f1c'};
@@ -12253,6 +13093,67 @@ function drawGround(theme){
         break;
       }
 
+      case 'sakura_japan':
+      case 'tokyo_night': {
+        const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+        g.addColorStop(0, '#5b2a42');
+        g.addColorStop(0.18, '#4a2137');
+        g.addColorStop(0.6, '#2a1220');
+        g.addColorStop(1, '#12060e');
+        ctx.fillStyle = g;
+        ctx.fillRect(sx, p.y, p.w + extraW, p.h);
+
+        ctx.fillStyle = '#e8a3a8';
+        ctx.fillRect(sx, p.y, p.w + extraW, 3);
+        ctx.fillStyle = '#fbcfe8';
+        ctx.fillRect(sx, p.y, p.w + extraW, 1.5);
+        // lantern-lit top edge studs
+        ctx.fillStyle = '#f9a8d4';
+        for(let i = 14; i < p.w - 8; i += 26){
+          ctx.fillRect(sx + i, p.y, 8, 3);
+        }
+        ctx.fillStyle = '#7a2a4e';
+        ctx.fillRect(sx, p.y + p.h - 4, p.w + extraW, 4);
+        // faint vertical shrine-board seams
+        ctx.fillStyle = 'rgba(251,207,232,0.14)';
+        for(let i = 40; i < p.w - 14; i += 46){
+          ctx.fillRect(sx + i, p.y + 5, 2, p.h - 12);
+        }
+        break;
+      }
+
+      case 'china_city': {
+        const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
+        g.addColorStop(0, '#a41111');
+        g.addColorStop(0.18, '#7f1d1d');
+        g.addColorStop(0.6, '#40100c');
+        g.addColorStop(1, '#160303');
+        ctx.fillStyle = g;
+        ctx.fillRect(sx, p.y, p.w + extraW, p.h);
+
+        // golden imperial rim on top
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillRect(sx, p.y, p.w + extraW, 3);
+        ctx.fillStyle = '#fde68a';
+        ctx.fillRect(sx, p.y, p.w + extraW, 1.5);
+        ctx.fillStyle = '#eec65a';
+        for(let i = 14; i < p.w - 8; i += 34){
+          ctx.fillRect(sx + i, p.y, 10, 3);
+        }
+        // city-wall brick banding
+        ctx.fillStyle = '#2a0707';
+        ctx.fillRect(sx, p.y + p.h - 4, p.w + extraW, 4);
+        ctx.fillStyle = 'rgba(255,236,180,0.13)';
+        for(let i = 46; i < p.w - 16; i += 58){
+          ctx.fillRect(sx + i, p.y + 5, 2, p.h - 12);
+        }
+        ctx.fillStyle = 'rgba(0,0,0,0.18)';
+        for(let i = 24; i < p.h - 14; i += 40){
+          ctx.fillRect(sx, p.y + i, p.w + extraW, 2);
+        }
+        break;
+      }
+
       case 'nuclear_lab':
       case 'industrial_foundry': {
         const g = ctx.createLinearGradient(0, p.y, 0, p.y + p.h);
@@ -12693,6 +13594,64 @@ function drawSign(sign){
   wrapText(sign.text, sx+32, y+12, 60, 11);
 }
 
+function drawWorldSetPieces(pieces){
+  if(!pieces) return;
+  for(const p of pieces){
+    const sx = p.x - camX;
+    if(sx + p.w < -80 || sx > W + 80) continue;
+    const base = p.y, w = p.w, h = p.h;
+    ctx.save();
+    if(p.type === 'jungle_tree'){
+      ctx.fillStyle = '#4b2f1c';
+      ctx.fillRect(sx+w*.42,base-h*.62,w*.16,h*.62);
+      ctx.fillRect(sx+w*.12,base-h*.52,w*.38,12);
+      ctx.fillRect(sx+w*.5,base-h*.48,w*.36,10);
+      const greens = ['#14532d','#166534','#228b48','#2f9e55'];
+      for(let i=0;i<5;i++){
+        const cx=sx+w*(.18+i*.16), cy=base-h*(.7+Math.sin(i*1.7)*.06), r=w*(.17+(i%2)*.035);
+        ctx.fillStyle=greens[i%greens.length]; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+        ctx.fillStyle='rgba(190,242,100,.24)'; ctx.beginPath(); ctx.arc(cx-r*.25,cy-r*.25,r*.38,0,Math.PI*2); ctx.fill();
+      }
+      ctx.strokeStyle='#9a6b35'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(sx+w*.48,base-h*.43); ctx.quadraticCurveTo(sx+w*.25,base-h*.24,sx+w*.22,base-h*.1); ctx.stroke();
+    } else if(p.type === 'sky_arch'){
+      ctx.fillStyle='#bfa66b'; ctx.fillRect(sx+w*.14,base-h*.68,w*.16,h*.68); ctx.fillRect(sx+w*.70,base-h*.68,w*.16,h*.68);
+      ctx.fillStyle='#e7ce8b'; ctx.fillRect(sx+w*.08,base-h*.72,w*.80,14);
+      ctx.beginPath(); ctx.moveTo(sx+w*.08,base-h*.72); ctx.lineTo(sx+w*.48,base-h); ctx.lineTo(sx+w*.88,base-h*.72); ctx.closePath(); ctx.fill();
+      ctx.fillStyle='rgba(255,255,255,.55)'; ctx.fillRect(sx+w*.22,base-h*.62,5,h*.56); ctx.fillRect(sx+w*.78,base-h*.62,5,h*.56);
+    } else if(p.type === 'neon_tower'){
+      ctx.fillStyle='#111827'; ctx.fillRect(sx+w*.16,base-h,w*.68,h);
+      ctx.fillStyle='#263449'; ctx.fillRect(sx+w*.25,base-h-18,w*.50,18);
+      const rows=Math.floor(h/32);
+      for(let r=0;r<rows;r++) for(let c=0;c<3;c++){
+        const lit=((r*7+c*3+p.seed)%5)!==0;
+        ctx.fillStyle=lit?(c===1?'#22d3ee':'#f472b6'):'#263449';
+        ctx.fillRect(sx+w*(.27+c*.19),base-h+18+r*32,11,14);
+      }
+      ctx.fillStyle='#0b1220'; ctx.fillRect(sx+w*.08,base-h*.72,w*.84,30);
+      ctx.strokeStyle=p.color||'#22d3ee'; ctx.lineWidth=2; ctx.strokeRect(sx+w*.08,base-h*.72,w*.84,30);
+      ctx.fillStyle=p.color||'#67e8f9'; ctx.font='bold 11px sans-serif'; ctx.textAlign='center'; ctx.fillText(p.label||'NIGHT MARKET',sx+w*.5,base-h*.72+20);
+    } else if(p.type === 'crystal_cluster'){
+      const tones=[p.color||'#a78bfa','#e9d5ff','#7c3aed','#c4b5fd'];
+      for(let i=0;i<4;i++){
+        const cx=sx+w*(.14+i*.21), sh=h*(.55+((i*7+p.seed)%4)*.12), sw=w*(.16+(i%2)*.04);
+        ctx.fillStyle=tones[i%tones.length]; ctx.beginPath(); ctx.moveTo(cx,base); ctx.lineTo(cx+sw*.38,base-sh*.72); ctx.lineTo(cx+sw*.52,base-sh); ctx.lineTo(cx+sw*.72,base-sh*.42); ctx.lineTo(cx+sw,base); ctx.closePath(); ctx.fill();
+        ctx.fillStyle=tones[(i+1)%tones.length]; ctx.beginPath(); ctx.moveTo(cx+sw*.38,base-sh*.72); ctx.lineTo(cx+sw*.52,base-sh); ctx.lineTo(cx+sw*.58,base); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle='rgba(255,255,255,.55)'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(cx+sw*.52,base-sh); ctx.lineTo(cx+sw*.55,base-sh*.15); ctx.stroke();
+      }
+    } else if(p.type === 'volcano_ridge'){
+      ctx.fillStyle='#241315'; ctx.beginPath(); ctx.moveTo(sx,base); ctx.lineTo(sx+w*.22,base-h*.67); ctx.lineTo(sx+w*.38,base-h*.48); ctx.lineTo(sx+w*.62,base-h); ctx.lineTo(sx+w*.82,base-h*.54); ctx.lineTo(sx+w,base-h*.75); ctx.lineTo(sx+w,base); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle=p.color||'#fb5a2a'; ctx.lineWidth=5; ctx.beginPath(); ctx.moveTo(sx+w*.62,base-h*.94); ctx.lineTo(sx+w*.58,base-h*.67); ctx.lineTo(sx+w*.68,base-h*.48); ctx.lineTo(sx+w*.61,base-h*.2); ctx.stroke();
+      ctx.strokeStyle='rgba(255,168,65,.7)'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(sx+w*.24,base-h*.64); ctx.lineTo(sx+w*.31,base-h*.35); ctx.lineTo(sx+w*.25,base-h*.12); ctx.stroke();
+    } else if(p.type === 'cosmic_gate'){
+      ctx.fillStyle='#111827'; ctx.fillRect(sx+w*.08,base-h*.68,w*.18,h*.68); ctx.fillRect(sx+w*.74,base-h*.68,w*.18,h*.68);
+      ctx.strokeStyle=p.color||'#22d3ee'; ctx.lineWidth=8; ctx.beginPath(); ctx.moveTo(sx+w*.16,base-h*.64); ctx.quadraticCurveTo(sx+w*.5,base-h*1.28,sx+w*.84,base-h*.64); ctx.stroke();
+      ctx.strokeStyle='rgba(34,211,238,.45)'; ctx.lineWidth=2; ctx.strokeRect(sx+w*.32,base-h*.5,w*.36,h*.5);
+      ctx.fillStyle='#e0f2fe'; ctx.beginPath(); ctx.arc(sx+w*.5,base-h*.34,8+Math.sin(state.time*.004)*2,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
 function wrapText(text,cx,cy,maxW,lh){
   const words=text.split(' ');
   let line='', lines=[];
@@ -13029,6 +13988,91 @@ function drawAcidGeyser(ag){
       ctx.beginPath(); ctx.arc(bx, by, 3 + (i%3), 0, Math.PI*2); ctx.fill();
     }
     ctx.restore();
+  }
+}
+
+function drawWindZone(w){
+  const sx = w.x - camX;
+  if(sx + w.w < -80 || sx > W + 80) return;
+  const dir = w.dir || 1;
+  // translucent gust band
+  ctx.fillStyle = dir < 0 ? 'rgba(147,197,253,0.10)' : 'rgba(192,132,252,0.10)';
+  ctx.fillRect(sx, w.y, w.w, w.h);
+  // animated stream lines sweeping with the wind
+  ctx.strokeStyle = 'rgba(224,242,254,0.55)';
+  ctx.lineWidth = 2;
+  for(let i = 0; i < 6; i++){
+    const t = (state.time * 0.8 + i * 37) % (w.w + 60);
+    const ly = w.y + 14 + i * (w.h / 6);
+    const lx = dir < 0 ? (w.x + w.w - t + camX) : (w.x + t - camX);
+    ctx.beginPath();
+    ctx.moveTo(lx, ly);
+    ctx.lineTo(lx + dir * 16, ly - 3);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(lx, ly + 7);
+    ctx.lineTo(lx + dir * 10, ly + 7);
+    ctx.stroke();
+  }
+  // gust indicator arrows at top edge
+  ctx.fillStyle = 'rgba(240,249,255,0.6)';
+  for(let ax2 = w.x + 20; ax2 < w.x + w.w - 8; ax2 += 70){
+    const aX = ax2 - camX;
+    ctx.beginPath();
+    ctx.moveTo(aX, w.y + 4);
+    ctx.lineTo(aX + dir * 14, w.y + 10);
+    ctx.lineTo(aX, w.y + 16);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+function drawShrineGate(sg){
+  const sx = sg.x - camX;
+  const w = Math.max(84, sg.w || 84);
+  if(sx + w < -80 || sx > W + 80) return;
+  const h = sg.h || 120;
+  const baseY = sg.y + h;
+  const pW = 12;
+  // aura portal glow
+  const glowR = 34 + Math.sin(state.time * 0.01) * 6;
+  const grd = ctx.createRadialGradient(sx + w / 2, sg.y + h * 0.55, 4, sx + w / 2, sg.y + h * 0.55, glowR);
+  grd.addColorStop(0, 'rgba(249,168,212,0.85)');
+  grd.addColorStop(1, 'rgba(249,168,212,0)');
+  ctx.fillStyle = grd;
+  ctx.beginPath();
+  ctx.arc(sx + w / 2, sg.y + h * 0.55, glowR, 0, Math.PI * 2);
+  ctx.fill();
+  // vertical gateless boundary shimmer
+  ctx.fillStyle = 'rgba(255,235,245,0.25)';
+  ctx.fillRect(sx + w / 2 - 2, sg.y + 4, 4, h - 6);
+  // two pillars
+  ctx.fillStyle = '#b91c1c';
+  ctx.fillRect(sx - pW / 2, baseY - h, pW, h);
+  ctx.fillRect(sx + w - pW / 2, baseY - h, pW, h);
+  ctx.fillStyle = '#7f1d1d';
+  ctx.fillRect(sx - pW / 2, baseY - h, pW, 6);
+  ctx.fillRect(sx + w - pW / 2, baseY - h, pW, 6);
+  // lintel (curved) + nuki beam
+  ctx.fillStyle = '#991b1b';
+  ctx.fillRect(sx - 20, baseY - h - 14, w + 40, 12);
+  ctx.fillRect(sx - 14, baseY - h - 4, w + 28, 8);
+  ctx.strokeStyle = '#fcd34d';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(sx - 20, baseY - h - 14, w + 40, 12);
+  // counterweight dots under nuki
+  ctx.fillStyle = '#111';
+  ctx.fillRect(sx - 8, baseY - h, 4, 8);
+  ctx.fillRect(sx + w + 4, baseY - h, 4, 8);
+  // tiny glowing lantern in the middle
+  if(sg.active !== false){
+    const ly = baseY - h + 6 + Math.sin(state.time * 0.02) * 3;
+    ctx.fillStyle = 'rgba(253,128,97,0.4)';
+    ctx.beginPath();
+    ctx.arc(sx + w / 2, ly - 6, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = ['#f87171', '#fbbf24'][Math.floor(state.time * 0.008) % 2];
+    ctx.fillRect(sx + w / 2 - 4, ly - 14, 8, 16);
   }
 }
 
@@ -13500,23 +14544,6 @@ function drawGravityRune(gr){
 }
 
 
-function initBarrelSpawners(){
-  const sps = level.barrelSpawners || [];
-  (sps).forEach(sp => {
-    const match = (level.boulders || []).find(
-      b => Math.abs((b.startX !== undefined ? b.startX : b.x) - sp.x) < 2
-    );
-    sp.r = match ? match.r : 20;
-    sp.dir = match ? (match.vx >= 0 ? 1 : -1) : -1;
-    sp.vx = match ? match.vx : (sp.dir === 1 ? 0.8 : -0.8);
-    sp.y0 = match ? match.y : ((sp.y !== undefined ? sp.y : GROUND_Y) - sp.r);
-    sp.rngMin = match ? match.minX : sp.x - 900;
-    sp.rngMax = match ? match.maxX : sp.x + 900;
-    sp.maxConcurrent = 3;
-    sp.timer = 500 + Math.random() * 1200;
-  });
-}
-
 function inferBarrelSpawners(boulders) {
   if(!boulders || !boulders.length) return [];
   const map = new Map();
@@ -13640,91 +14667,14 @@ function drawBarrelSpawner(spawner){
 }
 
 function drawBoulder(bd){
+  if(bd.adventureBarrel){drawAdventureBarrel(bd);return;}
   const sx = bd.x - camX;
   if(sx + bd.r < -50 || sx - bd.r > W + 50) return;
   ctx.save();
   ctx.translate(sx, bd.y);
   ctx.rotate(bd.angle);
 
-  // Spring-out pop right after the machine ejects the barrel
-  if(bd.spawnT !== undefined){
-    const age = state.time - bd.spawnT;
-    if(age >= 0 && age < 160){
-      const k = 0.72 + 0.28 * Math.min(1, age / 160);
-      ctx.scale(k, k);
-    }
-  }
-
   const r = bd.r || 20;
-
-  // Explosive barrel variant: red steel drum with skull emblem & blinking fuse.
-  if(bd.explosive){
-    const face = ctx.createRadialGradient(0, -r * 0.15, r * 0.05, 0, 0, r);
-    face.addColorStop(0, '#f97316');
-    face.addColorStop(0.45, '#dc2626');
-    face.addColorStop(1, '#450a0a');
-    ctx.fillStyle = face;
-    ctx.beginPath();
-    ctx.arc(0, 0, r, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.strokeStyle = '#1c0a05';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-
-    // Steel rim bands
-    ctx.strokeStyle = '#cbd5e1';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 0.86, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.strokeStyle = '#475569';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 0.72, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Skull & crossbones warning emblem
-    const sr = r * 0.34;
-    ctx.strokeStyle = '#f8fafc';
-    ctx.lineWidth = Math.max(1.5, r * 0.05);
-    ctx.beginPath();
-    ctx.moveTo(-sr * 0.9, -sr * 0.75); ctx.lineTo(sr * 0.9, sr * 0.75);
-    ctx.moveTo(-sr * 0.9, sr * 0.75); ctx.lineTo(sr * 0.9, -sr * 0.75);
-    ctx.stroke();
-    ctx.fillStyle = '#f8fafc';
-    ctx.beginPath();
-    ctx.arc(0, -sr * 0.12, sr * 0.58, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillRect(-sr * 0.62, -sr * 0.02, sr * 1.24, sr * 0.5);
-    ctx.fillStyle = '#111827';
-    ctx.beginPath();
-    ctx.arc(-sr * 0.24, -sr * 0.2, sr * 0.14, 0, Math.PI * 2);
-    ctx.arc(sr * 0.24, -sr * 0.2, sr * 0.14, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillRect(-sr * 0.1, sr * 0.18, sr * 0.2, sr * 0.14);
-
-    // Blinking fuse spark on top
-    const flick = Math.sin(state.time * 0.02) * Math.sin(state.time * 0.013) > -0.25;
-    ctx.strokeStyle = '#334155';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, -r * 0.9);
-    ctx.lineTo(0, -r * 1.25);
-    ctx.stroke();
-    if(flick){
-      ctx.fillStyle = '#fde047';
-      ctx.beginPath();
-      ctx.arc(0, -r * 1.3, r * 0.14, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = 'rgba(253, 224, 71, 0.35)';
-      ctx.beginPath();
-      ctx.arc(0, -r * 1.3, r * 0.28, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
-    return;
-  }
 
   // Wooden end-face with radial depth (bright centre, dark rim) like a
   // classic pixel-art barrel instead of a flat colour disc.
@@ -13894,6 +14844,10 @@ function drawWater(w){
     color1 = 'rgba(180, 0, 0, 0.75)'; color2 = 'rgba(100, 0, 0, 0.88)'; color3 = 'rgba(40, 0, 0, 0.95)'; foamColor = 'rgba(255, 100, 100, 0.4)';
   } else if(theme === 'desert_canyon'){
     color1 = 'rgba(180, 120, 40, 0.7)'; color2 = 'rgba(120, 60, 20, 0.88)'; color3 = 'rgba(60, 30, 10, 0.95)'; foamColor = 'rgba(255, 200, 100, 0.4)';
+  } else if(theme === 'sakura_japan' || theme === 'tokyo_night'){
+    color1 = 'rgba(120, 190, 255, 0.75)'; color2 = 'rgba(60, 140, 220, 0.85)'; color3 = 'rgba(20, 70, 150, 0.95)'; foamColor = 'rgba(255, 220, 235, 0.55)';
+  } else if(theme === 'china_city'){
+    color1 = 'rgba(70, 220, 200, 0.75)'; color2 = 'rgba(20, 145, 155, 0.85)'; color3 = 'rgba(10, 55, 90, 0.95)'; foamColor = 'rgba(185, 255, 235, 0.55)';
   }
 
   // Realistic Water with Depth and Refraction Simulation
@@ -14233,7 +15187,7 @@ function drawCheckpoint(cp){
   const cpx = Number.isFinite(cp.x) ? cp.x : 0;
   const cpy = Number.isFinite(cp.y) ? cp.y : GROUND_Y;
   const sx = cpx - camX;
-  const sy = cpy - (camY || 0);
+  const sy = cpy;
   if(sx < -100 || sx > W + 100) return;
   const t = state.time * 0.005;
   const isActive = !!cp.active;
@@ -14367,7 +15321,7 @@ function drawFlag(f){
   if(sx + (f.w || 60) < -100 || sx > W + 100) return;
 
   ctx.save();
-  const flagY = (Number.isFinite(f.y) ? f.y : GROUND_Y - 140) - (camY || 0);
+  const flagY = (Number.isFinite(f.y) ? f.y : GROUND_Y - 140);
   const archW = Math.max(f.w || 60, 80);
   const archH = f.h || 140;
 
@@ -14492,6 +15446,199 @@ function drawFlag(f){
     return;
   }
 
+  // Grand volcanic finish: checkered finish line + torch gates + arch banner
+  if(f.finishStyle === 'grand'){
+    const gBase = flagY + archH;
+    const lineFrom = f.lineFrom !== undefined ? f.lineFrom : f.x - 200;
+    const lineTo = f.lineTo !== undefined ? f.lineTo : f.x + 200;
+    const sxA = lineFrom - camX;
+    const sxB = lineTo - camX;
+
+    // Checkered finish strip across the floor (black/white 16px tiles, 2 rows)
+    for(let gx = lineFrom; gx < lineTo; gx += 16){
+      const d = gx - camX;
+      if(d < -16 || d > W + 16) continue;
+      const even = Math.floor((gx - lineFrom) / 16) % 2 === 0;
+      ctx.fillStyle = even ? '#0b0b10' : '#e2e8f0';
+      ctx.fillRect(d, gBase, 16, 8);
+      ctx.fillStyle = even ? '#e2e8f0' : '#0b0b10';
+      ctx.fillRect(d, gBase + 8, 16, 8);
+    }
+
+    // Lava torch gate posts on both sides of the line
+    const pillarH = 230;
+    [[lineFrom, 0], [lineTo, 1]].forEach((pair) => {
+      const px = (pair[0] === 0 ? lineFrom : pair[0]) - camX;
+      ctx.fillStyle = '#7c2d12';
+      ctx.fillRect(px - 12, gBase - pillarH, 24, pillarH);
+      ctx.fillStyle = '#ea580c';
+      ctx.fillRect(px - 8, gBase - pillarH + 8, 16, pillarH - 16);
+      ctx.fillStyle = '#1c1917';
+      ctx.beginPath();
+      ctx.arc(px, gBase - pillarH - 5, 13, 0, Math.PI * 2);
+      ctx.fill();
+      const fl = 10 + Math.sin(state.time * 0.12 + px) * 3;
+      ctx.fillStyle = (Math.floor(state.time * 0.02) % 2) ? '#f59e0b' : '#f97316';
+      ctx.beginPath();
+      ctx.arc(px, gBase - pillarH - 17, fl, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fef08a';
+      ctx.beginPath();
+      ctx.arc(px, gBase - pillarH - 19, fl * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // 'FINISH' banner arch across the top
+    const beamY = gBase - pillarH - 28;
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(sxA, beamY, sxB - sxA, 24);
+    ctx.fillStyle = '#facc15';
+    ctx.strokeStyle = '#431407';
+    ctx.lineWidth = 3;
+    ctx.font = 'bold 20px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.strokeText('🏁 FINISH 🏁', (sxA + sxB) / 2, beamY + 18);
+    ctx.fillText('🏁 FINISH 🏁', (sxA + sxB) / 2, beamY + 18);
+  }
+
+  // Torii gate finish (Japan): vermillion shrine gate + checkered strip + banner
+  if(f.finishStyle === 'torii'){
+    const gBase = flagY + archH;
+    const lineFrom = f.lineFrom !== undefined ? f.lineFrom : f.x - 220;
+    const lineTo = f.lineTo !== undefined ? f.lineTo : f.x + 220;
+    // checkered finish strip
+    for(let gx = lineFrom; gx < lineTo; gx += 16){
+      const d = gx - camX;
+      if(d < -16 || d > W + 16) continue;
+      const even = Math.floor((gx - lineFrom) / 16) % 2 === 0;
+      ctx.fillStyle = even ? '#1a0b12' : '#f6dbe8';
+      ctx.fillRect(d, gBase, 16, 8);
+      ctx.fillStyle = even ? '#f6dbe8' : '#1a0b12';
+      ctx.fillRect(d, gBase + 8, 16, 8);
+    }
+    const gateH = 190;
+    const beamY = gBase - gateH - 22;
+    const gL = Math.min(lineFrom, lineTo) - camX;
+    const gW = Math.abs(lineTo - lineFrom);
+    [[lineFrom, 0], [lineTo, 1]].forEach((pair) => {
+      const px = pair[0] - camX;
+      ctx.fillStyle = '#b91c1c';
+      ctx.fillRect(px - 10, gBase - gateH, 20, gateH);
+      ctx.fillStyle = '#7f1d1d';
+      ctx.fillRect(px - 10, gBase - gateH, 20, 8);
+      ctx.fillStyle = '#991b1b';
+      ctx.fillRect(px - 16, gBase - gateH - 14, 32, 12);
+      ctx.fillRect(px - 12, gBase - gateH - 4, 24, 8);
+    });
+    // connecting crossbeams
+    ctx.fillStyle = '#b91c1c';
+    ctx.fillRect(gL, gBase - gateH - 22, gW, 16);
+    ctx.fillStyle = '#7f1d1d';
+    ctx.fillRect(gL, gBase - gateH - 22, gW, 4);
+    ctx.fillStyle = '#991b1b';
+    ctx.fillRect(gL + 6, gBase - gateH + Math.round(gateH * 0.36), gW - 12, 10);
+    // glowing gold studs along the top lintel + paper lantern
+    ctx.fillStyle = '#fcd34d';
+    for(let gx = lineFrom + 12; gx < lineTo; gx += 30){
+      ctx.fillRect(gx - camX, gBase - gateH - 19, 6, 6);
+    }
+    ctx.fillStyle = 'rgba(253,186,116,0.5)';
+    ctx.beginPath();
+    ctx.arc(gL + gW / 2, gBase - gateH - 44, 14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = ['#f87171', '#fbbf24'][Math.floor(state.time * 0.008) % 2];
+    ctx.fillRect(gL + gW / 2 - 5, gBase - gateH - 52, 10, 16);
+    // banner
+    const sA = lineFrom - camX, sB = lineTo - camX;
+    ctx.fillStyle = '#1a0b12';
+    ctx.fillRect(sA, beamY - 26, sB - sA, 24);
+    ctx.fillStyle = '#f9a8d4';
+    ctx.strokeStyle = '#7f1d1d';
+    ctx.lineWidth = 3;
+    ctx.font = 'bold 20px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.strokeText('🏁 FINISH 🏁', (sA + sB) / 2, beamY - 8);
+    ctx.fillText('🏁 FINISH 🏁', (sA + sB) / 2, beamY - 8);
+  }
+
+  // Chinese paifang gate finish (china_city): gold-red memorial gate + checkered strip + banner
+  if(f.finishStyle === 'paifang'){
+    const gBase = flagY + archH;
+    const lineFrom = f.lineFrom !== undefined ? f.lineFrom : f.x - 200;
+    const lineTo = f.lineTo !== undefined ? f.lineTo : f.x + 200;
+    // gold/red checkered finish strip
+    for(let gx = lineFrom; gx < lineTo; gx += 16){
+      const d = gx - camX;
+      if(d < -16 || d > W + 16) continue;
+      const even = Math.floor((gx - lineFrom) / 16) % 2 === 0;
+      ctx.fillStyle = even ? '#1c0505' : '#fde68a';
+      ctx.fillRect(d, gBase, 16, 8);
+      ctx.fillStyle = even ? '#fde68a' : '#1c0505';
+      ctx.fillRect(d, gBase + 8, 16, 8);
+    }
+    const gateH = 200;
+    const gL = Math.min(lineFrom, lineTo) - camX;
+    const gW = Math.abs(lineTo - lineFrom);
+    // two vermillion pillars with gold plinths + finial balls
+    [[lineFrom, 0], [lineTo, 1]].forEach((pair) => {
+      const px = pair[0] - camX;
+      ctx.fillStyle = '#b91c1c';
+      ctx.fillRect(px - 12, gBase - gateH, 24, gateH);
+      ctx.fillStyle = '#7f1d1d';
+      ctx.fillRect(px - 12, gBase - gateH, 24, 6);
+      ctx.fillStyle = '#eab308';
+      ctx.fillRect(px - 16, gBase - 14, 32, 14);
+      ctx.fillStyle = '#fbbf24';
+      ctx.beginPath();
+      ctx.arc(px, gBase - gateH - 8, 7, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    // stacked golden eaves across the top
+    ctx.fillStyle = '#991b1b';
+    ctx.fillRect(gL - 8, gBase - gateH - 26, gW + 16, 18);
+    ctx.fillStyle = '#eab308';
+    ctx.fillRect(gL - 8, gBase - gateH - 26, gW + 16, 4);
+    ctx.fillStyle = '#7f1d1d';
+    ctx.fillRect(gL - 20, gBase - gateH - 48, gW + 40, 18);
+    ctx.fillStyle = '#eab308';
+    ctx.fillRect(gL - 20, gBase - gateH - 48, gW + 40, 4);
+    ctx.fillStyle = '#991b1b';
+    ctx.beginPath();
+    ctx.arc(gL - 20, gBase - gateH - 42, 8, Math.PI * 0.4, Math.PI * 1.6);
+    ctx.arc(gL + gW + 20, gBase - gateH - 42, 8, Math.PI * 1.4, Math.PI * 2.6);
+    ctx.fill();
+    // gold clamp crossbeams
+    ctx.fillStyle = '#d97706';
+    ctx.fillRect(gL, gBase - gateH + Math.round(gateH * 0.48), gW, 8);
+    ctx.fillRect(gL, gBase - gateH + Math.round(gateH * 0.72), gW, 6);
+    // hanging red lantern in the gateway
+    const laX = gL + gW / 2, laY = gBase - gateH - 62;
+    ctx.strokeStyle = '#b91c1c';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(laX, laY + 14);
+    ctx.lineTo(laX, laY + 26);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(239,68,68,0.95)';
+    ctx.beginPath();
+    ctx.arc(laX, laY, 14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillRect(laX - 6, laY - 18, 12, 6);
+    ctx.fillRect(laX - 6, laY + 10, 12, 5);
+    // banner
+    const sA = lineFrom - camX, sB = lineTo - camX;
+    ctx.fillStyle = '#1c0505';
+    ctx.fillRect(sA, gBase - gateH - 92, sB - sA, 24);
+    ctx.fillStyle = '#fde68a';
+    ctx.strokeStyle = '#7f1d1d';
+    ctx.lineWidth = 3;
+    ctx.font = 'bold 20px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.strokeText('🏁 FINISH 🏁', (sA + sB) / 2, gBase - gateH - 74);
+    ctx.fillText('🏁 FINISH 🏁', (sA + sB) / 2, gBase - gateH - 74);
+  }
+
   // Standard finish marker: a physical flag planted on the platform.
   const finishBaseY = flagY + archH;
   const finishX = sx + archW / 2;
@@ -14567,7 +15714,7 @@ function drawWingItem(w){
   if(sx + (w.w||34) < -50 || sx > W + 50) return;
 
   ctx.save();
-  const floatY = (w.y - (camY || 0)) + Math.sin(state.time * 0.005 + w.x) * 6;
+  const floatY = w.y + Math.sin(state.time * 0.005 + w.x) * 6;
 
   // Golden Aura Glow
   ctx.shadowColor = '#ffd23f';
@@ -14677,7 +15824,7 @@ function drawRisingHorde(){
   if(!level || level.risingHordeY === undefined) return;
 
   const ry = level.risingHordeY;
-  const screenY = ry - camY;
+  const screenY = ry;
   if(screenY > H + 200) return;
 
   ctx.save();
@@ -14816,7 +15963,7 @@ function drawHeliPad(hp){
 function drawBird(b){
   if(b.dead) return;
   const sx = b.x - camX;
-  const sy = b.y - camY;
+  const sy = b.y;
   if(sx + b.w < -60 || sx > W + 60 || sy + b.h < -60 || sy > H + 60) return;
 
   ctx.save();
@@ -16472,6 +17619,184 @@ function drawDetailedGun(ctx, mode = 'pistol', opts = {}) {
   ctx.restore();
 }
 
+// ---------- Sprite Skin Animation System (PNG animation packs) ----------
+const SKIN_FRAMES = {};   // { pack: { anim: [Image, ...] } }
+const SKIN_READY = { newdino: false, lasha: false };
+// Shared, uniform frame geometry produced by tools/build_character_art.py:
+// every frame lives on one canvas, feet sit on baselineY and the body is
+// centred on anchorX so sprites never slide, jitter or change size.
+const SKIN_META = { newdino: null, lasha: null };
+const SKIN_TARGET_H = 62; // on-screen character height in pixels (uniform for every frame)
+const SKIN_PACK_FPS = {
+  newdino: { idle: 6, walk: 8, run: 12, jump: 14, shoot: 14 },
+  lasha:   { idle: 5, walk: 8, run: 12, jump: 14, fall: 16, hurt: 10, death: 8, shoot_laser: 12, special_attack: 12 }
+};
+const skinAnimState = { newdino: { name: '', start: 0 }, lasha: { name: '', start: 0 } };
+
+function loadSkinAnimations(){
+  fetch('assets/character/manifest.json').then(r => r.json()).then(meta => {
+    for(const pack of Object.keys(meta)){
+      SKIN_META[pack] = meta[pack];
+      if(meta[pack] && meta[pack].fps) SKIN_PACK_FPS[pack] = meta[pack].fps;
+      const anims = meta[pack].anims || {};
+      SKIN_FRAMES[pack] = {};
+      let remaining = 0;
+      for(const anim of Object.keys(anims)){
+        SKIN_FRAMES[pack][anim] = anims[anim].map(f => {
+          const img = new Image();
+          img.decoding = 'async';
+          img.src = `assets/character/${pack}/${anim}/${f}`;
+          remaining++;
+          img.onload = img.onerror = () => { remaining--; if(remaining <= 0) SKIN_READY[pack] = true; };
+          return img;
+        });
+      }
+      if(remaining === 0) SKIN_READY[pack] = true;
+    }
+  }).catch(() => {
+    // Fallback to the legacy filename manifest if metadata is unavailable.
+    fetch('assets/character/frames.json').then(r => r.json()).then(manifest => {
+      for(const pack of Object.keys(manifest)){
+        SKIN_FRAMES[pack] = {};
+        let remaining = 0;
+        for(const anim of Object.keys(manifest[pack])){
+          SKIN_FRAMES[pack][anim] = manifest[pack][anim].map(f => {
+            const img = new Image();
+            img.src = `assets/character/${pack}/${anim}/${f}`;
+            remaining++;
+            img.onload = img.onerror = () => { remaining--; if(remaining <= 0) SKIN_READY[pack] = true; };
+            return img;
+          });
+        }
+        if(remaining === 0) SKIN_READY[pack] = true;
+      }
+    }).catch(() => {});
+  });
+}
+loadSkinAnimations();
+
+function pickSkinAnim(pack){
+  let name = 'idle', loop = true;
+
+  // Shop preview pose selector & menu stage always show a clean pose
+  if(state.previewModal && state.previewModal.active && state.previewModal.type === 'skins' && state.previewModal.item){
+    const ps = state.previewModal.animState || 'idle';
+    if(ps === 'run'){ name = 'run'; loop = true; }
+    else if(ps === 'jump'){ name = 'jump'; loop = false; }
+    return { name, loop };
+  }
+  if(state.mode === 'menu'){
+    return { name: 'idle', loop: true };
+  }
+
+  if(pack === 'lasha'){
+    if(player.dead || (state.deathCam && state.deathCam.active)){ name = 'death'; loop = false; }
+    else if(player.isFalling){ name = 'fall'; loop = false; }
+    else if(player.isBitten){ name = 'hurt'; loop = true; }
+    else if(!player.onGround && player.vy < 0){ name = 'jump'; loop = false; }
+    else if(!player.onGround){ name = 'fall'; loop = false; }
+    else if(state.mode === 'playing' && isFireHeld()){ name = 'shoot_laser'; loop = true; }
+    else if(player.dashTimer > 0){ name = 'special_attack'; loop = true; }
+    else {
+      const spd = Math.abs(player.vx);
+      if(spd > 5.4){ name = 'run'; loop = true; }
+      else if(spd > 0.5){ name = 'walk'; loop = true; }
+    }
+  } else {
+    if(player.dead || (state.deathCam && state.deathCam.active)){ name = 'jump'; loop = false; }
+    else if(player.isFalling){ name = 'jump'; loop = false; }
+    else if(player.hurtTimer > 0 && player.onGround){ name = 'idle'; loop = false; }
+    else if(!player.onGround && player.vy < 0){ name = 'jump'; loop = false; }
+    else if(!player.onGround){ name = 'jump'; loop = false; }
+    else if(state.mode === 'playing' && isFireHeld()){ name = 'shoot'; loop = true; }
+    else {
+      const spd = Math.abs(player.vx);
+      if(spd > 5.4){ name = 'run'; loop = true; }
+      else if(spd > 0.5){ name = 'walk'; loop = true; }
+    }
+  }
+  return { name, loop };
+}
+
+function skinFrameIndex(pack, anim, loop, frames){
+  const n = frames.length;
+  if(n === 0) return 0;
+  const fps = (SKIN_PACK_FPS[pack] || {})[anim] || 8;
+  const period = 1000 / fps;
+  const rec = skinAnimState[pack];
+  if(rec.name !== anim){
+    rec.name = anim;
+    rec.start = state.time;
+  }
+  if(loop){
+    return Math.floor(state.time / period) % n;
+  }
+  const rel = Math.max(0, state.time - rec.start);
+  return Math.min(n - 1, Math.floor(rel / period));
+}
+
+function landSquashAmount(){
+  const t = state.time - (player.landTime || -99999);
+  if(t < 0 || t > 190) return 0;
+  return Math.sin((t / 190) * Math.PI);
+}
+
+function drawSkinSprite(sx, sy){
+  const skin = state.equippedSkin || 'classic';
+  const pack = skin === 'lasha' ? 'lasha' : (skin === 'classic' ? 'newdino' : null);
+  if(!pack || !SKIN_READY[pack]) return false;
+
+  const st = pickSkinAnim(pack);
+  const frames = (SKIN_FRAMES[pack] || {})[st.name];
+  if(!frames || frames.length === 0) return false;
+
+  const fi = skinFrameIndex(pack, st.name, st.loop, frames);
+  const img = frames[Math.max(0, Math.min(frames.length - 1, fi))];
+  if(!img || !img.complete || img.naturalWidth === 0) return false;
+
+  // Uniform frame geometry: fixed canvas, fixed baseline, fixed scale. This is
+  // what stops sliding feet, jittering weapons and size popping between frames.
+  const meta = SKIN_META[pack];
+  const refH = meta && meta.refH ? meta.refH : img.height;
+  const scale = SKIN_TARGET_H / refH;
+  const anchorX = meta && meta.anchorX ? meta.anchorX : img.width / 2;
+  const baselineY = meta && meta.baselineY ? meta.baselineY : img.height;
+  const dw = img.width * scale;
+  const dh = img.height * scale;
+
+  const feetX = sx + player.w / 2;
+  const feetY = sy + player.h;
+
+  ctx.save();
+  ctx.translate(feetX, feetY);
+
+  if(player.isFalling){
+    // Airborne ragdoll: rotate about the body centre so feet are free.
+    ctx.translate(0, -dh / 2);
+    ctx.rotate(player.fallRotation);
+    ctx.translate(0, dh / 2);
+  } else {
+    ctx.scale(player.facing, 1);
+    const land = landSquashAmount();
+    let sxScale = 1 + land * 0.16;
+    let syScale = 1 - land * 0.20;
+    if(player.isDucking){ sxScale *= 1.05; syScale *= 0.58; }
+    ctx.scale(sxScale, syScale);
+    if(player.hurtTimer > 0){
+      ctx.rotate(-player.facing * 0.08 * Math.min(1, player.hurtTimer / 20));
+    }
+  }
+
+  if(player.invuln > 0 && Math.floor(player.invuln / 4) % 2 === 0){
+    ctx.globalAlpha = 0.42;
+  }
+
+  // Draw the shared-canvas frame anchored by (anchorX, baselineY).
+  ctx.drawImage(img, -anchorX * scale, -baselineY * scale, dw, dh);
+  ctx.restore();
+  return true;
+}
+
 // ---------- Dino Character Drawing ----------
 function drawPlayer(){
   if(level && level.heliEscaping) return; // Player is sitting inside helicopter cockpit
@@ -16749,6 +18074,9 @@ function drawPlayer(){
     ctx.fillText('ადიოს მუჩაჩოოსსსს! 🗣️', bx + bw/2, by + 27);
     ctx.restore();
   }
+
+  // PNG animation pack skins (classic dino = newdino.png, lasha = lasha.png)
+  if(drawSkinSprite(sx, sy)) return;
 
   ctx.save();
   ctx.translate(sx+player.w/2, sy+player.h/2);
@@ -17640,6 +18968,7 @@ function drawNukeSequence(){
 
 
 function drawHUD(){
+  if(level && level.endgameDesign){ drawEndgameHUD(); return; }
   ctx.save();
 
   // TRAIN LEVEL CUSTOM HUD (Episode 6)
@@ -18281,215 +19610,7 @@ function drawLoading(){
 const menuBgImage = new Image();
 menuBgImage.src = 'background.png';
 
-function drawMenu(){
-  if(menuBgImage && menuBgImage.complete && menuBgImage.naturalWidth > 0){
-    ctx.drawImage(menuBgImage, 0, 0, W, H);
-  } else {
-    drawBackground('pink');
-  }
-  ctx.fillStyle = 'rgba(5, 8, 16, 0.55)';
-  ctx.fillRect(0, 0, W, H);
-
-  // Floating background embers
-  ctx.save();
-  for(let i = 0; i < 25; i++){
-    const px = (i * 123 + state.time * 0.2) % W;
-    const py = (i * 89 + Math.cos(state.time * 0.003 + i) * 20) % H;
-    ctx.fillStyle = i % 2 === 0 ? 'rgba(255, 210, 63, 0.4)' : 'rgba(255, 61, 110, 0.4)';
-    ctx.beginPath();
-    ctx.arc(px, py, 2, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.restore();
-
-  ctx.textAlign = 'center';
-
-  // Badge Header
-  ctx.save();
-  ctx.fillStyle = '#ffd23f';
-  ctx.font = 'bold 14px sans-serif';
-  ctx.fillText('💥 DINO OFFICIAL GAME 💥', W/2, H/2 - 165);
-  ctx.restore();
-
-  // Grand Title: DINO
-  ctx.save();
-  ctx.font = '900 76px sans-serif';
-  ctx.shadowColor = '#38c6ff';
-  ctx.shadowBlur = 30;
-  ctx.fillStyle = '#38c6ff';
-  ctx.fillText('DINO', W/2, H/2 - 102);
-  
-  ctx.font = 'bold 28px sans-serif';
-  ctx.fillStyle = '#ffffff';
-  ctx.shadowBlur = 10;
-  ctx.fillText('ADIOS MUCHACHOS!', W/2, H/2 - 40);
-  ctx.restore();
-
-  // High Score Pill Badge
-  ctx.save();
-  const hsText = `🏆 HIGH SCORE: ${state.highScore || 0}`;
-  ctx.font = 'bold 16px sans-serif';
-  const hsMetrics = ctx.measureText(hsText);
-  const pillW = hsMetrics.width + 36, pillH = 32;
-  const pillX = W/2 - pillW/2, pillY = H/2 - 38;
-
-  ctx.fillStyle = 'rgba(20, 24, 40, 0.88)';
-  ctx.beginPath();
-  if(ctx.roundRect) ctx.roundRect(pillX, pillY, pillW, pillH, 16);
-  else ctx.fillRect(pillX, pillY, pillW, pillH);
-  ctx.fill();
-
-  ctx.strokeStyle = '#ffd23f';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  ctx.shadowColor = '#ffd23f';
-  ctx.shadowBlur = 10;
-  ctx.fillStyle = '#ffd23f';
-  ctx.textAlign = 'center';
-  ctx.fillText(hsText, W/2, pillY + 22);
-  ctx.restore();
-
-  // Central Platform & Player Stage
-  ctx.save();
-  const platX = W/2 - 100, platY = H/2 + 10, platW = 200, platH = 16;
-  ctx.fillStyle = '#1e293b';
-  ctx.fillRect(platX, platY, platW, platH);
-  ctx.strokeStyle = '#38c6ff';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(platX, platY, platW, platH);
-
-  // Player preview
-  const savedX = player.x, savedY = player.y;
-  player.x = W/2 - player.w/2;
-  player.y = platY - player.h;
-  drawPlayer();
-  player.x = savedX;
-  player.y = savedY;
-  ctx.restore();
-
-  // Prominent, Glossy Start Button
-  const blink = Math.floor(state.time / 300) % 2 === 0;
-  ctx.save();
-  const btnW = 460, btnH = 48;
-  const bx = W/2 - btnW/2, by = H/2 + 45;
-
-  ctx.shadowColor = blink ? '#38c6ff' : '#ff3d6e';
-  ctx.shadowBlur = 18;
-
-  ctx.fillStyle = blink ? '#38c6ff' : '#ff3d6e';
-  ctx.beginPath();
-  if(ctx.roundRect) ctx.roundRect(bx, by, btnW, btnH, 10);
-  else ctx.fillRect(bx, by, btnW, btnH);
-  ctx.fill();
-
-  ctx.shadowBlur = 0;
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 2.5;
-  ctx.stroke();
-
-  ctx.font = 'bold 22px sans-serif';
-  ctx.fillStyle = '#000000';
-  ctx.textAlign = 'center';
-  ctx.fillText('▶  დავეშვით!', W/2, by + 32);
-  ctx.restore();
-
-  // Sub buttons: Shop, Quests, Wheel, Settings, Levels
-  ctx.save();
-  const subW = 92, subH = 42;
-  const spacing = 8;
-  const totalW = 5 * subW + 4 * spacing;
-  const startX = W/2 - totalW/2;
-  const sby = H/2 + 108;
-
-  const claimable = hasClaimableQuests();
-
-  const menuBtns = [
-    { id: 'shop', label: '🛍️ SHOP', color: '#ffd23f' },
-    { id: 'quests', label: '🎯 QUESTS', color: claimable ? '#22c55e' : '#4ade80' },
-    { id: 'wheel', label: '🎡 WHEEL', color: '#a855f7' },
-    { id: 'settings', label: '⚙️ SETTINGS', color: '#ffffff' },
-    { id: 'levels', label: '🗺️ LEVELS', color: '#38c6ff' }
-  ];
-
-  menuBtns.forEach((btn, idx) => {
-    const bx = startX + idx * (subW + spacing);
-    ctx.fillStyle = 'rgba(20, 28, 48, 0.9)';
-    ctx.beginPath();
-    if(ctx.roundRect) ctx.roundRect(bx, sby, subW, subH, 8);
-    else ctx.fillRect(bx, sby, subW, subH);
-    ctx.fill();
-
-    if(btn.id === 'quests' && claimable){
-      ctx.shadowColor = '#22c55e';
-      ctx.shadowBlur = 12;
-    }
-
-    ctx.strokeStyle = btn.color;
-    ctx.lineWidth = (btn.id === 'quests' && claimable) ? 2.5 : 2;
-    ctx.stroke();
-
-    ctx.font = 'bold 12px sans-serif';
-    ctx.fillStyle = btn.color;
-    ctx.textAlign = 'center';
-    ctx.fillText(btn.label, bx + subW/2, sby + 26);
-
-    // Notification Dot / Badge if claimable quests exist
-    if(btn.id === 'quests' && claimable){
-      ctx.fillStyle = '#ef4444';
-      ctx.beginPath();
-      ctx.arc(bx + subW - 8, sby + 8, 6, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 9px sans-serif';
-      ctx.fillText('!', bx + subW - 8, sby + 11);
-    }
-  });
-  ctx.restore();
-
-  // Promo Code Button on Start Menu Canvas
-  ctx.save();
-  const promoW = 340, promoH = 38;
-  const pbx = W/2 - promoW/2, pby = H/2 + 160;
-  ctx.fillStyle = 'rgba(255, 210, 63, 0.15)';
-  ctx.beginPath();
-  if(ctx.roundRect) ctx.roundRect(pbx, pby, promoW, promoH, 8);
-  else ctx.fillRect(pbx, pby, promoW, promoH);
-  ctx.fill();
-
-  ctx.strokeStyle = '#ffd23f';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  ctx.font = 'bold 13px sans-serif';
-  ctx.fillStyle = '#ffd23f';
-  ctx.textAlign = 'center';
-  ctx.fillText('🎟️ პრომო კოდი (PROMO CODE)', W/2, pby + 24);
-  ctx.restore();
-
-  // Top-Right Music BGM Toggle Button on Start Menu Canvas
-  ctx.save();
-  const mBtnW = 120, mBtnH = 32;
-  const mBtnX = W - mBtnW - 16, mBtnY = 16;
-  ctx.fillStyle = 'rgba(20, 28, 48, 0.9)';
-  ctx.beginPath();
-  if(ctx.roundRect) ctx.roundRect(mBtnX, mBtnY, mBtnW, mBtnH, 8);
-  else ctx.fillRect(mBtnX, mBtnY, mBtnW, mBtnH);
-  ctx.fill();
-
-  ctx.strokeStyle = bgmMuted ? '#ef4444' : '#38c6ff';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-
-  ctx.font = 'bold 12px sans-serif';
-  ctx.fillStyle = bgmMuted ? '#ef4444' : '#38c6ff';
-  ctx.textAlign = 'center';
-  ctx.fillText(bgmMuted ? '🔇 MUSIC: OFF' : '🎵 MUSIC: ON', mBtnX + mBtnW/2, mBtnY + 20);
-  ctx.restore();
-
-  ctx.restore();
-}
+function drawMenu(){ drawAdventureMenu(); }
 
 const shopUpgrades = [
   { id: 'doubleJump', title: '🚀 ჰაეროვანი ნახტომი', desc: 'ხტომა ჰაერში მეორედ!', cost: 50, icon: '🚀' },
@@ -19730,8 +20851,6 @@ function drawLevelSelect(){
 
   ctx.textAlign = 'center';
 
-  if(state.levelTab !== 0) state.levelTab = 0;
-
   // Title Header
   const totalStars = Object.values(state.levelStars || {}).reduce((a, b) => a + (b || 0), 0);
   ctx.save();
@@ -19739,7 +20858,7 @@ function drawLevelSelect(){
   ctx.shadowColor = '#38c6ff';
   ctx.shadowBlur = 15;
   ctx.fillStyle = '#38c6ff';
-  ctx.fillText('🗺️ დონეების არჩევა (LEVEL SELECT & PRO OBBY)', W/2 - 70, 32);
+  ctx.fillText('🗺️ დონეების არჩევა — 20 ეპიზოდი', W/2 - 70, 32);
   ctx.restore();
 
   // Promocode button in header
@@ -19760,9 +20879,9 @@ function drawLevelSelect(){
 
   ctx.fillStyle = '#ffd23f';
   ctx.font = 'bold 15px sans-serif';
-  ctx.fillText(`⭐ საერთო ვარსკვლავები: ${totalStars} / 30`, W/2 - 70, 52);
+  ctx.fillText(`⭐ საერთო ვარსკვლავები: ${totalStars} / 60`, W/2 - 70, 52);
 
-  // Star Progress Bar for the ten-level campaign
+  // Campaign star progress
   const sBarW = 180, sBarH = 6;
   const sBarX = W/2 - sBarW/2 - 70, sBarY = 58;
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
@@ -19771,29 +20890,38 @@ function drawLevelSelect(){
   } else {
     ctx.fillRect(sBarX, sBarY, sBarW, sBarH);
   }
-  const sFill = Math.min(1, totalStars / 30);
-  ctx.fillStyle = totalStars >= 30 ? '#3fe07d' : '#ffd23f';
+  const sFill = Math.min(1, totalStars / 60);
+  ctx.fillStyle = totalStars >= 60 ? '#3fe07d' : '#ffd23f';
   if(ctx.roundRect) {
     ctx.beginPath(); ctx.roundRect(sBarX, sBarY, sBarW * sFill, sBarH, 3); ctx.fill();
   } else {
     ctx.fillRect(sBarX, sBarY, sBarW * sFill, sBarH);
   }
 
-  // Campaign tab
+  // Two episode pages keep every level card readable.
   const tabW = 320, tabH = 32;
   const tabY = 72;
-  const tab1X = W/2 - tabW/2;
+  const tabGap = 12;
+  const tab1X = W/2 - tabW - tabGap/2;
+  const tab2X = W/2 + tabGap/2;
 
-  ctx.fillStyle = '#38c6ff';
+  ctx.fillStyle = state.levelTab === 0 ? '#38c6ff' : 'rgba(30,41,59,.9)';
   ctx.beginPath();
   if(ctx.roundRect) ctx.roundRect(tab1X, tabY, tabW, tabH, 6);
   else ctx.fillRect(tab1X, tabY, tabW, tabH);
   ctx.fill();
-  ctx.fillStyle = '#000000';
+  ctx.fillStyle = state.levelTab === 0 ? '#000000' : '#ffffff';
   ctx.font = 'bold 13px sans-serif';
-  ctx.fillText('⭐ ეპიზოდები 1 - 10 (CAMPAIGN)', tab1X + tabW/2, tabY + 21);
+  ctx.fillText('⭐ ეპიზოდები 1–10', tab1X + tabW/2, tabY + 21);
+  ctx.fillStyle = state.levelTab === 1 ? '#ff3d6e' : 'rgba(30,41,59,.9)';
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(tab2X, tabY, tabW, tabH, 6);
+  else ctx.fillRect(tab2X, tabY, tabW, tabH);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('🔥 ეპიზოდები 11–20', tab2X + tabW/2, tabY + 21);
 
-  // Grid of the nine remaining levels
+  // Grid for the selected ten-episode page
   const cols = 7;
   const cardW = 120, cardH = 108;
   const gapX = 10, gapY = 8;
@@ -19801,8 +20929,8 @@ function drawLevelSelect(){
   const startX = (W - totalW) / 2;
   const startY = 112;
 
-  const startIndex = 0;
-  const endIndex = Math.min(LEVELS.length, MAX_LEVELS);
+  const startIndex = state.levelTab === 0 ? 0 : 10;
+  const endIndex = Math.min(LEVELS.length, startIndex + 10);
 
   for(let i = 0; i < (endIndex - startIndex); i++){
     const idx = startIndex + i;
@@ -19948,14 +21076,20 @@ function handleLevelSelectClick(mx, my){
     return;
   }
 
-  // Check the campaign tab
-  const tabW = 280, tabH = 32;
+  // Episode page tabs
+  const tabW = 320, tabH = 32, tabGap = 12;
   const tabY = 72;
-  const tab1X = W/2 - tabW/2;
+  const tab1X = W/2 - tabW - tabGap/2;
+  const tab2X = W/2 + tabGap/2;
 
   if(my >= tabY && my <= tabY + tabH){
     if(mx >= tab1X && mx <= tab1X + tabW){
       state.levelTab = 0;
+      sfxBell();
+      return;
+    }
+    if(mx >= tab2X && mx <= tab2X + tabW){
+      state.levelTab = 1;
       sfxBell();
       return;
     }
@@ -19969,8 +21103,8 @@ function handleLevelSelectClick(mx, my){
   const startX = (W - totalW) / 2;
   const startY = 112;
 
-  const startIndex = 0;
-  const endIndex = Math.min(LEVELS.length, MAX_LEVELS);
+  const startIndex = state.levelTab === 0 ? 0 : 10;
+  const endIndex = Math.min(LEVELS.length, startIndex + 10);
 
   for(let i = 0; i < (endIndex - startIndex); i++){
     const idx = startIndex + i;
@@ -20247,54 +21381,7 @@ function handleDailyQuestsClick(mx, my){
   }
 }
 
-function handleMenuClick(mx, my){
-  // Start Button
-  const btnW = 460, btnH = 48;
-  const bx = W/2 - btnW/2, by = H/2 + 45;
-  if(mx >= bx && mx <= bx + btnW && my >= by && my <= by + btnH){
-    startGame();
-    return;
-  }
-
-  // Sub buttons: Shop, Quests, Wheel, Settings, Levels
-  const subW = 92, subH = 42;
-  const spacing = 8;
-  const totalW = 5 * subW + 4 * spacing;
-  const startX = W/2 - totalW/2;
-  const sby = H/2 + 108;
-
-  if(my >= sby && my <= sby + subH){
-    if(mx >= startX && mx <= startX + subW){
-      openShop(); return;
-    } else if(mx >= startX + subW + spacing && mx <= startX + 2*subW + spacing){
-      openDailyQuests(); return;
-    } else if(mx >= startX + 2*subW + 2*spacing && mx <= startX + 3*subW + 2*spacing){
-      openLuckyWheel(); return;
-    } else if(mx >= startX + 3*subW + 3*spacing && mx <= startX + 4*subW + 3*spacing){
-      openSettings(); return;
-    } else if(mx >= startX + 4*subW + 4*spacing && mx <= startX + 5*subW + 4*spacing){
-      openLevelSelect(); return;
-    }
-  }
-
-  // Promo Code Button
-  const promoW = 340, promoH = 38;
-  const pbx = W/2 - promoW/2, pby = H/2 + 160;
-  if(mx >= pbx && mx <= pbx + promoW && my >= pby && my <= pby + promoH){
-    sfxBell();
-    openPromoCodePrompt();
-    return;
-  }
-
-  // Music Toggle Button
-  const mBtnW = 120, mBtnH = 32;
-  const mBtnX = W - mBtnW - 16, mBtnY = 16;
-  if(mx >= mBtnX && mx <= mBtnX + mBtnW && my >= mBtnY && my <= mBtnY + mBtnH){
-    sfxBell();
-    toggleBgmMute();
-    return;
-  }
-}
+function handleMenuClick(mx, my){ handleAdventureMenuClick(mx,my); }
 
 function handleSettingsClick(mx, my){
   const startY = 85;
@@ -20990,17 +22077,19 @@ function loop(now){
 
   updateBgmTrack();
 
+  const topControls = document.getElementById('topBarControls');
+  if(topControls) topControls.style.display = state.mode === 'menu' || (level?.endgameDesign && ['playing','paused'].includes(state.mode)) ? 'none' : 'flex';
   const mobileCtrl = document.getElementById('mobileControls');
   if(mobileCtrl){
     mobileCtrl.style.display = (state.mode === 'playing' && mobileDevice) ? 'flex' : 'none';
   }
 
   ctx.save();
+  let worldShakeX = 0, worldShakeY = 0;
   if(state.shake>0){
     const amp = Math.min(8, state.shake);
-    const sx = (Math.random()-0.5)*amp;
-    const sy = (Math.random()-0.5)*amp;
-    ctx.translate(sx,sy);
+    worldShakeX = (Math.random()-0.5)*amp;
+    worldShakeY = (Math.random()-0.5)*amp;
     state.shake *= 0.82;
     if(state.shake<0.5) state.shake=0;
   }
@@ -21030,6 +22119,7 @@ function loop(now){
       ctx.scale(1.03, 1.03);
       ctx.translate(-W / 2, -H / 2);
     }
+    ctx.translate(worldShakeX, worldShakeY);
     if(level && level.isTrainLevel){
       drawTrainLevel();
       drawPlayer();
@@ -21041,7 +22131,8 @@ function loop(now){
       drawAirplaneLevel();
       drawParticles();
     } else {
-      drawBackground(level.theme || level.bgHue);
+      if(level.endgameDesign) drawEndgameBackdrop();
+      else drawBackground(level.theme || level.bgHue);
       drawWeatherWorld();
 
       ctx.save();
@@ -21070,14 +22161,17 @@ function loop(now){
       if(level.lavas) level.lavas.forEach(drawLava);
       if(level.waters) level.waters.forEach(drawWater);
       drawCityBuildings();
-      drawGround(level.theme || level.bgHue);
+      if(level.endgameDesign) drawAuthoredSetPieces();
+      else drawWorldSetPieces(level.setPieces);
+      if(level.endgameDesign){ drawEndgameScenery(); drawEndgameTerrain(); }
+      else drawGround(level.theme || level.bgHue);
       drawBloodMarks();
       if(level.clouds) level.clouds.forEach(drawCloud);
       if(level.crumblingPlats) level.crumblingPlats.forEach(drawCrumblingPlat);
       if(level.pushboxes) level.pushboxes.forEach(drawPushbox);
       // Instruction signs are disabled to keep the playfield clear.
-      // (Epic 11 opts in: shows its handcrafted Georgian hint signs & activated checkpoints)
-      if(level.checkpointRespawn && level.signs) level.signs.forEach(drawSign);
+      // (Episode 11 opts in via a handcrafted `signs` array)
+      if(level.signs && level.signs.length) level.signs.forEach(drawSign);
       if(level.checkpointRespawn && level.checkpoints) level.checkpoints.forEach(drawCheckpoint);
       if(level.fakespikes) level.fakespikes.forEach(drawFakespike);
       if(level.spikes) level.spikes.forEach(drawSpike);
@@ -21087,6 +22181,7 @@ function loop(now){
       if(level.steamVents) level.steamVents.forEach(drawSteamVent);
       if(level.heliPad) drawHeliPad(level.heliPad);
       drawRisingHorde();
+      if(level.shrineGates) level.shrineGates.forEach(drawShrineGate);
       if(level.boosters) level.boosters.forEach(drawBooster);
       if(level.gravityRunes) level.gravityRunes.forEach(drawGravityRune);
       if(level.boulders) level.boulders.forEach(drawBoulder);
@@ -21095,6 +22190,7 @@ function loop(now){
       if(level.spinners) level.spinners.forEach(drawSpinner);
       if(level.swingingAxes) level.swingingAxes.forEach(drawSwingingAxe);
       if(level.conveyors) level.conveyors.forEach(drawConveyor);
+      if(level.winds) level.winds.forEach(drawWindZone);
       if(level.acidGeysers) level.acidGeysers.forEach(drawAcidGeyser);
       if(level.firejets) level.firejets.forEach(drawFirejet);
       if(level.lasers) level.lasers.forEach(drawLaserBeam);
@@ -21110,11 +22206,13 @@ if(level.coinBags) level.coinBags.forEach(drawCoinBag);
       if(level.bushes) level.bushes.forEach(drawBush);
       if(level.jumpboxes) level.jumpboxes.forEach(drawJumpBox);
       drawFlag(level.flag);
+      drawEndgameObjects();
       drawCoinFx();
       drawImpactFx();
       drawExplosions();
       drawGodzilla();
       drawFinalBoss();
+      drawEndgameBossWarning();
       drawGodzillaProjectiles();
       if(level.birds) level.birds.forEach(drawBird);
       zombies.forEach(drawZombie);
@@ -21135,6 +22233,7 @@ if(level.coinBags) level.coinBags.forEach(drawCoinBag);
       drawDeathCamOverlay();
     }
     drawHUD();
+    drawEndgameChapter();
 
     if(state.mode==='playing'){
       if(state.deathCam && state.deathCam.active){
@@ -21170,6 +22269,7 @@ if(level.coinBags) level.coinBags.forEach(drawCoinBag);
   }
   
   updatePlayer(dt);
+  updateEndgame(dt);
   if(level && level.isJetskiLevel) updateJetski(dt);
           updateGodzilla(dt);
           updateFinalBoss(dt);

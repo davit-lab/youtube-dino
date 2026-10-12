@@ -1,0 +1,232 @@
+{
+  "newdino": {
+    "canvasW": 138,
+    "canvasH": 72,
+    "anchorX": 69.0,
+    "baselineY": 69,
+    "refH": 66,
+    "outline": 2,
+    "palette": [
+      "#25487c",
+      "#7b6d89",
+      "#36b4f0",
+      "#910b3b",
+      "#8a3f3b",
+      "#9588aa",
+      "#121a39",
+      "#0f0b19",
+      "#2f8eca",
+      "#b8104b",
+      "#ab6c3e",
+      "#5f42da",
+      "#0e2758",
+      "#1b2a50",
+      "#6bd1eb",
+      "#20345e",
+      "#d71254",
+      "#e4a250",
+      "#5e0a2c",
+      "#1d2542",
+      "#2769a6",
+      "#2f1d7d",
+      "#462341",
+      "#524a69",
+      "#eb1b5f",
+      "#dfd6e1",
+      "#d54c72",
+      "#432eae",
+      "#d1a2b9",
+      "#f5cb61"
+    ],
+    "fps": {
+      "idle": 6,
+      "walk": 8,
+      "run": 12,
+      "jump": 14,
+      "shoot": 14,
+      "fall": 16,
+      "hurt": 10,
+      "death": 8,
+      "shoot_laser": 12,
+      "special_attack": 12
+    },
+    "anims": {
+      "idle": [
+        "idle_01.png",
+        "idle_02.png",
+        "idle_03.png",
+        "idle_04.png",
+        "idle_05.png",
+        "idle_06.png",
+        "idle_07.png",
+        "idle_08.png"
+      ],
+      "walk": [
+        "walk_01.png",
+        "walk_02.png",
+        "walk_03.png",
+        "walk_04.png",
+        "walk_05.png",
+        "walk_06.png",
+        "walk_07.png",
+        "walk_08.png"
+      ],
+      "run": [
+        "run_01.png",
+        "run_02.png",
+        "run_03.png",
+        "run_04.png",
+        "run_05.png",
+        "run_06.png",
+        "run_07.png",
+        "run_08.png"
+      ],
+      "jump": [
+        "jump_01.png",
+        "jump_02.png",
+        "jump_03.png",
+        "jump_04.png",
+        "jump_05.png",
+        "jump_06.png",
+        "jump_07.png"
+      ],
+      "shoot": [
+        "shoot_01.png",
+        "shoot_02.png",
+        "shoot_03.png",
+        "shoot_04.png",
+        "shoot_05.png",
+        "shoot_06.png",
+        "shoot_07.png"
+      ]
+    }
+  },
+  "lasha": {
+    "canvasW": 141,
+    "canvasH": 70,
+    "anchorX": 70.5,
+    "baselineY": 67,
+    "refH": 61,
+    "outline": 2,
+    "palette": [
+      "#090912",
+      "#010207",
+      "#240710",
+      "#69262b",
+      "#12101c",
+      "#9b5443",
+      "#2f2631",
+      "#e2585d",
+      "#010102",
+      "#1e1924",
+      "#11050b",
+      "#938382",
+      "#584d54",
+      "#660818",
+      "#dd1d37",
+      "#443b47",
+      "#a01025",
+      "#19141d",
+      "#251f2b",
+      "#110c14",
+      "#39313a",
+      "#02040c",
+      "#d4c8c9",
+      "#e9bc75",
+      "#aea4a6",
+      "#3e0915",
+      "#6f656b",
+      "#f0edeb",
+      "#060306",
+      "#07060c"
+    ],
+    "fps": {
+      "idle": 6,
+      "walk": 8,
+      "run": 12,
+      "jump": 14,
+      "shoot": 14,
+      "fall": 16,
+      "hurt": 10,
+      "death": 8,
+      "shoot_laser": 12,
+      "special_attack": 12
+    },
+    "anims": {
+      "idle": [
+        "idle_01.png",
+        "idle_02.png",
+        "idle_03.png",
+        "idle_04.png",
+        "idle_05.png",
+        "idle_06.png",
+        "idle_07.png",
+        "idle_08.png",
+        "idle_09.png"
+      ],
+      "walk": [
+        "walk_01.png",
+        "walk_02.png",
+        "walk_03.png",
+        "walk_04.png",
+        "walk_05.png",
+        "walk_06.png",
+        "walk_07.png"
+      ],
+      "run": [
+        "run_01.png",
+        "run_02.png",
+        "run_03.png",
+        "run_04.png",
+        "run_05.png",
+        "run_06.png",
+        "run_07.png"
+      ],
+      "jump": [
+        "jump_01.png",
+        "jump_02.png",
+        "jump_03.png",
+        "jump_04.png",
+        "jump_05.png",
+        "jump_06.png"
+      ],
+      "fall": [
+        "fall_01.png",
+        "fall_02.png",
+        "fall_03.png",
+        "fall_04.png"
+      ],
+      "hurt": [
+        "hurt_01.png",
+        "hurt_02.png",
+        "hurt_03.png",
+        "hurt_04.png"
+      ],
+      "death": [
+        "death_01.png",
+        "death_02.png",
+        "death_03.png",
+        "death_04.png",
+        "death_05.png"
+      ],
+      "shoot_laser": [
+        "shoot_laser_01.png",
+        "shoot_laser_02.png",
+        "shoot_laser_03.png",
+        "shoot_laser_04.png",
+        "shoot_laser_05.png",
+        "shoot_laser_06.png",
+        "shoot_laser_07.png",
+        "shoot_laser_08.png",
+        "shoot_laser_09.png",
+        "shoot_laser_10.png"
+      ],
+      "special_attack": [
+        "special_attack_01.png",
+        "special_attack_02.png",
+        "special_attack_03.png",
+        "special_attack_04.png"
+      ]
+    }
+  }
+}
