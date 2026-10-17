@@ -48,6 +48,7 @@ const WorkshopUI = {
     sfxClick();
   },
   wrap(text, x, y, width, size = 13, color = this.muted, maxLines = 2) {
+    text=GameGeorgian.translate(text);
     ctx.font = `${size}px sans-serif`;
     ctx.fillStyle = color;
     ctx.textAlign = "left";
@@ -234,7 +235,7 @@ function drawWorkshopShop() {
   const u = WorkshopUI,
     l = shopLayout();
   u.background();
-  u.button(u.back(), "← BACK");
+  u.button(u.back(), "← უკან");
   u.text("THE WORKSHOP", 184, 57, 28, "#eee4cd");
   u.text("Equipment for the next journey.", 184, 83, 13, "#afb7a4");
   u.text(
@@ -393,9 +394,9 @@ function handleWorkshopShop(x, y) {
 function dirtLevelBlock(i) {
   return {
     x: 176 + (i % 5) * 180,
-    y: 156 + Math.floor(i / 5) * 110,
+    y: 140 + Math.floor(i / 5) * 91,
     w: 128,
-    h: 86,
+    h: 76,
   };
 }
 function drawDirtLevelSelect() {
@@ -422,10 +423,10 @@ function drawDirtLevelSelect() {
   ctx.lineTo(1200, 403);
   ctx.lineTo(1200, H);
   ctx.fill();
-  u.button(u.back(), "← BACK");
-  u.text("CHOOSE YOUR LEVEL", W / 2, 60, 28, "#2b4435", "center");
+  u.button(u.back(), "← უკან");
+  u.text("აირჩიე დონე", W / 2, 60, 28, "#2b4435", "center");
   u.text(
-    "A new path starts with one block.",
+    "გაიარე დონე და გახსენი შემდეგი.",
     W / 2,
     88,
     13,
@@ -475,7 +476,7 @@ function drawDirtLevelSelect() {
   ctx.fillStyle = "#6d5037";
   ctx.fillRect(0, H - 23, W, 23);
   u.text(
-    "Finish a level to open the next block.",
+    "ახალი დონე წინა დონის დასრულების შემდეგ გაიხსნება.",
     W / 2,
     H - 57,
     13,
@@ -492,7 +493,7 @@ function handleDirtLevelSelect(x, y) {
   for (let i = 0; i < Math.min(MAX_LEVELS, LEVELS.length); i++)
     if (u.hit(x, y, dirtLevelBlock(i))) {
       if (i + 1 > (state.unlockedLevels || 1)) {
-        toast("Finish the previous level to unlock this block.", 2200);
+        toast("ამ დონის გასახსნელად ჯერ წინა დონე დაასრულე.", 2200);
         return;
       }
       state.levelIndex = i;
@@ -754,7 +755,7 @@ function drawQuestNoticeboard() {
   checkDailyReset();
   const u = WorkshopUI;
   u.background();
-  u.button(u.back(), "← BACK");
+  u.button(u.back(), "← უკან");
   u.text("DAILY FIELD NOTES", 184, 57, 28, "#eee4cd");
   const now = new Date(),
     next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1),
@@ -996,4 +997,25 @@ function drawWorkshopPreview() {
     true,
   );
   ctx.restore();
+}
+
+// Keep settings geometry aligned with handleSettingsClick in the shared game.
+function drawSettings() {
+  const u=WorkshopUI;
+  u.background();
+  u.text('პარამეტრები',W/2,48,28,'#eee4cd','center');
+  const rows=[
+    ['სირთულე','difficulty',{easy:'მარტივი',normal:'ჩვეულებრივი',hardcore:'ურთულესი'}],
+    ['თამაშის სიჩქარე','gameSpeed',{relaxed:'ნელი',normal:'ჩვეულებრივი',turbo:'სწრაფი'}],
+    ['ეკრანის რყევა','screenShake',{full:'სრული',reduced:'შემცირებული',off:'გამორთული'}],
+    ['მუსიკის ხმა','bgmVolume'],['ეფექტების ხმა','sfxVolume'],
+    ['მაღალი ნახტომის დახმარება','highJumpAssist',{true:'ჩართული',false:'გამორთული'}]
+  ];
+  rows.forEach(([label,key,values],i)=>{
+    const y=85+i*40,value=state.settings[key];
+    u.text(label,W/2-25,y+22,16,'#eee4cd','right');
+    u.button({x:W/2+20,y,w:200,h:32},values?values[String(value)]:`${Math.round(value*100)}%`);
+  });
+  u.text('შესაცვლელად დააჭირე მნიშვნელობას',W/2,370,14,'#afb7a4','center');
+  u.button({x:W/2-160,y:H-65,w:320,h:46},'უკან დაბრუნება');
 }

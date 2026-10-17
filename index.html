@@ -42,6 +42,10 @@ canvas#game { width: min(99vw, 1250px, calc(94dvh * 16 / 9)); height: auto; max-
 #topBarControls button { min-width: 110px; height: 34px; background: rgba(8,15,30,0.94); border: 2px solid #38c6ff; color: #38c6ff; border-radius: 10px; padding: 0 12px; font: 700 12px/1 sans-serif; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.35); transition: transform 80ms ease, filter 80ms ease; }
 #topBarControls button:hover, #topBarControls button:focus-visible { filter: brightness(1.25); transform: translateY(-1px); }
 #topBarControls button:focus-visible { outline: 2px solid #ffd23f; outline-offset: 2px; }
+body.flappy-flight #mobileControls, body.flappy-flight #rotateHint { display: none !important; }
+body.flappy-flight canvas#game { width: min(100vw, calc(100dvh * 360 / 640)); height: auto; max-height: 100dvh; aspect-ratio: 360 / 640; image-rendering: pixelated; }
+body.snake-dino #mobileControls, body.snake-dino #rotateHint, body.snake-dino #topBarControls { display: none !important; }
+body.snake-dino canvas#game { width: min(98vw, calc(96dvh * 600 / 760)); height: auto; max-height: 96dvh; aspect-ratio: 600 / 760; image-rendering: pixelated; margin: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
 </style>
 </head>
 <body>
@@ -55,14 +59,14 @@ canvas#game { width: min(99vw, 1250px, calc(94dvh * 16 / 9)); height: auto; max-
 
 <div id="mobileControls">
   <div class="dpad">
-    <button id="btnUp" aria-label="Move up or jump">▲</button>
-    <button id="btnLeft" aria-label="Move left">◀</button>
-    <button id="btnRight" aria-label="Move right">▶</button>
-    <button id="btnDown" aria-label="Crouch or move down">▼</button>
+    <button id="btnUp" aria-label="ასვლა ან ახტომა">▲</button>
+    <button id="btnLeft" aria-label="მარცხნივ">◀</button>
+    <button id="btnRight" aria-label="მარჯვნივ">▶</button>
+    <button id="btnDown" aria-label="ჩაკუზვა ან დაბლა ჩასვლა">▼</button>
   </div>
   <div class="actions">
-    <button id="btnJump" aria-label="Jump">⬆</button>
-    <button id="btnFire" aria-label="Fire">🔫</button>
+    <button id="btnJump" aria-label="ახტომა">⬆</button>
+    <button id="btnFire" aria-label="სროლა">🔫</button>
   </div>
 </div>
 
@@ -75,9 +79,20 @@ canvas#game { width: min(99vw, 1250px, calc(94dvh * 16 / 9)); height: auto; max-
 
 <script>
 </script>
-<script src="endgame.js"></script>
+<script src="georgian.js"></script>
+<script src="zombie-navigation.js"></script>
+<script src="zombie-respawns.js"></script>
+<script src="stage-zombies.js"></script>
+<script src="stagecraft.js"></script>
+<script src="trajectories.js"></script>
+<script src="journeys.js"></script>
+<script src="wildlife.js"></script>
+<script src="encounters.js"></script>
+<script src="endgame.js?v=campaign20-5"></script>
 <script src="soundtrack.js"></script>
-<script src="interface.js"></script>
-<script src="temp_script.js"></script>
+<script src="interface.js?v=campaign20-5"></script>
+<script src="snake-dino.js"></script>
+<script src="flappy-flight.js"></script>
+<script src="temp_script.js?v=campaign20-5"></script>
 </body>
 </html>

@@ -1028,12 +1028,19 @@ function buildEndgameLevels() {
     { x: 4300, y: G - 190 - 36, w: 38, h: 36, taken: false },
   ];
   finale.treasures = [{ x: 8970, y: G - 170 - 36, w: 38, h: 36, taken: false }];
-  return [jungle, sky, neon, cave, volcano, finale];
+  const worlds = [jungle, sky, neon, cave, volcano, finale];
+  installAdventureEncounters(worlds);
+  installStagecraft(worlds);
+  installJourneys(worlds);
+  installDistinctTrajectories(worlds);
+  return worlds;
 }
 
 function resetEndgame(lvl) {
   if (!lvl.endgameDesign) return;
   lvl.adventureTime = 0;
+  resetAdventureEncounters(lvl);
+  resetStagecraft(lvl);
   lvl.trapShots = [];
   lvl.boulders = [];
   for (const lane of lvl.barrelLanes || []) {
@@ -1067,6 +1074,7 @@ function resetEndgame(lvl) {
     o.lastBurst = -1;
     o.active = false;
     o.pressY = o.y;
+    o.wildlifeDisabledUntil = 0;
   }
 }
 
@@ -1076,7 +1084,16 @@ function updateEndgame(dt) {
   const t = level.adventureTime;
   updateAdventureBarrels(dt);
   updateAdventureRoutes(dt);
+  updateAdventureWildlife(dt);
+  updateAdventureEncounters(dt);
+  updateStagecraft(dt);
   for (const o of level.obstacles) {
+    if ((o.wildlifeDisabledUntil || 0) > t) {
+      o.active = false;
+      o.warning = false;
+      o.pressY = o.y;
+      continue;
+    }
     if (o.kind === "cargo") {
       const angle =
         Math.sin(((t + (o.offset || 0)) * Math.PI * 2) / o.period) * o.range;
@@ -1221,7 +1238,7 @@ function updateEndgame(dt) {
     ) {
       b.pressed = true;
       const door = level.doors.find((d) => d.id === b.id);
-      if (door) door.open = true;
+      if (door && !b.stageSeal) door.open = true;
       sfxBell();
       addFloatingText(b.x, b.y - 70, "GATE OPEN", "#b9d5b2");
     }
@@ -1279,14 +1296,17 @@ function updateEndgame(dt) {
       Math.min(level.bossArena.end - player.w, player.x),
     );
   }
+  updateJourney(dt);
 }
 
 function drawEndgameTerrain() {
+  drawJourneyBackdrops();
   const scene = level.scene,
     top = scene.surface,
     stone = scene.stone;
   ctx.save();
   for (const p of level.plats) {
+    if (p.encounterPiston || p.stagecraft || p.journeyRoof) continue;
     if (p.adventureBridge) {
       drawAdventureBridge(p);
       continue;
@@ -1301,9 +1321,9 @@ function drawEndgameTerrain() {
     ctx.moveTo(left, p.y);
     ctx.lineTo(right, p.y);
     ctx.lineTo(right, bottom - 6);
-    if (p.h < 80) {
+    if (p.h < 80 && !p.expedition && p.h >= 18) {
       for (let k = right; k > left; k -= 36)
-        ctx.lineTo(k, bottom + ((Math.floor((k + camX) / 36) % 3) - 1) * 9);
+        ctx.lineTo(k, bottom + ((Math.floor((k + camX) / 36) % 3) - 1) * 3);
     } else ctx.lineTo(left, bottom);
     ctx.lineTo(left, p.y);
     ctx.fill();
@@ -1846,6 +1866,13 @@ function drawEndgameHUD() {
     20,
     25,
   );
+  ctx.font = "10px sans-serif";
+  ctx.fillStyle = "#a6b79c";
+  ctx.fillText(
+    `CHALLENGE ${level.challengeRank || 3}/5 · ${(state.settings.difficulty || "normal").toUpperCase()}`,
+    20,
+    77,
+  );
   const max = state.upgrades.maxHp ? 10 : 8;
   for (let i = 0; i < max; i++) {
     ctx.fillStyle = i < state.lives ? "#bbccc0" : "#3c4e50";
@@ -1878,7 +1905,11 @@ function drawEndgameHUD() {
     ctx.fillStyle = "#bdccc5";
     ctx.font = "10px sans-serif";
     ctx.fillText(
-      `PHASE ${phase} / 3   ·   ${Math.ceil(finalBoss.hp)} HP`,
+      level.stagecraft?.bossBreak > 0
+        ? `PHASE ${phase} · REPOSITION`
+        : stageAlive("world-eater").length
+          ? `PHASE ${phase} · REINFORCEMENT`
+          : `PHASE ${phase} / 3   ·   ${Math.ceil(finalBoss.hp)} HP`,
       W / 2,
       69,
     );
@@ -2030,6 +2061,7 @@ function drawEndgameObjects() {
   const t = level.adventureTime || 0;
   drawAdventureBarrelLanes();
   drawAdventureRoutes();
+  drawAdventureEncounters();
   ctx.save();
   for (const o of level.obstacles) {
     const reach = o.kind === "rail" ? o.to : o.x;
@@ -2362,6 +2394,9 @@ function drawEndgameObjects() {
     ctx.fillRect(x - 4, GROUND_Y - 300, 8, 300);
   }
   ctx.restore();
+  drawStagecraft();
+  drawAdventureWildlife();
+  drawJourneyObjects();
 }
 
 function drawEndgameChapter() {
@@ -2387,6 +2422,10 @@ function drawEndgameChapter() {
 }
 
 function updateEndgameBossAttacks(fb, dt) {
+  if (
+    level.stagecraft &&
+    (level.stagecraft.bossBreak > 0 || stageAlive("world-eater").length)
+  ) return;
   fb.attackTimer += dt;
   const phase = fb.hp / fb.maxHp > 0.66 ? 1 : fb.hp / fb.maxHp > 0.33 ? 2 : 3;
   if (fb.pendingAttack) {
@@ -2434,6 +2473,7 @@ function updateEndgameBossAttacks(fb, dt) {
       fb.pendingAttack = null;
     }
   } else if (
+    fb.projectiles.length === 0 &&
     fb.attackTimer > (phase === 1 ? 2600 : phase === 2 ? 2300 : 2000)
   ) {
     fb.attackTimer = 0;
@@ -2443,7 +2483,7 @@ function updateEndgameBossAttacks(fb, dt) {
     const type = types[(fb.attackNumber - 1) % types.length];
     fb.pendingAttack = {
       type,
-      timer: 850,
+      timer: 950 * stageTuning().warning,
       x: player.x + player.w / 2,
       y: player.y + player.h / 2,
       targets: [player.x - 110, player.x + 20, player.x + 150].map((x) =>
@@ -2776,7 +2816,7 @@ function adventureMenuLayout() {
       h: 58,
       kind: "primary",
       title: "გაგრძელება",
-      sub: "CONTINUE  ·  მიმდინარე თავი",
+      sub: "შენახული თამაშის გაგრძელება",
     });
     y += 68;
   }
@@ -2788,7 +2828,7 @@ function adventureMenuLayout() {
     h: 58,
     kind: "primary",
     title: "ახალი თამაში",
-    sub: "NEW GAME  ·  თავი 01",
+    sub: "დაიწყე პირველი დონიდან",
   });
   y += 68;
   buttons.push({
@@ -2799,7 +2839,7 @@ function adventureMenuLayout() {
     h: 50,
     kind: "secondary",
     title: "ახალი სამყაროები",
-    sub: "EPISODES 15–20",
+    sub: "ეპიზოდები 15–20",
   });
   y += 60;
 
@@ -2813,7 +2853,7 @@ function adventureMenuLayout() {
     h: 48,
     kind: "secondary",
     title: "დონეები",
-    sub: "LEVELS",
+    sub: "აირჩიე დონე",
   });
   buttons.push({
     id: "settings",
@@ -2823,15 +2863,15 @@ function adventureMenuLayout() {
     h: 48,
     kind: "secondary",
     title: "პარამეტრები",
-    sub: "SETTINGS",
+    sub: "მოირგე თამაში",
   });
   y += 60;
 
   const chips = [
-    ["shop", "მაღაზია", "SHOP"],
-    ["quests", "დავალებები", "QUESTS"],
-    ["wheel", "ბორბალი", "WHEEL"],
-    ["promo", "პრომო", "PROMO"],
+    ["shop", "მაღაზია", "აღჭურვილობა"],
+    ["quests", "დავალებები", "დღის მიზნები"],
+    ["wheel", "ბორბალი", "სცადე ბედი"],
+    ["promo", "პრომო", "შეიყვანე კოდი"],
   ];
   const cg = 10;
   const cw = (bw - cg * 3) / 4;
@@ -2945,7 +2985,7 @@ function drawMenuTitle(p) {
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = "#8fd0c0";
   ctx.font = `700 13px ${MENU_FONT}`;
-  ctx.fillText("SCI-FI PLATFORMER  ·  20 ეპიზოდი", tx, p.y + 40);
+  ctx.fillText("თავგადასავალი · 20 ეპიზოდი", tx, p.y + 40);
 
   const by = p.y + 128;
   ctx.font = `900 84px ${MENU_FONT}`;
@@ -3169,6 +3209,7 @@ function handleAdventureMenuClick(mx, my) {
 function updateAdventureBarrels(dt) {
   const step = dt / 16.67;
   for (const lane of level.barrelLanes || []) {
+    if(lane.stageSuppressed) continue;
     const nearby = player.x > lane.minX - 620 && player.x < lane.x + 220;
     if (!nearby) {
       lane.phase = "idle";
@@ -3267,6 +3308,7 @@ function drawAdventureBarrel(b, local = false) {
 
 function drawAdventureBarrelLanes() {
   for (const lane of level.barrelLanes || []) {
+    if(lane.stageSuppressed) continue;
     const x = lane.x - camX;
     if (x < -100 || x > W + 150) continue;
     ctx.save();

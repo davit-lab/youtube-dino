@@ -1,0 +1,9 @@
+# Georgian interface and tougher zombies
+
+`georgian.js` provides shared Georgian presentation strings at the game canvas boundary (`fillText`, `strokeText`, and `measureText`). Scene IDs, save keys, input codes and combat logic retain their existing names. Keyboard labels retain the letters printed on the physical keys. Mission subtitles and wrapped shop text translate before line breaking, so Georgian phrases wrap as complete Georgian sentences. The layer covers the campaign HUD, chapter and mission text, machinery hints, wildlife feedback, menus, shop, daily tasks, results and Levels 21–22. Mobile control accessibility labels are Georgian too. The settings renderer now uses Georgian labels and the existing settings hitboxes; its previously missing drawing function is supplied.
+
+Native zombies receive 1.75× their old health before existing difficulty and elite adjustments. Stage variants in Levels 15–20 now start at 10 HP (ordinary), 12 HP (armored worker), or 14 HP (guardian). Stage HP scales by .8 on Easy and 1.25 on Hardcore, rounded to integer health. Armor, head/back vulnerability, movement speeds, contact damage and special boss HP are preserved. Defeat credit remains exactly once per kill. Existing combat tests now use actual enemy max HP instead of assuming five bullets always kill.
+
+Changed: `stage-zombies.js`, `temp_script.js`, `index.html`, `journeys.js`, `interface.js`; added `georgian.js` and `tests/georgian-combat.cjs`; adjusted `tests/stagecraft-browser.cjs` for the requested stronger enemies.
+
+Checks: Georgian text audit across Levels 1–22 and menus/result states; native and stage HP; Easy/Hardcore scaling; real per-hit damage and exactly-once kill credit; existing stagecraft browser suite; Flappy Flight and Snake Dino browser regressions; syntax and whitespace checks. Representative screenshots are in `artifacts/georgian-*.png`. No physical-device or manual full campaign playthrough is claimed.

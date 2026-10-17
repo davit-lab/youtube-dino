@@ -1,0 +1,334 @@
+{
+  "character": "Snake Dino / Hoodie Serpent",
+  "format": "RGBA PNG",
+  "filtering": "nearest",
+  "character_canvas": [
+    640,
+    512
+  ],
+  "head_canvas": [
+    320,
+    320
+  ],
+  "assets": {
+    "characters/idle.png": {
+      "canvas": [
+        640,
+        512
+      ],
+      "content_bounds": [
+        152,
+        57,
+        487,
+        455
+      ],
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "source_region": [
+        20,
+        70,
+        430,
+        515
+      ],
+      "description": "Coiled idle / ready pose"
+    },
+    "heads/idle.png": {
+      "canvas": [
+        320,
+        320
+      ],
+      "content_bounds": [
+        33,
+        36,
+        287,
+        283
+      ],
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "source_region": [
+        139,
+        103,
+        402,
+        350
+      ],
+      "description": "Coiled idle / ready pose \u2014 portrait crop"
+    },
+    "characters/slither_01.png": {
+      "canvas": [
+        640,
+        512
+      ],
+      "content_bounds": [
+        44,
+        75,
+        595,
+        436
+      ],
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "source_region": [
+        435,
+        70,
+        1015,
+        515
+      ],
+      "description": "Extended movement pose"
+    },
+    "heads/slither_01.png": {
+      "canvas": [
+        320,
+        320
+      ],
+      "content_bounds": [
+        34,
+        38,
+        286,
+        282
+      ],
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "source_region": [
+        744,
+        137,
+        1001,
+        383
+      ],
+      "description": "Extended movement pose \u2014 portrait crop"
+    },
+    "characters/slither_02.png": {
+      "canvas": [
+        640,
+        512
+      ],
+      "content_bounds": [
+        75,
+        74,
+        564,
+        438
+      ],
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "source_region": [
+        1020,
+        70,
+        1536,
+        515
+      ],
+      "description": "Alternate movement pose"
+    },
+    "heads/slither_02.png": {
+      "canvas": [
+        320,
+        320
+      ],
+      "content_bounds": [
+        32,
+        36,
+        288,
+        283
+      ],
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "source_region": [
+        1263,
+        137,
+        1531,
+        384
+      ],
+      "description": "Alternate movement pose \u2014 portrait crop"
+    },
+    "characters/eat.png": {
+      "canvas": [
+        640,
+        512
+      ],
+      "content_bounds": [
+        138,
+        66,
+        502,
+        446
+      ],
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "source_region": [
+        20,
+        550,
+        440,
+        985
+      ],
+      "description": "Tongue / food reaction"
+    },
+    "heads/eat.png": {
+      "canvas": [
+        320,
+        320
+      ],
+      "content_bounds": [
+        23,
+        43,
+        296,
+        277
+      ],
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "source_region": [
+        139,
+        582,
+        425,
+        817
+      ],
+      "description": "Tongue / food reaction \u2014 portrait crop"
+    },
+    "characters/hit.png": {
+      "canvas": [
+        640,
+        512
+      ],
+      "content_bounds": [
+        102,
+        68,
+        537,
+        443
+      ],
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "source_region": [
+        500,
+        550,
+        1015,
+        985
+      ],
+      "description": "Eyes-shut collision reaction"
+    },
+    "heads/hit.png": {
+      "canvas": [
+        320,
+        320
+      ],
+      "content_bounds": [
+        27,
+        40,
+        293,
+        279
+      ],
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "source_region": [
+        709,
+        582,
+        978,
+        822
+      ],
+      "description": "Eyes-shut collision reaction \u2014 portrait crop"
+    },
+    "characters/dead.png": {
+      "canvas": [
+        640,
+        512
+      ],
+      "content_bounds": [
+        99,
+        148,
+        540,
+        364
+      ],
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "source_region": [
+        1030,
+        550,
+        1536,
+        985
+      ],
+      "description": "Collapsed final death pose"
+    },
+    "heads/dead.png": {
+      "canvas": [
+        320,
+        320
+      ],
+      "content_bounds": [
+        36,
+        57,
+        284,
+        263
+      ],
+      "pivot": [
+        0.5,
+        0.5
+      ],
+      "source_region": [
+        1253,
+        740,
+        1501,
+        947
+      ],
+      "description": "Collapsed final death pose \u2014 portrait crop"
+    }
+  },
+  "animations": {
+    "idle": {
+      "frames": [
+        "characters/idle.png"
+      ],
+      "fps": 1,
+      "loop": true
+    },
+    "slither": {
+      "frames": [
+        "characters/slither_01.png",
+        "characters/slither_02.png"
+      ],
+      "fps": 6,
+      "loop": true
+    },
+    "eat": {
+      "frames": [
+        "characters/eat.png"
+      ],
+      "hold_ms": 160,
+      "return_to": "slither"
+    },
+    "hit": {
+      "frames": [
+        "characters/hit.png"
+      ],
+      "hold_ms": 180
+    },
+    "death": {
+      "frames": [
+        "characters/dead.png"
+      ],
+      "hold_ms": 600
+    }
+  },
+  "limitations": [
+    "Six supplied side-view poses, not a seamless grid-snake tile kit.",
+    "Head files are cropped portraits, not four directional views.",
+    "Body straights, corners, tail tiles, food, and arena art are not supplied.",
+    "Idle and death are single poses, not native multi-frame animations.",
+    "Individual artwork was cropped and centered without resampling; inspect pivot alignment in-engine."
+  ]
+}

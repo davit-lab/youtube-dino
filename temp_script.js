@@ -1,6 +1,7 @@
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
+GameGeorgian.install(ctx);
 const W = canvas.width, H = canvas.height;
 
 // ---------- Audio System (Synthesized Retro/Horror SFX) ----------
@@ -111,7 +112,7 @@ function toggleBgmMute(){
   const g = getBgmMasterGain();
   const btn = document.getElementById('btnMuteBgm');
   if(btn){
-    btn.innerHTML = bgmMuted ? '🔇 Music: OFF' : '🎵 Music: ON';
+    btn.innerHTML = bgmMuted ? '🔇 მუსიკა გამორთულია' : '🎵 მუსიკა ჩართულია';
     btn.style.borderColor = bgmMuted ? '#ff3d6e' : '#38c6ff';
   }
 }
@@ -496,7 +497,7 @@ const defaultSettings = {
   highJumpAssist: false   // false | true
 };
 
-const MAX_LEVELS = 20;
+const MAX_LEVELS = 22;
 
 // 🪙 dino coins (earned in levels) -> 💰 shop coins (spent in the shop)
 const COIN_EXCHANGE_RATE = 10;
@@ -672,22 +673,29 @@ function loadSavedData(){
     try {
       const btn = document.getElementById('btnMuteBgm');
       if(btn){
-        btn.innerHTML = bgmMuted ? '🔇 Music: OFF' : '🎵 Music: ON';
+        btn.innerHTML = bgmMuted ? '🔇 მუსიკა გამორთულია' : '🎵 მუსიკა ჩართულია';
         btn.style.borderColor = bgmMuted ? '#ff3d6e' : '#38c6ff';
       }
     } catch(e){}
+    const sn = localStorage.getItem('geodino_snake22');
+    if(sn) state.snake22 = JSON.parse(sn);
+    const ff = localStorage.getItem('geodino_flappy21');
+    if(ff) state.flappy21 = JSON.parse(ff);
     const ls = localStorage.getItem('geodino_level_stars');
     if(ls) state.levelStars = JSON.parse(ls);
     const dq = localStorage.getItem('geodino_daily_quests_v1');
     if(dq){
       try { state.dailyQuests = Object.assign(state.dailyQuests || {}, JSON.parse(dq)); } catch(e){}
     }
+    if(state.flappy21?.completed && state.unlockedLevels < 22){ state.unlockedLevels=22; saveData(); }
     checkDailyReset();
   } catch(e){}
 }
 
 function saveData(){
   try {
+    localStorage.setItem('geodino_snake22', JSON.stringify(state.snake22 || {}));
+    localStorage.setItem('geodino_flappy21', JSON.stringify(state.flappy21 || {}));
     localStorage.setItem('geodino_coins', state.coinsCollected);
     localStorage.setItem('geodino_shop_coins', state.shopCoins || 0);
     localStorage.setItem('geodino_upgrades', JSON.stringify(state.upgrades));
@@ -823,6 +831,10 @@ function updateFinalBoss(dt){
   const fb = finalBoss;
   if(level.bossArena && !fb.awakened){
     if(player.x < level.bossArena.trigger) return;
+    if(!journeyExitReady() || (level.stagecraft && level.stagecraft.hazards.some(h=>h.type==='seal' && !h.done))){
+      player.x = level.bossArena.trigger - 36;
+      return;
+    }
     fb.awakened = true; fb.attackTimer = -1000;
     sfxDemonic(); shake(10);
     addFloatingText(player.x, player.y-65, "THE WORLD EATER", "#badbe0");
@@ -4580,6 +4592,7 @@ function spawnZombie(x, y, customType = null){
     size = 1.0 + Math.min(0.3, levelDifficulty * 0.008);
   }
   
+  health = Math.ceil(health * 1.75);
   if(state.settings){
     if(state.settings.difficulty === 'easy'){
       speed *= 0.85;
@@ -4609,7 +4622,8 @@ function spawnZombie(x, y, customType = null){
     spriteSet: isMutant ? 'Zombie1' : (isBoss ? 'Zombie2' : ZOMBIE_SETS[Math.floor(Math.random() * ZOMBIE_SETS.length)]),
     isBoss,
     isElite,
-    isMutant
+    isMutant,
+    respawnX: x, respawnY: y, respawnSource: {}
   });
 }
 
@@ -4950,6 +4964,7 @@ function updateBullets(){
     b.x += b.vx;
     b.y += b.vy;
     b.life--;
+    if(hitJourneyTarget(b) || hitStageTarget(b) || hitAdventureBarricade(b)){bullets.splice(i,1);continue;}
     // Range cap: bullet fizzles once it travels its max "shooting length".
     if(b.range && Math.abs(b.x - (b.ox || b.x)) > b.range) b.life = 0;
     
@@ -5070,7 +5085,7 @@ function updateBullets(){
       for(const z of zombies){
         const bulletBox = { x: b.x - b.size, y: b.y - b.size, w: b.size*2, h: b.size*2 };
         if(overlap(bulletBox, z)){
-          z.health -= (b.damage || 1);
+          z.health -= z.stageVariant ? damageStageZombie(z,b) : (b.damage || 1);
           spawnParticles(b.x, b.y, b.color || '#ffd23f', b.isPlasma ? 25 : 10);
           spawnImpactFx(b.x, b.y, b.mode, { big: b.isRocket || b.isGrenade });
           sfxZombieHit();
@@ -5175,8 +5190,16 @@ function updateBullets(){
 }
 
 function updateZombies(dt){
+  ZombieRespawns.update(dt);
   for(let i = zombies.length - 1; i >= 0; i--){
     const z = zombies[i];
+    if(z.stageVariant){
+      const serial = level.stagecraft.resetSerial;
+      updateStageZombie(z, dt, i);
+      // Damage may replace the zombie array when the checkpoint is restored.
+      if(level.stagecraft.resetSerial !== serial) return;
+      continue;
+    }
     z.animT += dt;
     
     let onPlatform = false;
@@ -5230,7 +5253,9 @@ function updateZombies(dt){
           if((moveDir > 0 && z.x < rightLimit) || (moveDir < 0 && z.x > leftLimit)){
             canMove = true;
           } else {
-            z.vx = 0;
+            const center=z.x+z.w/2+moveDir*(z.speed+4);
+            canMove=level.plats.some(p=>p.enabled!==false&&!p.journeyRoof&&center>=p.x&&center<=p.x+p.w&&Math.abs(p.y-support.y)<=48);
+            if(!canMove)z.vx=0;
           }
         }
 
@@ -5248,7 +5273,7 @@ function updateZombies(dt){
     }
     
     const lastX = z.x;
-    z.x += z.vx;
+    if(onPlatform)moveZombieOnGround(z,z.x+z.vx);else z.x += z.vx;
     for(const p of (level.plats || [])){
       if(overlap(z, p)){
         const prevBottom = z.y - (z.vy || 0) + z.h;
@@ -5295,6 +5320,7 @@ function updateZombies(dt){
     }
     
     if(z.health <= 0){
+      ZombieRespawns.schedule(z);
       spawnZombieBlood(z.x + z.w/2, z.y + z.h, { power: z.isElite ? 1.6 : 1 });
       spawnParticles(z.x + z.w/2, z.y + z.h/2, z.color, 20, 1.5);
       spawnParticles(z.x + z.w/2, z.y + z.h/2, '#ff0033', 15, 2);
@@ -9149,7 +9175,7 @@ shrineGates: [
     'glitch_cyberverse'     // Ep 44: Disco Glitch Inferno & Absolute Legend Finale
   ];
 
-  levels.splice(MAX_LEVELS);
+  levels.splice(20);
   levels.forEach(lvl => {
     if(lvl.masterDesign) return; // Epic 11 keeps its handcrafted signs & checkpoints
     lvl.signs = [];
@@ -9344,6 +9370,8 @@ shrineGates: [
 }
 
 let LEVELS = buildLevels();
+LEVELS.push({name: "Flappy Flight", isFlappyLevel: true, noGuns: true});
+LEVELS.push({name: "Snake Dino", isSnakeLevel: true, noGuns: true});
 let level = LEVELS[0];
 
 function skipLevel(){
@@ -9526,6 +9554,8 @@ function activateJumpbox(jb){
 
 // ---------- Update Mechanics ----------
 function updatePlayer(dt){
+  prepareJourney(dt);
+  prepareStagecraft(dt);
   if(level.endgameDesign && !player.dead && !player.isFalling){
     const duckHeld = keys.KeyS || keys.ArrowDown || keys.ControlLeft || keys.ControlRight || touchDuckState;
     const feet = player.y + player.h;
@@ -9673,6 +9703,7 @@ function updatePlayer(dt){
   const bikeSpeedMult = isBike ? 1.6 : 1.0;
   const turboSpeedMult = (player.electroTurboTimer > 0) ? 1.35 : 1.0;
   let speed = (isFastener ? 8.2 : 4.8) * bikeSpeedMult * turboSpeedMult;
+  speed *= journeyMoveScale();
   const baseJumpPower = (state.settings && state.settings.highJumpAssist) ? -16.0 : -13.8;
   const jumpPower = (isFastener ? -17.5 : baseJumpPower) * (isBike ? 0.9 : 1.0);
 
@@ -9680,6 +9711,7 @@ function updatePlayer(dt){
   
   let leftKey = keys['ArrowLeft']||keys['KeyA'];
   let rightKey = keys['ArrowRight']||keys['KeyD'];
+  if(level.journey?.riding) leftKey = rightKey = false;
 
   if(isReverse){
     const temp = leftKey; leftKey = rightKey; rightKey = temp;
@@ -9754,7 +9786,7 @@ function updatePlayer(dt){
       player.shiftHoldStart = state.time;
     }
   } else {
-    if(player.dashKeyPressed && state.time - player.shiftHoldStart < 200){
+    if(!level.journey?.riding && player.dashKeyPressed && state.time - player.shiftHoldStart < 200){
       triggerDash();
     }
     player.dashKeyPressed = false;
@@ -9885,7 +9917,8 @@ function updatePlayer(dt){
   const wasOnGround = player.onGround;
   player.onGround = false;
   for(const p of (level.plats || [])){
-    if(p.adventureBridge && !p.enabled) continue;
+    if((p.adventureBridge || p.stagecraft) && !p.enabled) continue;
+    if(p.stageSlope){collideStageSlope(p);continue;}
     // Check if player was standing on this platform in the previous frame
     const playerWasAtop = wasOnGround &&
                           (player.x + player.w > p.x &&
@@ -9940,6 +9973,7 @@ function updatePlayer(dt){
       } else {
         if(player.vx>0) player.x = p.x - player.w;
         else if(player.vx<0) player.x = p.x + p.w;
+        else if(p.stagecraft) player.x=player.x+player.w/2<p.x+p.w/2?p.x-player.w:p.x+p.w;
         player.vx = 0;
       }
     }
@@ -10634,7 +10668,7 @@ function updatePlayer(dt){
   }
 
   // Flag -> level clear only after landing beside it on solid ground.
-  if(level.flag && isSolidMarker(level.flag) && player.onGround && overlap(player, level.flag)){
+  if(level.flag && journeyExitReady() && isSolidMarker(level.flag) && player.onGround && overlap(player, level.flag)){
     levelClear();
   }
 
@@ -10777,6 +10811,10 @@ function hurtPlayer(msg, cause='zombie'){
   } else {
     const respawnPoint = getCheckpointSpawn() || level.spawn;
     resetPlayer(respawnPoint);
+    if(level?.stagecraft){
+      resetStagecraft(level, true);
+      resetStageBossAtCheckpoint();
+    }
     if(level && level.checkpointRespawn && level.__cpWeapon){
       player.weaponMode = level.__cpWeapon;
       if(refillAmmo) refillAmmo(player.weaponMode);
@@ -10838,10 +10876,15 @@ function levelClear(){
 }
 
 function loadLevel(idx){
+  ZombieRespawns.reset();
   if(state.deathCam) state.deathCam.active = false;
   
   level = LEVELS[idx];
   state.levelIndex = idx;
+  SnakeDino.leave();
+  if(level.isFlappyLevel){ FlappyFlight.enter(); return; }
+  FlappyFlight.leave();
+  if(level.isSnakeLevel){ SnakeDino.enter(); return; }
   resetEndgame(level);
 
   // Each level starts with a full magazine and reserve for every weapon.
@@ -10853,7 +10896,7 @@ function loadLevel(idx){
   state.zombiesKilledInLevel = 0;
   state.totalCoinsInLevel = (level.coins || []).length;
   state.totalCoinsInLevel += (level.coinBags || []).length * 10;
-  state.totalZombiesInLevel = (level.zombies || []).length;
+  state.totalZombiesInLevel = level.stagecraft ? level.stagecraft.spawns.length : (level.zombies || []).length;
 
   (level.coins || []).forEach(c=>c.taken=false);
   (level.coinBags || []).forEach(b=>b.taken=false);
@@ -13642,6 +13685,7 @@ function drawWorldSetPieces(pieces){
 }
 
 function wrapText(text,cx,cy,maxW,lh){
+  text=GameGeorgian.translate(text);
   const words=text.split(' ');
   let line='', lines=[];
   for(const w of words){
@@ -16907,6 +16951,7 @@ function pickZombieFrame(z, action){
 }
 
 function drawZombie(z){
+  if(z.stageVariant){drawStageZombie(z);return;}
   const sx = z.x - camX;
   if(sx+z.w < -60 || sx > W + 60) return;
 
@@ -19905,7 +19950,7 @@ function drawPauseOverlay(){
   ctx.textAlign = 'center';
   ctx.fillStyle = '#f8fafc';
   ctx.font = 'bold 24px sans-serif';
-  ctx.fillText('PAUSED', W/2, cardY + 48);
+  ctx.fillText('პაუზა', W/2, cardY + 48);
 
   // Buttons definitions
   const bw = 330, bh = 38, gap = 8;
@@ -19913,10 +19958,10 @@ function drawPauseOverlay(){
   const startY = cardY + 92;
 
   const buttons = [
-    { label: 'CONTINUE', color: '#38c6ff', textCol: '#06101d' },
-    { label: 'SHOP', color: '#1a2a42', textCol: '#dbeafe' },
-    { label: 'LEVEL SELECT', color: '#1a2a42', textCol: '#dbeafe' },
-    { label: 'MAIN MENU', color: '#1a2a42', textCol: '#dbeafe' }
+    { label: 'გაგრძელება', color: '#38c6ff', textCol: '#06101d' },
+    { label: 'მაღაზია', color: '#1a2a42', textCol: '#dbeafe' },
+    { label: 'დონის არჩევა', color: '#1a2a42', textCol: '#dbeafe' },
+    { label: 'მთავარი მენიუ', color: '#1a2a42', textCol: '#dbeafe' }
   ];
 
   buttons.forEach((btn, idx) => {
@@ -20316,7 +20361,7 @@ function drawLevelClear(){
   
   ctx.fillStyle='#ffd23f';
   ctx.font='bold 44px sans-serif';
-  ctx.fillText('ადიოს მუჩაჩოოსსსს! 🏆', W/2, H/2-60);
+  ctx.fillText('დონე დასრულებულია!', W/2, H/2-60);
   
   // Display Stars Earned
   const stars = state.levelStars[state.levelIndex] || 0;
@@ -20327,11 +20372,11 @@ function drawLevelClear(){
 
   ctx.fillStyle='#fff';
   ctx.font='20px sans-serif';
-  ctx.fillText('მზად იყავი შემდეგი გიჟური დონისთვის!', W/2, H/2 + 65);
+  ctx.fillText('შემდეგი დონე იტვირთება…', W/2, H/2 + 65);
   
   ctx.font='14px sans-serif';
   ctx.fillStyle='#cbd5e1';
-  ctx.fillText(`Coins: ${state.coinsCollectedInLevel}/${state.totalCoinsInLevel} | Kills: ${state.zombiesKilledInLevel}/${state.totalZombiesInLevel}`, W/2, H/2 + 95);
+  ctx.fillText(`მონეტები: ${state.coinsCollectedInLevel}/${state.totalCoinsInLevel} · ზომბები: ${state.zombiesKilledInLevel}/${state.totalZombiesInLevel}`, W/2, H/2 + 95);
 }
 
 function drawWin(){
@@ -20499,6 +20544,16 @@ function loop(now){
   let dt = Math.min(33, now-lastTime);
   lastTime = now;
 
+  if(level?.isSnakeLevel && ['playing','paused'].includes(state.mode)){
+    SnakeDino.frame(Math.max(0, dt) / 1000);
+    requestAnimationFrame(loop);
+    return;
+  }
+  if(level?.isFlappyLevel && ['playing','paused'].includes(state.mode)){
+    FlappyFlight.frame(Math.max(0, dt) / 1000);
+    requestAnimationFrame(loop);
+    return;
+  }
   if(state.settings){
     if(state.settings.gameSpeed === 'relaxed') dt *= 0.75;
     else if(state.settings.gameSpeed === 'turbo') dt *= 1.35;
@@ -20650,6 +20705,7 @@ if(level.coinBags) level.coinBags.forEach(drawCoinBag);
       zombies.forEach(drawZombie);
       bullets.forEach(drawBullet);
       drawPlayer();
+      drawJourneyForeground();
       if(level && level.isJetskiLevel) drawJetski();
       drawParticles();
 
@@ -20666,6 +20722,7 @@ if(level.coinBags) level.coinBags.forEach(drawCoinBag);
     }
     drawHUD();
     drawEndgameChapter();
+    drawJourneyStory();
 
     if(state.mode==='playing'){
       if(state.deathCam && state.deathCam.active){

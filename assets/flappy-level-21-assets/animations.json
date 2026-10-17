@@ -1,0 +1,390 @@
+{
+  "character": "Hoodie Flappy",
+  "format": "RGBA PNG",
+  "frame_size": [
+    320,
+    320
+  ],
+  "pivot": [
+    0.5,
+    0.5
+  ],
+  "filtering": "nearest",
+  "notes": "Individual cells extracted without resampling. Transparent margins normalized to a common centered 320x320 canvas. Alpha values within the visible crop are preserved. Use content_bounds for visible art sizing; wings and shoes should not determine the body collider. These are generated animation poses, so inspect frame offsets in-engine for residual pose jitter.",
+  "animations": {
+    "idle": {
+      "frames": [
+        "idle_01",
+        "idle_02",
+        "idle_03",
+        "idle_04"
+      ],
+      "fps": 7,
+      "loop": true
+    },
+    "flap": {
+      "frames": [
+        "flap_01",
+        "flap_02",
+        "flap_03",
+        "flap_04"
+      ],
+      "fps": 14,
+      "loop": false
+    },
+    "glide": {
+      "frames": [
+        "glide_01"
+      ],
+      "fps": 1,
+      "loop": true
+    },
+    "fall": {
+      "frames": [
+        "fall_01",
+        "fall_02"
+      ],
+      "fps": 5,
+      "loop": false
+    },
+    "hit": {
+      "frames": [
+        "hit_01"
+      ],
+      "fps": 8,
+      "loop": false
+    },
+    "death": {
+      "frames": [
+        "death_01",
+        "death_02",
+        "death_03",
+        "death_04"
+      ],
+      "fps": 9,
+      "loop": false
+    }
+  },
+  "frames": {
+    "idle_01": {
+      "file": "frames/idle_01.png",
+      "content_bounds": [
+        60,
+        27,
+        259,
+        293
+      ],
+      "source_cell": [
+        0,
+        0
+      ],
+      "source_bounds": [
+        0,
+        0,
+        314,
+        314
+      ],
+      "duration_ms": 143
+    },
+    "idle_02": {
+      "file": "frames/idle_02.png",
+      "content_bounds": [
+        61,
+        25,
+        259,
+        294
+      ],
+      "source_cell": [
+        0,
+        1
+      ],
+      "source_bounds": [
+        314,
+        0,
+        627,
+        314
+      ],
+      "duration_ms": 143
+    },
+    "idle_03": {
+      "file": "frames/idle_03.png",
+      "content_bounds": [
+        59,
+        28,
+        260,
+        291
+      ],
+      "source_cell": [
+        0,
+        2
+      ],
+      "source_bounds": [
+        627,
+        0,
+        940,
+        314
+      ],
+      "duration_ms": 143
+    },
+    "idle_04": {
+      "file": "frames/idle_04.png",
+      "content_bounds": [
+        57,
+        25,
+        263,
+        294
+      ],
+      "source_cell": [
+        0,
+        3
+      ],
+      "source_bounds": [
+        940,
+        0,
+        1254,
+        314
+      ],
+      "duration_ms": 143
+    },
+    "flap_01": {
+      "file": "frames/flap_01.png",
+      "content_bounds": [
+        46,
+        34,
+        273,
+        285
+      ],
+      "source_cell": [
+        1,
+        0
+      ],
+      "source_bounds": [
+        0,
+        314,
+        314,
+        627
+      ],
+      "duration_ms": 71
+    },
+    "flap_02": {
+      "file": "frames/flap_02.png",
+      "content_bounds": [
+        43,
+        35,
+        276,
+        284
+      ],
+      "source_cell": [
+        1,
+        1
+      ],
+      "source_bounds": [
+        314,
+        314,
+        627,
+        627
+      ],
+      "duration_ms": 71
+    },
+    "flap_03": {
+      "file": "frames/flap_03.png",
+      "content_bounds": [
+        46,
+        35,
+        273,
+        284
+      ],
+      "source_cell": [
+        1,
+        2
+      ],
+      "source_bounds": [
+        627,
+        314,
+        940,
+        627
+      ],
+      "duration_ms": 71
+    },
+    "flap_04": {
+      "file": "frames/flap_04.png",
+      "content_bounds": [
+        45,
+        32,
+        274,
+        288
+      ],
+      "source_cell": [
+        1,
+        3
+      ],
+      "source_bounds": [
+        940,
+        314,
+        1254,
+        627
+      ],
+      "duration_ms": 71
+    },
+    "glide_01": {
+      "file": "frames/glide_01.png",
+      "content_bounds": [
+        42,
+        37,
+        278,
+        283
+      ],
+      "source_cell": [
+        2,
+        0
+      ],
+      "source_bounds": [
+        0,
+        627,
+        314,
+        940
+      ],
+      "duration_ms": 1000
+    },
+    "fall_01": {
+      "file": "frames/fall_01.png",
+      "content_bounds": [
+        46,
+        52,
+        274,
+        267
+      ],
+      "source_cell": [
+        2,
+        1
+      ],
+      "source_bounds": [
+        314,
+        627,
+        627,
+        940
+      ],
+      "duration_ms": 200
+    },
+    "fall_02": {
+      "file": "frames/fall_02.png",
+      "content_bounds": [
+        55,
+        59,
+        265,
+        261
+      ],
+      "source_cell": [
+        2,
+        2
+      ],
+      "source_bounds": [
+        627,
+        627,
+        940,
+        940
+      ],
+      "duration_ms": 200
+    },
+    "hit_01": {
+      "file": "frames/hit_01.png",
+      "content_bounds": [
+        36,
+        45,
+        284,
+        274
+      ],
+      "source_cell": [
+        2,
+        3
+      ],
+      "source_bounds": [
+        940,
+        627,
+        1254,
+        940
+      ],
+      "duration_ms": 125
+    },
+    "death_01": {
+      "file": "frames/death_01.png",
+      "content_bounds": [
+        52,
+        38,
+        267,
+        282
+      ],
+      "source_cell": [
+        3,
+        0
+      ],
+      "source_bounds": [
+        0,
+        940,
+        314,
+        1254
+      ],
+      "duration_ms": 111
+    },
+    "death_02": {
+      "file": "frames/death_02.png",
+      "content_bounds": [
+        39,
+        43,
+        280,
+        277
+      ],
+      "source_cell": [
+        3,
+        1
+      ],
+      "source_bounds": [
+        314,
+        940,
+        627,
+        1254
+      ],
+      "duration_ms": 111
+    },
+    "death_03": {
+      "file": "frames/death_03.png",
+      "content_bounds": [
+        28,
+        79,
+        291,
+        241
+      ],
+      "source_cell": [
+        3,
+        2
+      ],
+      "source_bounds": [
+        627,
+        940,
+        940,
+        1254
+      ],
+      "duration_ms": 111
+    },
+    "death_04": {
+      "file": "frames/death_04.png",
+      "content_bounds": [
+        26,
+        93,
+        294,
+        227
+      ],
+      "source_cell": [
+        3,
+        3
+      ],
+      "source_bounds": [
+        940,
+        940,
+        1254,
+        1254
+      ],
+      "duration_ms": 111
+    }
+  }
+}

@@ -1,0 +1,82 @@
+Implement Level 21 — “Flappy Flight” inside my EXISTING 2D game. Do the actual implementation, integrate it, and make it playable. This is a substantial new level, not a standalone website or a mockup.
+
+FIRST: inspect the project, its instructions, game loop, renderer, asset loading, level registry, Level 20 completion, level selection, input, audio, save data, pause menu, death/restart flow, and mobile controls. Use the existing engine and architecture. Do not assume Phaser, React, Canvas, or a particular folder structure. Find the correct integration points before editing. Preserve the designs, mechanics, saves, and behavior of Levels 1–20.
+
+THE EXPERIENCE
+Level 21 must feel very close to classic Flappy Bird: automatic horizontal movement, one-button upward flaps, gravity, randomly positioned pairs of green pipes, one point per pair, instant failure on collision, and quick restarts. Precise, responsive, readable, addictive. Its polish should come from timing, pixel art, sound, and cohesive presentation. Do not turn this into another platforming stage: no shooting, zombies, weapons, jumping between platforms, inventory chores, or unrelated obstacles during this level.
+
+Make it a full, memorable stage with a beginning, a sustained run, completion, replay, and an optional endless continuation. “Big” means a complete, polished experience, not huge empty areas or oversized menus. Target 50 successfully cleared pipe pairs for campaign completion; keep the target in one configuration constant. A successful run should last roughly 90–120 seconds after tuning. After completion, offer “Continue endless,” “Replay Level 21,” and the appropriate campaign return/next action supported by this project. Do not invent a functional Level 22 if it does not exist.
+
+PROVIDED ASSETS
+I will attach/extract the flappy-level-21-assets.zip package into this project. Locate it or its extracted folder. It contains:
+  frames/idle_01.png through idle_04.png
+  frames/flap_01.png through flap_04.png
+  frames/glide_01.png
+  frames/fall_01.png and fall_02.png
+  frames/hit_01.png
+  frames/death_01.png through death_04.png
+  animations.json, README.txt, and the original reference sheet.
+
+Use these actual supplied PNGs. The character is the blue-faced, dark-haired character wearing a red hoodie, purple pants, red sneakers, and white wings. Do not replace him with an emoji, generic yellow bird, colored rectangle, or a newly invented character. The PNGs have alpha transparency and equal 320 × 320 canvases; visible artwork occupies only part of each canvas. Read the manifest's content bounds before choosing the draw size. Size the VISIBLE character to approximately 32–42 logical pixels wide and 40–48 pixels tall in its upright pose. Never render the full 320-pixel asset as a giant player. Use nearest-neighbor/pixelated rendering and no smoothing. Avoid unnecessary recompression or resampling. Maintain a stable center/pivot across poses; modestly adjust per-frame drawing offsets if visual inspection reveals jitter. Keep collision geometry independent of the changing sprite silhouette and wing tips.
+
+GAMEPLAY AND PHYSICS
+Use the project's main loop and time conventions. Physics must be independent of refresh rate. Integrate with a fixed timestep or a stable bounded timestep; prevent collision tunneling on slow frames. Suspend time accumulation during pauses or tab hiding so resuming never jumps the player into a pipe.
+
+Use these as starting values in logical game coordinates, then tune together:
+  Logical playfield: about 360 × 640, with a ground strip around 70 pixels tall.
+  Gravity: about 1,000–1,200 px/s².
+  Flap: set vertical velocity to around -310 to -350 px/s, rather than stacking impulses.
+  Maximum fall speed: around 550–650 px/s.
+  Pipe width: around 58–66 pixels.
+  Clear gap: around 165–180 pixels.
+  Scroll speed: around 120–135 px/s.
+  Distance between pipe pairs: around 220–250 pixels.
+These are starting values, not instructions to copy incompatible units into an existing engine. Keep an approximately 90–120-second completion target by tuning spacing and speed together. Provide about two seconds of safe space before the first required gap.
+
+The character stays around 25–30% of the visible playfield width while the world scrolls. One fresh Space/Up/W press, click, or tap produces one immediate flap. Holding a key must not produce an unintended repeated flap. Touch and pointer handlers must not double-trigger the same input. A flap should feel immediate, with no artificial cooldown that swallows normal play. Prevent page scrolling only when gameplay owns those controls. The ceiling should act consistently and visibly, preferably as a clamp with downward velocity reset; ground and pipe contact cause failure.
+
+Use a forgiving circle or rounded/elliptical body collider slightly inside the torso and head, excluding wings, trailing shoes, and transparent canvas padding. If the engine only supports rectangles, use an inset body rectangle. Check both pipe bodies and their wider caps. Include a developer-only hitbox display if the project already supports debugging. No visible debug overlay in the shipped level.
+
+PIPE GENERATION AND SCORING
+Implement a seeded or otherwise testable pipe generator using the existing utilities where possible. Keep enough room above the top pipe and above the ground. Bound successive gap-center changes so every sequence is physically reachable. Do not generate sudden impossible top-to-bottom jumps. There must be no missing pipes, overlapping caps, late appearance at the player's position, or gaps extending below the ground.
+
+Use a controlled, gentle campaign curve: pipes 1–15 introduce the rhythm; 16–35 slightly increase the challenge; 36–50 sustain it. Keep the classic pipe mechanic throughout. Limit any total speed increase to about 10–15%, keep gaps fair, and maintain continuity in spacing when speed changes. No moving pipes, surprise hazards, or random mechanics. Endless mode may continue gradually but must have difficulty caps.
+
+Award exactly one point after the character clears the trailing edge of an entire pipe pair. Never score per pipe half, twice after a pause, or after death. Persist the Level 21 best score, campaign completion, medal/progress, and endless record using this game's save system. Keep campaign and endless records clearly identified. Save completion once, as soon as the 50th pair is cleared; later failure in endless mode must not undo it. Recycle offscreen pipe pairs and particles.
+
+ANIMATION AND FEEL
+Use the supplied sprites to support the mechanics:
+  Ready: idle_01–04, a gentle hover loop around 6–8 fps.
+  Flapping/rising: flap_01–04, a responsive downstroke cycle around 12–16 fps, retriggered on actual flaps without disruptive frame resets.
+  Gliding/apex: glide_01.
+  Falling: fall_01 then fall_02 as downward velocity increases.
+  Collision: hit_01 briefly, followed by death_01–04.
+Ensure each important collision/death pose is actually visible before switching screens. Use either the already tilted fall/death art OR additional rotation, with careful limits; do not double-rotate the character into an unintended spin. After impact, stop scoring and scrolling, disable flight input, play the hit reaction, then let the defeated character fall to the ground. Show the result screen after that short sequence. Prevent rapid input from skipping the death state or immediately triggering accidental replay.
+
+Add small pixel particles on flaps and a short, restrained impact shake/flash. Respect any existing reduced-motion setting. Add flap, point, hit, and landing sounds through the existing audio system. Use short clean retro tones or suitable existing assets; avoid harsh sound levels and overlapping loops. Audio should initialize after a user gesture and follow the game's mute/volume preferences. Do not introduce new runtime network dependencies.
+
+VISUAL DESIGN
+Match the existing game's pixel-art language. Make the actual PLAYFIELD look very close to classic Flappy Bird: pastel cyan sky, chunky white clouds, distant soft green skyline or bushes, iconic green outlined pipes with wider rims, green grass strip, warm beige dirt, and strong readable pixel score digits. Create supporting art using the existing project's asset workflow or crisp pixel drawing. Keep pixel sizes, outline weight, palette, and scale consistent with the supplied character. No gradients, glassmorphism, neon glow, blurred shadows, decorative dashboard cards, AI-looking background paintings, or smooth vector art mixed into the pixel scene.
+
+Add layered parallax clouds and distant scenery, slower than the foreground. Ground tiles must scroll seamlessly. Keep the scenery quiet enough to read upcoming gaps instantly. Use a compact in-game Level 21 title and start hint; the game itself should fill the playable region. Do not surround it with a website landing page, unrelated branding, or marketing text. Reuse this game's navigation and menu patterns.
+
+READY / PLAY / PAUSE / DEATH / COMPLETE
+Implement explicit states with clean transitions and single ownership of input:
+  Ready: show “Level 21 — Flappy Flight,” the 50-pipe objective, and the relevant input hint; a clear start action begins the run.
+  Playing: show a clear score at the top, small progress toward 50, and an accessible pause action that does not flap.
+  Paused: freeze physics, animations, timers, pipe spawning, and gameplay sounds. Offer resume/restart/exit using existing UI patterns. Resume without an unintended flap or velocity change.
+  Dying: ignore flight input; play the impact/fall animation; prevent additional collision callbacks and score changes.
+  Game over: show score, saved best, progress, an earned medal, restart, and exit. Use a short input guard before accepting restart. Restart should be fast and deterministic.
+  Campaign complete: safely present completion and the endless/replay/return choices. Do not allow a surprise collision behind the completion overlay. Endless continuation must restore a safe readable scene and preserve its current score, without an instant obstacle hit.
+
+Medals can use configurable milestones such as bronze at 10, silver at 25, and gold at 50; integrate with existing achievements if available. All shown actions must work. No dummy buttons or fake global leaderboards.
+
+INTEGRATION AND RESPONSIVENESS
+Register Level 21 in level selection, route/scene loading, progression, restart, unlocks, and saved progress. Connect Level 20 completion to the existing unlock mechanism for Level 21; do not bypass the established campaign rules. Leaving Level 21 and returning must not duplicate listeners, audio nodes, animation loops, or scene objects. A new attempt resets pipes, timers, player state, particles, score, and transitional flags while retaining stored records.
+
+Support desktop keyboard/mouse and mobile touch. Preserve a consistent logical gameplay viewport on wide screens using deliberate framing or letterboxing; do not stretch the player, change physics with screen width, or reveal extra upcoming pipes only on desktop. Keep text readable, controls within safe areas, and the important gap/ground region visible. Rotation/resizing must preserve or safely pause the current attempt. Do not apply this level's custom controls or styles globally to other levels.
+
+VALIDATION AND DELIVERY
+Follow repository instructions and run relevant existing checks without installing unnecessary tools. Verify: unlock and entry from the campaign; correct provided sprites; responsive inputs with no double-flaps; stable physics; fair pipe bounds; correct cap/ground collisions; one point per pair; complete death sequence; pause/tab resume; repeat restarts; saved records; 50-pipe completion; safe endless continuation; and clean exit/reentry. Do not claim browser or mobile testing unless it was actually performed. Fix new errors introduced by this change and distinguish any unrelated baseline failures.
+
+Finish the implementation, not just a plan. Summarize the changed files, where the supplied PNGs were installed, how to enter Level 21, the final physics/difficulty constants, and which checks actually passed. Keep the work focused on making Level 21 feel like a polished Flappy Bird stage within my existing game.

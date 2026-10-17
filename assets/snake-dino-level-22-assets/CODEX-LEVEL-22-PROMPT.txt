@@ -1,0 +1,143 @@
+Implement Level 22 — “Snake Dino” inside my EXISTING 2D game. Build and integrate the actual playable level. This is classic grid-based Snake starring my snake-dino character, following Level 21’s Flappy Flight stage. Do not create a standalone website or a Chrome Dino jumping runner.
+
+FIRST INSPECT THE EXISTING GAME
+Read all applicable repository instructions. Find the real engine, renderer, update loop, scene/level registry, campaign unlocks, Level 21 completion, asset loader, input handling, save data, audio, pause, death/restart, and mobile UI. Use the existing architecture and conventions. Do not assume a framework, install a new engine, rewrite the main game, or change Levels 1–21. Implement within this project rather than stopping at a plan.
+
+CORE EXPERIENCE
+Make a substantial, polished Snake level with automatic movement, precise right-angle turns, food collection, body growth, self-collision, wall collision, a proper death sequence, and immediate replay. The experience should feel like classic Snake, with my character’s personality and the existing game’s pixel-art finish. No platform jumping, shooting, zombies, pipes, weapons, or unrelated tasks in this level.
+
+Campaign objective: eat 40 food items in one attempt. Define this as one configuration constant, independent of numeric score. Start with a snake length of five cells. Each normal food grows the snake by one cell and awards 10 points. Show food progress clearly as 0/40 through 40/40. Tune an ordinary successful run toward roughly 90–150 seconds, but do not add time gates or force the player to wait. Skill and route planning should determine completion time.
+
+After the 40th food, save completion immediately and safely stop movement before showing victory. Offer Continue Endless, Replay Level 22, and the appropriate campaign return/next action. Do not invent a functional Level 23. Continuing endless preserves length and score, and later failure must not erase saved campaign completion.
+
+SUPPLIED ART — USE THE REAL FILES
+Find the extracted snake-dino-level-22-assets folder. Read README.txt and assets.json. It contains:
+  characters/idle.png
+  characters/slither_01.png
+  characters/slither_02.png
+  characters/eat.png
+  characters/hit.png
+  characters/dead.png
+  heads/idle.png
+  heads/slither_01.png
+  heads/slither_02.png
+  heads/eat.png
+  heads/hit.png
+  heads/dead.png
+  original-sprite-sheet.png
+
+Preserve the actual character: spiky dark navy hair, cyan forehead accent and blue face, dark glasses/eyes, bright red hoodie, purple snake body with cyan underside. Do not substitute an ordinary green snake, emoji, rectangle, or generic mascot.
+
+The six full-character PNGs use 640 x 512 transparent canvases. The six head crops use 320 x 320 transparent canvases. Artwork occupies part of each canvas: read content_bounds when sizing. Preserve aspect ratio, use nearest-neighbor filtering, and disable smoothing. Do not render giant 320/640-pixel images directly onto a single grid cell. Never derive collision bounds from transparent image dimensions.
+
+IMPORTANT ASSET LIMITATION
+The supplied artwork consists of six side-view character poses and cropped portraits. It is NOT a seamless snake tile kit and does not contain four directional heads, straight body tiles, turn tiles, or a separate tail. Do not pretend these missing assets exist or display the entire coiled character repeatedly as every body cell.
+
+Use the full character for the ready screen, a compact HUD portrait, eating reactions, and hit/death/result presentation. Use the head crops for a recognizable on-board head, with sensible fixed offsets and size. Keep the portrait upright and make movement direction clear through the neck/body connection and a restrained cyan leading-edge cue, especially for vertical movement. If a better directional head solution is feasible through the project’s established pixel-art workflow, implement it consistently rather than using malformed stretched or upside-down portraits.
+
+Create matching straight, corner, and tail segments using the existing engine’s crisp pixel rendering or asset workflow. Use the supplied image as the visual reference: purple upper body, cyan underside/highlights, navy outlines, consistent pixel clusters. Simple deliberate pixel shapes are appropriate; mismatched smooth vector shapes are not. Body connectors must meet exactly at cell edges with no visible gaps or overlapping dark seams. Do not add fabricated files to the manifest and claim they were supplied.
+
+ARENA AND COMPOSITION
+Use one fixed logical board, approximately 24 columns x 20 rows, with a configurable logical cell size such as 24–32 pixels. Keep grid dimensions identical on desktop and mobile. Center and scale the board with aspect ratio preserved; do not reveal more cells on desktop or change game difficulty by device width.
+
+Build a clean bounded arena with a readable solid floor, subtle checker/grid differences, and a chunky pixel border. The entire board should remain visible without scrolling or camera tracking. Keep art decoration outside the collision area. Do not hide playable cells under HUD elements.
+
+Use a restrained palette: near-black/navy arena, slightly lighter grid cells, purple/cyan snake, vivid red or warm red food, and clear off-white UI. Preserve the source character’s colors. Food must contrast with both the floor and snake. Avoid gradients, glassmorphism, neon glow, blurred shadows, rainbow palettes, oversized cards, or a marketing-page layout. Reuse the existing game’s menu typography and button conventions.
+
+The main campaign board should remain open and classic. No random walls, moving obstacles, surprise barriers, invisible hazards, or sudden map changes beneath the snake. Walls kill; do not enable wraparound in the campaign. If an existing game setting supports alternatives, keep records separated and make rules explicit.
+
+CORRECT SNAKE SIMULATION
+Represent the snake as an ordered list/deque of integer grid coordinates from head to tail. Use grid cells as the authoritative game state; drawing interpolation must never alter collision results.
+
+Move exactly one cell per simulation tick. Keep movement independent of rendering refresh rate. An accumulator with a bounded delta is appropriate. Pause/tab hiding must clear or preserve timing safely so resume never runs a burst of queued ticks. Use bounded catch-up steps and discard excessive backlog rather than teleporting the snake after a long stall.
+
+Start with a safe horizontal snake near the board center, enough distance before the nearest wall, and a clearly indicated starting direction. Start movement only after a clear player start action or short countdown. The first action must not also produce an unintended double turn.
+
+Suggested speed curve:
+  Food 0–9: approximately 145–150 ms per cell.
+  Food 10–24: approximately 130–135 ms per cell.
+  Food 25–39: approximately 115–120 ms per cell.
+  Endless: gradual small increases, capped around 90–100 ms per cell.
+Keep these values centralized and adapt after testing. Apply changes cleanly at tick boundaries. Never make a sudden severe speed jump or reset the accumulator in a way that causes duplicate moves.
+
+INPUT AND TURN BUFFERING
+Desktop: arrow keys and WASD. Mobile: swipes plus a compact directional pad below the board. Keep pause separate. A D-pad touch must not also trigger a board swipe or browser gesture. Prevent page scrolling only when the level owns that control.
+
+Buffer at most two valid turns. Consume at most one turn per simulation tick. Validate a new direction against the last queued direction, or current direction if the queue is empty, so a rapid Right -> Up -> Left is handled as two legal turns over two ticks, never as an immediate 180-degree reversal. Ignore repeated identical directions and keyboard autorepeat spam. Do not silently execute multiple direction changes before movement. Direct reversal into the neck is forbidden.
+
+Clear buffered turns when restarting/exiting. Handle pause/resume deliberately so stale inputs do not produce a surprise turn. Gameplay input must not pass through result menus or affect other levels. Add a visible resume countdown if needed, without starting movement behind an overlay.
+
+COLLISION ORDER — HANDLE THIS PRECISELY
+For each tick:
+1. Consume one valid buffered turn.
+2. Compute the next head cell.
+3. Determine whether it contains food and whether the tail will move.
+4. Check board bounds and body occupancy with the correct tail exception.
+5. Commit movement, growth, score, and food generation once.
+
+Moving into the current tail cell is legal when the tail vacates during that same tick. It is not legal when growth means the tail stays. Do not report a false self-collision by checking against a stale full-body occupancy set. Keep the body list and occupied-cell set synchronized. No duplicate head cells, accidental body deletion, or one-tick phantom walls.
+
+FOOD GENERATION
+Choose food from explicit free board cells. Never place it on any snake segment, border, decoration collider, or outside the board. Use a free-cell collection or bounded selection rather than an unbounded random retry loop that can hang as the snake grows.
+
+Place the first food in an approachable location away from the starting head and neck, with no immediate reversal required. Normal subsequent placement should be fair classic Snake placement; player-created self-traps remain a legitimate challenge. If the board becomes completely occupied, treat it as a win, never as a frozen spawn loop. Use the project’s seeded RNG utilities where available for reproducible checks.
+
+Eating must add one segment and 10 points exactly once. Trigger the eating pose/sound briefly while the simulation continues. Do not stop the game for an eating popup or let a HUD reaction obscure the board.
+
+BODY RENDERING AND ANIMATION
+Choose straight and corner body rendering from each segment’s previous and next grid neighbors, so bends connect properly. Orient the tail from the final two cells. Do not rotate the entire snake as one object or leave disconnected pieces at corners.
+
+If interpolating between ticks, retain previous and current grid positions and interpolate with care at turns and growth. Do not cut diagonal corners through occupied cells. Prefer a clean reliable stepped presentation over buggy smooth motion. Keep head direction and logical direction consistent.
+
+Use restrained slither animation, a small tongue/eat reaction, and a little personality in the HUD portrait. Do not make the whole body pulsate wildly or change collision size with animation. Particles and food feedback should be small and must not obscure adjacent cells.
+
+STATES AND PRESENTATION
+Implement explicit READY, PLAYING, PAUSED, DYING, GAME_OVER, and COMPLETE states, or map them cleanly to the existing state machine.
+
+READY: show Level 22 — Snake Dino, eat 40 food to win, controls, and the supplied idle character.
+PLAYING: compact score, 0/40 food progress, current speed/tier, and a working pause control. Keep the board primary. No unnecessary dashboards.
+PAUSED: freeze ticks, animation timers, spawning, and gameplay sound. Offer resume, restart, and exit.
+DYING: stop the movement tick and scoring once, show hit.png followed by dead.png in a compact character reaction, use restrained shake/sound, and keep the collision location readable. The sheet supplies only one hit pose and one dead pose, so do not claim it contains a multi-frame death animation. Use a short hold/transition between the actual poses.
+GAME_OVER: show score, food count, best score, best length, reason for death, replay, and exit. Guard against the fatal input immediately restarting the run.
+COMPLETE: save completion, show the supplied character and earned result, then offer endless/replay/campaign return. No movement or hidden death while the victory overlay is visible.
+
+Continue Endless must resume the same snake safely after an explicit action/countdown, preserving its position, direction, length, and score. Maintain the existing food if valid or spawn exactly one new food if the completion tick consumed it. Do not duplicate food, apply growth twice, or discard the run.
+
+SOUND AND POLISH
+Use the existing audio system for a quiet turn tick if appropriate, clear food pickup, speed milestone, collision, and victory sounds. Respect mute and volume preferences. Initialize browser audio after a user gesture. Do not introduce unnecessary remote assets or overlapping music loops.
+
+Use a short food squash/pixel particle burst, subtle milestone feedback, and restrained collision feedback. Honor reduced-motion settings where available. Avoid screen-filling effects that obstruct the next turn.
+
+CAMPAIGN INTEGRATION AND SAVES
+Register Level 22 in level selection, scene loading, unlock progression, restart, replay, and save data. Connect Level 21 completion through the actual existing unlock mechanism. Preserve all earlier progress and save schema compatibility.
+
+Persist Level 22 completion, best campaign score, best endless score, best length, and supported achievements using the existing save system. Define whether the endless record includes the campaign’s starting score and label it clearly. Completion is triggered by food count, not by a cosmetic score threshold.
+
+Restart must fully reset the snake, direction, input queue, accumulator, food, score, growth flags, effects, and state-transition guards, while preserving records. Exiting/re-entering must not duplicate listeners, timers, render loops, audio, or scene objects. Keep this level’s controls scoped to its active scene.
+
+MOBILE AND ACCESSIBILITY
+Fit the complete fixed board above mobile controls. Keep D-pad buttons comfortably tappable and away from system gesture areas. Provide swipe direction thresholds so tiny taps do not accidentally turn. Preserve the run or pause safely during rotation/resizing. Never modify logical board coordinates when the canvas changes size.
+
+Make food distinct by shape as well as color. Keep progress and text readable. Provide keyboard navigation for menus using existing conventions. Sound and motion preferences should work throughout the level.
+
+VALIDATION AND DELIVERY
+Follow repository instructions and run relevant existing checks without unnecessary tooling changes. Verify:
+- Entry, unlock, exit, replay, and saved progress.
+- Correct real assets and no missing requests.
+- One-cell ticks at different render frame rates.
+- Buffered Right -> Up -> Left over separate ticks.
+- Rejection of immediate reversal and duplicate inputs.
+- Legal movement into a tail cell that vacates.
+- Correct collision when the tail does not vacate.
+- Food never spawns inside the snake.
+- Growth and scoring happen once per food.
+- Board-full handling terminates successfully.
+- Correct straight, corner, and tail rendering.
+- Pause/tab resume without accumulated movement.
+- Repeated restart without duplicate listeners.
+- Completion exactly on the 40th food.
+- Safe endless continuation without extra food or growth.
+- Desktop and touch controls where testing is available.
+- No regressions in Levels 1–21.
+
+Do not claim browser/mobile testing unless actually performed. Fix new failures introduced by this work and distinguish pre-existing unrelated errors. Finish with changed files, asset installation paths, how to enter Level 22, the final board/speed constants, checks that actually passed, and any genuine remaining limitations.
